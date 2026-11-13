@@ -1,6 +1,6 @@
 /* Zakładka — service worker: aplikacja działa bez internetu.
    Przy każdej nowej wersji zmień WERSJA, żeby telefon pobrał świeże pliki. */
-const WERSJA = 'zakladka-2.2.0';
+const WERSJA = 'zakladka-2.4.0';
 const MEDIA = 'zakladka-media';
 const RDZEN = [
   './', 'index.html', 'css/app.css',
@@ -50,6 +50,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
+  if (url.pathname.endsWith('/bn.php')) return; // pośrednik BN: zawsze świeże wyniki, bez pamięci podręcznej
   if (url.origin === self.location.origin) e.respondWith(zSieciNajpierw(req));
   else if (OBCE_MEDIA.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) e.respondWith(zPamieciNajpierw(req));
   // pozostałe (wyszukiwarki książek) idą zwyczajnie przez sieć

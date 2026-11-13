@@ -49,6 +49,9 @@ const I = {
   graj: svg('<path d="M7 4.5v15l12-7.5z"/>'),
   kostka: svg('<rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="9" cy="9" r="1" fill="currentColor"/><circle cx="15" cy="15" r="1" fill="currentColor"/><circle cx="15" cy="9" r="1" fill="currentColor"/><circle cx="9" cy="15" r="1" fill="currentColor"/>'),
   medal: svg('<circle cx="12" cy="14" r="6"/><path d="M8.5 9.2L6 3h4l2 4 2-4h4l-2.5 6.2M12 11.5l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2-1.45-1.4 2-.3z"/>'),
+  kalendarz: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M7.5 14h2M11 14h2M14.5 14h2M7.5 17.5h2M11 17.5h2"/>'),
+  wstecz: svg('<path d="M15 5l-7 7 7 7"/>'),
+  dalej: svg('<path d="M9 5l7 7-7 7"/>'),
   rok: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/>')
 };
 const LOGO = '<svg class="logo" viewBox="100 120 312 340" aria-hidden="true"><path d="M118 380c56-7 104 0 138 24 34-24 82-31 138-24v16c-56-7-104 0-138 24-34-24-82-31-138-24z" fill="var(--zloto)"/><path d="M256 170c-34-23-82-31-138-25v235c56-7 104 0 138 24z" fill="var(--strona-l)"/><path d="M256 170c34-23 82-31 138-25v235c-56-7-104 0-138 24z" fill="var(--strona-p)"/><path d="M318 132h34v318l-17-21-17 21z" fill="var(--wstazka)"/></svg>';
@@ -198,6 +201,7 @@ function odswiez() {
   }
   renderPigulka();
   sprawdzOdznaki();
+  sprawdzCele();
 }
 
 /* ================= motyw ================= */
@@ -369,6 +373,7 @@ function widokDzis() {
     ${pob.length ? `<ul class="lista">${pob.map(wierszCzytanej).join('')}</ul>`
       : `<p class="pusto">Nic obok bazowej. <button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-polka="doPrzeczytania">Wybierz coś z listy do przeczytania</button></p>`}
   </section>
+  ${blokOkresow(m)}
   ${blokCelu(m)}
   ${nast ? `<section class="sekcja">
     <div class="sekcja-gora"><h2>Następna w kolejce</h2><span class="sekcja-akcje">${kolejka().length > 1 ? `<button type="button" class="btn-tekst" data-akcja="losuj">Losuj</button>` : ''}<button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-polka="doPrzeczytania">Cała lista</button></span></div>
@@ -500,7 +505,7 @@ function wykresMiesiecy() {
   const slupki = mies.map((x, i) => {
     const v = licz[x], h = v / max * wys, cx = i * sz + sz / 2;
     const kl = x > dzisM ? 'sl sl-przyszly' : x === dzisM ? 'sl sl-teraz' : 'sl';
-    return `<rect x="${(i * sz + sz * 0.18).toFixed(1)}" y="${(G + wys - h).toFixed(1)}" width="${(sz * 0.64).toFixed(1)}" height="${(v ? Math.max(h, 2) : 0).toFixed(1)}" rx="2" class="${kl}"><title>${MIES_KR[+x.slice(5) - 1]} ${x.slice(0, 4)}: ${ile(v, FORMY_KSIAZEK)}</title></rect>
+    return `<g class="klik" data-akcja="miesiac" data-ym="${x}"><rect x="${(i * sz).toFixed(1)}" y="${G}" width="${sz.toFixed(1)}" height="${wys}" class="trafienie"/><rect x="${(i * sz + sz * 0.18).toFixed(1)}" y="${(G + wys - h).toFixed(1)}" width="${(sz * 0.64).toFixed(1)}" height="${(v ? Math.max(h, 2) : 0).toFixed(1)}" rx="2" class="${kl}"><title>${MIES_KR[+x.slice(5) - 1]} ${x.slice(0, 4)}: ${ile(v, FORMY_KSIAZEK)}</title></rect></g>
       ${v ? `<text x="${cx.toFixed(1)}" y="${(G + wys - h - 4).toFixed(1)}" text-anchor="middle" class="etykieta etykieta-mocna">${v}</text>` : ''}
       <text x="${cx.toFixed(1)}" y="${H - 4}" text-anchor="middle" class="etykieta${x === dzisM ? ' etykieta-mocna' : ''}">${MIES_KR[+x.slice(5) - 1]}</text>`;
   }).join('');
@@ -568,7 +573,7 @@ function widokStatystyki() {
   const odz = odznaki(m), zdobyte = odz.filter(o => o.zdobyta).length;
   const odzSort = [...odz].sort((a, b) => b.zdobyta - a.zdobyta || (b.wart / b.prog) - (a.wart / a.prog));
   return `<section class="naglowek-widoku"><h1>Statystyki</h1>
-    <button type="button" class="btn" data-akcja="rok">${I.rok}Twój rok</button></section>
+    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="miesiac" data-ym="${miesiacTeraz()}">${I.kalendarz}Miesiąc</button><button type="button" class="btn" data-akcja="rok">${I.rok}Twój rok</button></span></section>
   <dl class="liczby">
     <div><dt>Przeczytane w okresie celu</dt><dd>${ukon.length}<small> z ${u.cel}</small></dd></div>
     <div><dt>Strony w okresie celu</dt><dd>${liczba(stronOkres)}</dd></div>
@@ -583,6 +588,7 @@ function widokStatystyki() {
   <section class="sekcja"><div class="sekcja-gora"><h2>Odznaki</h2><span class="licznik">${zdobyte} / ${odz.length}</span></div>${htmlOdznak(U.wszystkieOdznaki ? odzSort : odzSort.slice(0, 6))}
     ${odz.length > 6 ? `<button type="button" class="btn-tekst" data-akcja="odznaki-wiecej">${U.wszystkieOdznaki ? 'Pokaż mniej' : `Pokaż wszystkie (${odz.length})`}</button>` : ''}</section>
   <section class="sekcja"><h2>Książki w miesiącach</h2><p class="cichy">Od ${dataDluga(u.start)} do ${dataDluga(u.koniec)}.</p>${wykresMiesiecy()}</section>
+  <section class="sekcja"><h2>Miesiąc po miesiącu</h2><p class="cichy">Kliknij miesiąc, żeby zobaczyć kalendarz, przeczytane książki i plan.</p>${htmlMiesiecy(m)}</section>
   <section class="sekcja"><h2>Rekordy</h2><dl class="rekordy">
     ${najDzien ? `<div><dt>Najlepszy dzień</dt><dd>${ile(najDzien[1], FORMY_STRON)}, ${dataDluga(najDzien[0])}</dd></div>` : ''}
     ${najdluzsza ? `<div><dt>Najdłuższa przeczytana</dt><dd>${esc(najdluzsza.tytul)}, ${ile(najdluzsza.strony, FORMY_STRON)}</dd></div>` : ''}
@@ -643,9 +649,35 @@ function widokUstawienia() {
       <label>Do<input name="koniec" type="date" value="${u.koniec}" required></label></div>
     <label>Dzienny cel stron<input name="dziennyCel" type="number" inputmode="numeric" min="0" value="${u.dziennyCel || ''}" placeholder="Automatycznie: ${auto}"></label>
     <p class="podpowiedz">Zostaw puste, a dzienny cel wyliczy się z celu rocznego.</p>
+    <h2 class="f-podtytul">Cele tygodniowe i miesięczne</h2>
+    <div class="f-rzad"><label>Stron w tygodniu<input name="tydzienStrony" type="number" inputmode="numeric" min="0" value="${u.tydzienStrony || ''}" placeholder="Auto: ${bazaDzienna() * 7}"></label>
+      <label>Książek w tygodniu<input name="tydzienKsiazki" type="number" inputmode="numeric" min="0" value="${u.tydzienKsiazki || ''}" placeholder="Auto: ${fmtCel(zaokr1(u.cel * 7 / Math.max(1, dniMiedzy(u.start, u.koniec) + 1)))}"></label></div>
+    <div class="f-rzad"><label>Stron w miesiącu<input name="miesiacStrony" type="number" inputmode="numeric" min="0" value="${u.miesiacStrony || ''}" placeholder="Auto: ok. ${bazaDzienna() * 30}"></label>
+      <label>Książek w miesiącu<input name="miesiacKsiazki" type="number" inputmode="numeric" min="0" value="${u.miesiacKsiazki || ''}" placeholder="Auto: ok. ${Math.max(1, Math.round(u.cel * 30.4 / Math.max(1, dniMiedzy(u.start, u.koniec) + 1)))}"></label></div>
+    <p class="podpowiedz">Puste pola liczą się same z celu rocznego. Wpisana liczba obowiązuje co tydzień albo co miesiąc. Pojedynczym miesiącom ustawisz cel niżej.</p>
     <label>Imię do powitania<input name="imie" value="${esc(u.imie)}" autocomplete="given-name" maxlength="40"></label>
     <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz ustawienia</button></div>
   </form>
+  <form id="f-wyszukiwanie" class="formularz grupa" novalidate>
+    <h2>Wyszukiwanie książek</h2>
+    <p class="cichy">Aplikacja szuka w Google Books, Open Library i w katalogu Biblioteki Narodowej, który ma prawie każdą polską książkę.</p>
+    <label>Klucz Google Books API (opcjonalnie)<input name="googleKlucz" value="${esc(u.googleKlucz)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="AIza…"></label>
+    <details class="pomoc"><summary>Po co klucz i jak go zdobyć (2 minuty, za darmo)</summary>
+      <p>Bez klucza Google Books często odpowiada „limit zapytań wyczerpany”, bo dzieli wspólny limit ze wszystkimi aplikacjami bez klucza. Z własnym kluczem masz 1000 wyszukiwań dziennie.</p>
+      <ol><li>Wejdź na console.cloud.google.com i zaloguj się kontem Google.</li>
+        <li>Utwórz projekt (np. „Zakładka”).</li>
+        <li>W „APIs &amp; Services → Library” wyszukaj <strong>Books API</strong> i kliknij Enable.</li>
+        <li>W „Credentials” wybierz Create credentials → API key i skopiuj klucz tutaj.</li></ol>
+      <p class="cichy">Klucz zostaje na tym urządzeniu i w twoich kopiach zapasowych.</p></details>
+    <label>Adres pośrednika Biblioteki Narodowej (opcjonalnie)<input name="posrednik" type="url" value="${esc(u.posrednik)}" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://zakladka-bn.twoj-login.workers.dev"></label>
+    <details class="pomoc"><summary>Jak włączyć Bibliotekę Narodową</summary>
+      <p>Serwer Biblioteki Narodowej nie odpowiada aplikacjom w przeglądarce bezpośrednio, więc potrzebny jest mały pośrednik.</p>
+      <ul><li><strong>Twój serwer z PHP (np. Apache):</strong> plik <code>bn.php</code> leży już obok aplikacji i działa sam. To pole zostaw puste.</li>
+        <li><strong>GitHub Pages:</strong> załóż darmowy Cloudflare Worker z pliku <code>proxy/cloudflare-worker.js</code> (instrukcja jest na górze pliku) i wklej tu jego adres.</li></ul></details>
+    <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz</button><button type="button" class="btn" data-akcja="test-zrodel">Sprawdź źródła</button></div>
+    <ul id="stan-zrodel" class="stan-zrodel" hidden></ul>
+  </form>
+  <section class="grupa"><h2>Cele na poszczególne miesiące</h2>${htmlCelowMiesiecy()}</section>
   <section class="grupa"><h2>Wygląd</h2>
     <fieldset class="segment"><legend class="sr">Motyw</legend>${radio('motyw', 'auto', 'Jak w systemie', u.motyw === 'auto')}${radio('motyw', 'jasny', 'Jasny', u.motyw === 'jasny')}${radio('motyw', 'ciemny', 'Ciemny', u.motyw === 'ciemny')}</fieldset>
   </section>
@@ -780,6 +812,9 @@ function htmlKsiazki(k) {
     ].filter(Boolean).join(', ').replace(/^./, c => c.toUpperCase()) || 'Zapisuj postęp, a pokażę, kiedy skończysz.'}</p></div>` : ''}
   ${k.status === 'przeczytana' ? `<div class="kd-ocena"><p>Twoja ocena</p>${gwiazdki(k)}</div>` : ''}
   <div class="przyciski kd-akcje">${akcje}</div>
+  ${k.status === 'czytam' || k.status === 'doPrzeczytania' ? `<p class="kd-plan">${I.kalendarz}${k.planMiesiac
+    ? `<span>W planie na <button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${k.planMiesiac}">${nazwaMiesiaca(k.planMiesiac)}</button></span><button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zmień</button>`
+    : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}</p>` : ''}
   ${k.status === 'przeczytana' || k.recenzja ? `<label class="kd-recenzja">Twoje wrażenia<textarea name="recenzja" rows="3" placeholder="Co zostanie ci z tej książki?">${esc(k.recenzja)}</textarea></label>` : ''}
   <section class="kd-sekcja">
     <div class="sekcja-gora"><h3>Cytaty i notatki</h3><button type="button" class="btn btn-maly" data-akcja="cytat-dodaj" data-id="${k.id}">${I.plus}Dodaj cytat</button></div>
@@ -869,6 +904,17 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
 
   const pokazBlad = t => { const b = $('.blad', f); b.textContent = t; b.hidden = !t; };
 
+  const podpowiedzZrodel = () => {
+    const u = Z.ustawienia, s = Wyszukiwarka.stan;
+    const rady = [];
+    if (s.googleLimit && !u.googleKlucz) rady.push('Google Books odmówił (wspólny limit zapytań). Dodaj darmowy klucz w Ustawieniach → Wyszukiwanie książek.');
+    if (!u.posrednik && s.bnLokalny !== true) rady.push('Włącz Bibliotekę Narodową (prawie wszystkie polskie książki) w Ustawieniach → Wyszukiwanie książek.');
+    return rady.length ? `<div class="rada-zrodla">${rady.map(r => `<p>${esc(r)}</p>`).join('')}<button type="button" class="btn-tekst" data-do-ustawien>Otwórz ustawienia wyszukiwania</button></div>` : '';
+  };
+  const bezWynikow = q => Wyszukiwarka.czyIsbn(q)
+    ? `<p class="cichy">Nie znalazłem książki o numerze ${esc(q)}. Numer ISBN wpisałem do formularza. Wpisz tytuł (i autora) w pole wyszukiwania, a poszukam po tytule, albo uzupełnij dane ręcznie.</p>${podpowiedzZrodel()}`
+    : `<p class="cichy">Nic nie znalazłem. Sprawdź pisownię, spróbuj samego nazwiska autora albo wpisz dane ręcznie.</p>${podpowiedzZrodel()}`;
+
   async function szukaj() {
     const q = $('#f-q', f).value.trim();
     const box = $('.wyniki', f);
@@ -882,10 +928,17 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
             ${okladka({ tytul: w.tytul, autor: w.autor, okladka: w.okladka }, 's')}
             <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(w.tytul)}</span>
             <span class="wiersz-autor">${esc([w.autor, w.rok, w.strony ? ile(w.strony, FORMY_STRON) : ''].filter(Boolean).join(', '))}</span></span></button></li>`).join('')}</ul>`
-        : '<p class="cichy">Nic nie znalazłem. Sprawdź pisownię albo wpisz dane ręcznie.</p>';
+        : bezWynikow(q);
+      if (wyniki.length) box.insertAdjacentHTML('beforeend', `<p class="cichy zrodla-info">Źródło: ${esc([...new Set(wyniki.map(w => w.zrodlo))].join(', '))}.</p>`);
+      const isbn = Wyszukiwarka.czyIsbn(q);
+      if (isbn) {
+        el('isbn').value = isbn.length === 10 ? Wyszukiwarka.isbn10na13(isbn) || isbn : isbn;
+        // jeden pewny wynik po ISBN: wpisz od razu, bez dodatkowego klikania
+        if (wyniki.length === 1) $('[data-wynik="0"]', box)?.click();
+      }
     } catch (e) {
       console.warn(e);
-      box.innerHTML = '<p class="cichy">Wyszukiwarka nie odpowiada. Wpisz dane ręcznie.</p>';
+      box.innerHTML = `<p class="cichy">Wyszukiwarka nie odpowiada. Wpisz dane ręcznie.</p>${podpowiedzZrodel()}`;
     }
   }
 
@@ -893,6 +946,11 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     if (e.target.closest('[data-szukaj]')) szukaj();
     if (e.target.closest('[data-skanuj]')) arkuszSkanera(kod => { $('#f-q', f).value = kod; el('isbn').value = kod; szukaj(); });
     if (e.target.closest('[data-bez-okladki]')) { okl = null; podglad(); }
+    if (e.target.closest('[data-do-ustawien]')) {
+      while (otwarte.length) otwarte[otwarte.length - 1].zamknij();
+      idz('ustawienia');
+      setTimeout(() => { const c = $('#f-wyszukiwanie'); if (c) window.scrollTo({ top: c.getBoundingClientRect().top + window.scrollY - 70 }); }, 400);
+    }
     const w = e.target.closest('[data-wynik]');
     if (w) {
       const r = wyniki[+w.dataset.wynik];
@@ -1591,6 +1649,288 @@ function sprawdzOdznaki() {
     { akcja: 'Zobacz', onAkcja: () => { for (const a of [...otwarte]) a.zamknij(); U.wszystkieOdznaki = true; idz('statystyki'); } }), 600);
 }
 
+/* ================= cele tygodniowe i miesięczne (2.3) ================= */
+const nazwaMiesiaca = (ym, rok = true) => `${MIES_MN[+ym.slice(5, 7) - 1]}${rok ? ' ' + ym.slice(0, 4) : ''}`;
+const nazwaMiesiacaD = ym => doDaty(ym + '-01').toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(/^\d+\s/, '');
+const fmtCel = n => Number.isInteger(n) ? liczba(n) : ulamek(n);
+const odmCel = (n, formy) => Number.isInteger(n) ? odmiana(n, formy) : formy[0]; // „3,8 książki”
+const ZRODLA = { auto: 'z celu rocznego', stale: 'stały', miesiac: 'tylko ten miesiąc' };
+
+/** Jeden wiersz celu: etykieta, „x z y”, pasek z kreską planu i podpowiedź. */
+function wierszCelu({ etykieta, wart, cel, czesc, formy, formyD, dniZostalo, przyszly = false }) {
+  if (!cel) return '';
+  const proc = wart / cel * 100, zrobione = wart >= cel;
+  const oczek = cel * czesc, brak = Math.max(0, cel - wart);
+  let opis;
+  if (zrobione) opis = `<span class="ok">${I.check}Zrobione${wart > cel ? `, ${fmtCel(zaokr1(wart - cel))} ponad cel` : ''}.</span>`;
+  else if (przyszly) opis = 'Ten okres jeszcze się nie zaczął.';
+  else if (czesc >= 1) opis = `<span class="zle">Zabrakło ${fmtCel(zaokr1(brak))} ${odmCel(zaokr1(brak), formyD)}.</span>`;
+  else {
+    const roz = wart - oczek;
+    const tempo = dniZostalo > 0 ? brak / dniZostalo : brak;
+    opis = `${roz >= 0 ? `<span class="ok">Przed planem.</span>` : `<span class="zle">${formy === FORMY_STRON ? liczba(Math.ceil(-roz)) : fmtCel(zaokr1(-roz))} za planem.</span>`}
+      ${formy === FORMY_STRON ? ` Brakuje ${ile(Math.ceil(brak), FORMY_STRON_D)}, czyli ok. ${ile(Math.ceil(tempo), FORMY_STRON)} dziennie.` : ` Brakuje ${fmtCel(zaokr1(brak))} ${odmCel(zaokr1(brak), FORMY_KSIAZEK_D)}.`}`;
+  }
+  return `<div class="cel-wiersz${zrobione ? ' zrobiony' : ''}">
+    <p class="cel-wiersz-gora"><span>${etykieta}</span><span><strong>${fmtCel(wart)}</strong> z ${fmtCel(cel)} ${odmCel(cel, formyD)}</span></p>
+    ${pasek(Math.min(100, proc), { plan: przyszly || czesc >= 1 || zrobione ? null : czesc * 100 })}
+    <p class="cel-wiersz-opis">${opis}</p></div>`;
+}
+
+function blokOkresow(m) {
+  const t = postepTygodnia(m), dzis = dzisISO();
+  const ym = miesiacTeraz(), mc = danyMiesiac(ym, m);
+  const dniT = dniMiedzy(dzis, t.do) + 1, dniM = dniMiedzy(dzis, mc.do) + 1;
+  return `<section class="sekcja okresy">
+    <div class="sekcja-gora"><h2>Tydzień i miesiąc</h2><span class="sekcja-akcje"><button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${ym}">${I.kalendarz}${nazwaMiesiaca(ym, false)}</button></span></div>
+    <div class="okresy-siatka">
+      <div class="okres"><h3>Ten tydzień <small>${dataKrotka(t.od)} – ${dataKrotka(t.do)}</small></h3>
+        ${wierszCelu({ etykieta: 'Strony', wart: t.strony, cel: t.cel.strony, czesc: t.czesc, formy: FORMY_STRON, formyD: FORMY_STRON_D, dniZostalo: dniT })}
+        ${wierszCelu({ etykieta: 'Książki', wart: t.ksiazki, cel: t.cel.ksiazki, czesc: t.czesc, formy: FORMY_KSIAZEK, formyD: FORMY_KSIAZEK_D, dniZostalo: dniT })}</div>
+      <div class="okres"><h3>${nazwaMiesiaca(ym, false).replace(/^./, c => c.toUpperCase())} <small>zostało ${ile(dniM, FORMY_DNI)}</small></h3>
+        ${wierszCelu({ etykieta: 'Strony', wart: mc.strony, cel: mc.cel.strony, czesc: mc.czesc, formy: FORMY_STRON, formyD: FORMY_STRON_D, dniZostalo: dniM })}
+        ${wierszCelu({ etykieta: 'Książki', wart: mc.ukonczone.length, cel: mc.cel.ksiazki, czesc: mc.czesc, formy: FORMY_KSIAZEK, formyD: FORMY_KSIAZEK_D, dniZostalo: dniM })}
+        ${mc.cel.notatka ? `<p class="okres-notatka">${esc(mc.cel.notatka)}</p>` : ''}
+        ${mc.zaplanowane.length ? `<p class="cichy okres-plan">Plan miesiąca: ${mc.zaplanowane.filter(x => x.zrobiona).length} z ${mc.zaplanowane.length} przeczytane.</p>` : ''}</div>
+    </div>
+  </section>`;
+}
+
+/* ---------- kalendarz miesiąca ---------- */
+function kalendarzMiesiaca(mc) {
+  const cel = bazaDzienna(), dzis = dzisISO();
+  const pierwszy = dzienTygodnia(mc.od), ileDni = dniWMiesiacu(mc.ym);
+  let kom = '';
+  for (let i = 0; i < pierwszy; i++) kom += '<span class="kal-pusty"></span>';
+  for (let d = 1; d <= ileDni; d++) {
+    const iso = `${mc.ym}-${pad(d)}`, v = mc.dni[iso] || 0;
+    const p = v === 0 ? 0 : v < cel / 3 ? 1 : v < cel * 2 / 3 ? 2 : v < cel ? 3 : 4;
+    const przyszly = iso > dzis;
+    kom += `<button type="button" class="kal-dzien hm${p}${iso === dzis ? ' kal-dzis' : ''}${przyszly ? ' kal-przyszly' : ''}" ${przyszly ? 'disabled' : `data-akcja="dzien" data-data="${iso}"`} aria-label="${dataDluga(iso)}: ${ile(v, FORMY_STRON)}">
+      <span class="kal-nr">${d}</span>${v ? `<span class="kal-v">${v}</span>` : ''}</button>`;
+  }
+  return `<div class="kalendarz" role="group" aria-label="Kalendarz: ${nazwaMiesiaca(mc.ym)}">
+    ${DNI_KR.map(d => `<span class="kal-naglowek">${d}</span>`).join('')}${kom}</div>`;
+}
+
+/* ---------- arkusz: miesiąc ---------- */
+function arkuszMiesiaca(start = miesiacTeraz()) {
+  let ym = start;
+  const a = arkusz({
+    tytul: 'Twój miesiąc', klasa: 'arkusz-miesiac', odswiezalny: true,
+    render: () => {
+      const m = mapaDni(), mc = danyMiesiac(ym, m), pop = danyMiesiac(przesunMiesiac(ym, -1), m);
+      const teraz = miesiacTeraz(), przyszly = ym > teraz;
+      const dniZostalo = ym === teraz ? dniMiedzy(dzisISO(), mc.do) + 1 : 0;
+      const dniMinelo = ym < teraz ? dniWMiesiacu(ym) : ym === teraz ? dniMiedzy(mc.od, dzisISO()) + 1 : 0;
+      const zmiana = pop.strony ? Math.round((mc.strony - pop.strony) / pop.strony * 100) : null;
+      const zaplStron = mc.zaplanowane.filter(x => !x.zrobiona).reduce((s, x) => s + (x.k.strony - (x.k.status === 'czytam' ? x.k.strona : 0)), 0);
+      return `<div class="mies-nawigacja">
+        <button type="button" class="btn-ikona" data-mies="-1" aria-label="Poprzedni miesiąc">${I.wstecz}</button>
+        <h3 class="mies-tytul">${nazwaMiesiaca(ym)}</h3>
+        <button type="button" class="btn-ikona" data-mies="1" aria-label="Następny miesiąc"${ym >= przesunMiesiac(teraz, 12) ? ' disabled' : ''}>${I.dalej}</button>
+      </div>
+      ${ym !== teraz ? `<p class="mies-wroc"><button type="button" class="btn-tekst" data-mies-teraz>Wróć do bieżącego miesiąca</button></p>` : ''}
+      <section class="kd-sekcja mies-cele">
+        <div class="sekcja-gora"><h3>Cele</h3><button type="button" class="btn btn-maly" data-akcja="cel-miesiaca" data-ym="${ym}">${I.edytuj}${mc.cel.wlasny ? 'Zmień cel' : 'Ustaw cel'}</button></div>
+        ${wierszCelu({ etykieta: 'Książki', wart: mc.ukonczone.length, cel: mc.cel.ksiazki, czesc: mc.czesc, formy: FORMY_KSIAZEK, formyD: FORMY_KSIAZEK_D, dniZostalo, przyszly })}
+        ${wierszCelu({ etykieta: 'Strony', wart: mc.strony, cel: mc.cel.strony, czesc: mc.czesc, formy: FORMY_STRON, formyD: FORMY_STRON_D, dniZostalo, przyszly })}
+        <p class="podpowiedz">Cel książek: ${ZRODLA[mc.cel.zrodloK]}. Cel stron: ${ZRODLA[mc.cel.zrodloS]}.</p>
+        ${mc.cel.notatka ? `<p class="okres-notatka">${esc(mc.cel.notatka)}</p>` : ''}
+      </section>
+      ${przyszly ? '' : `<dl class="liczby">
+        <div><dt>Dni z czytaniem</dt><dd>${mc.dniCzytania}<small> z ${dniMinelo}</small></dd></div>
+        <div><dt>Średnio dziennie</dt><dd>${dniMinelo ? Math.round(mc.strony / dniMinelo) : 0}<small> str.</small></dd></div>
+        <div><dt>Najdłuższa seria</dt><dd>${mc.seria}<small> ${odmiana(mc.seria, FORMY_DNI)}</small></dd></div>
+        <div><dt>Względem ${nazwaMiesiacaD(pop.ym)}</dt><dd>${zmiana == null ? '<small>brak danych</small>' : `${zmiana > 0 ? '+' : ''}${zmiana}<small>%</small>`}</dd></div>
+        ${mc.minuty ? `<div><dt>Czas w sesjach</dt><dd>${czasCzytania(mc.minuty / 60).replace(/ (h|min)/g, '<small> $1</small>')}</dd></div>` : ''}
+        ${mc.najDzien ? `<div><dt>Najlepszy dzień</dt><dd>${mc.najDzien[1]}<small> str., ${dataKrotka(mc.najDzien[0])}</small></dd></div>` : ''}
+      </dl>
+      <section class="kd-sekcja"><h3>Kalendarz</h3>${kalendarzMiesiaca(mc)}</section>`}
+      <section class="kd-sekcja">
+        <div class="sekcja-gora"><h3>Plan na ten miesiąc</h3><button type="button" class="btn btn-maly" data-akcja="plan-miesiaca" data-ym="${ym}">${I.plus}Dodaj książki</button></div>
+        ${mc.zaplanowane.length ? `<ul class="lista">${mc.zaplanowane.map(({ k, zrobiona }) => `<li class="wiersz${zrobiona ? ' plan-zrobiona' : ''}">
+          <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${k.id}">${okladka(k, 's')}
+            <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${zrobiona ? 'przeczytana' : k.status === 'czytam' ? `czytasz, ${Math.floor(k.strona / k.strony * 100)}%` : k.status === 'przeczytana' ? 'przeczytana wcześniej' : ile(k.strony, FORMY_STRON)}</span></span></button>
+          ${zrobiona ? `<span class="plan-check" aria-label="Przeczytana">${I.check}</span>` : `<button type="button" class="btn-ikona" data-odplanuj="${k.id}" aria-label="Usuń z planu: ${esc(k.tytul)}">${I.zamknij}</button>`}
+        </li>`).join('')}</ul>
+        ${zaplStron && !przyszly && dniZostalo ? `<p class="cichy">Do końca planu zostało ${ile(zaplStron, FORMY_STRON_D)}: ok. ${ile(Math.ceil(zaplStron / dniZostalo), FORMY_STRON)} dziennie.</p>` : ''}
+        ${zaplStron && przyszly ? `<p class="cichy">Razem ${ile(zaplStron, FORMY_STRON)}, czyli ok. ${ile(Math.ceil(zaplStron / dniWMiesiacu(ym)), FORMY_STRON)} dziennie.</p>` : ''}`
+        : '<p class="cichy">Wybierz książki, które chcesz przeczytać w tym miesiącu. Zobaczysz, ile stron dziennie to wymaga.</p>'}
+      </section>
+      ${mc.ukonczone.length ? `<section class="kd-sekcja"><h3>Przeczytane (${mc.ukonczone.length})</h3>
+        <ul class="rok-okladki">${mc.ukonczone.map(({ k, koniec }) => `<li><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}" aria-label="${esc(k.tytul)}, skończona ${dataKrotka(koniec)}">${okladka(k, 'm')}<span class="kafel-data">${dataKrotka(koniec)}</span></button></li>`).join('')}</ul></section>` : ''}
+      ${mc.czytane.length ? `<section class="kd-sekcja"><h3>Czytane w tym miesiącu</h3>
+        <ul class="lista">${mc.czytane.map(({ k, strony, dni }) => `<li class="wiersz">
+          <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${k.id}">${okladka(k, 's')}
+            <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(statusKsiazki(k))}</span></span></button>
+          <span class="mies-strony"><strong>${liczba(strony)}</strong><small>${odmiana(strony, FORMY_STRON)}, ${ile(dni, FORMY_DNI)}</small></span>
+          <span class="mies-udzial" style="--w:${(strony / mc.strony * 100).toFixed(1)}%"></span>
+        </li>`).join('')}</ul></section>` : przyszly ? '' : '<p class="pusto">W tym miesiącu nie ma zapisanych stron.</p>'}`;
+    }
+  });
+  a.tresc.addEventListener('click', e => {
+    const n = e.target.closest('[data-mies]');
+    if (n) { ym = przesunMiesiac(ym, +n.dataset.mies); a.rysuj(); a.el.scrollTop = 0; return; }
+    if (e.target.closest('[data-mies-teraz]')) { ym = miesiacTeraz(); a.rysuj(); return; }
+    const o = e.target.closest('[data-odplanuj]');
+    if (o) {
+      const k = znajdz(o.dataset.odplanuj);
+      utrwal(zaplanujNaMiesiac(k, null));
+      odswiez();
+      toast(`Usunięto z planu: „${k.tytul}”.`, { akcja: 'Cofnij', onAkcja: () => { utrwal(zaplanujNaMiesiac(k, ym)); odswiez(); } });
+    }
+  });
+}
+
+/* ---------- arkusz: cel na konkretny miesiąc ---------- */
+function arkuszCeluMiesiaca(ym = miesiacTeraz()) {
+  const u = Z.ustawienia, wl = u.celeMiesiecy[ym] || {};
+  const zapas = { ...u.celeMiesiecy };
+  delete Z.ustawienia.celeMiesiecy[ym];
+  const auto = celMiesiaca(ym); // wartości bez własnego celu, do podpowiedzi
+  Z.ustawienia.celeMiesiecy = zapas;
+  const a = arkusz({
+    tytul: 'Cel na miesiąc', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <label>Miesiąc<input name="ym" type="month" value="${ym}" required></label>
+      <div class="f-rzad"><label>Książek<input name="ksiazki" type="number" inputmode="numeric" min="0" value="${wl.ksiazki || ''}" placeholder="${auto.ksiazki || 'brak'}"></label>
+        <label>Stron<input name="strony" type="number" inputmode="numeric" min="0" value="${wl.strony || ''}" placeholder="${auto.strony}"></label></div>
+      <p class="podpowiedz">Puste pole = wartość domyślna (${auto.ksiazki ? `${ile(auto.ksiazki, FORMY_KSIAZEK)}, ` : ''}${ile(auto.strony, FORMY_STRON)}, ${ZRODLA[auto.zrodloK]}). Wpisz własną liczbę, np. mniej na miesiąc z urlopem albo sesją, więcej na wakacje.</p>
+      <div class="szybkie" role="group" aria-label="Szybki wybór książek">${[2, 4, 6, 8, 10, 15, 20].map(n => `<button type="button" class="chip" data-k="${n}">${n} ks.</button>`).join('')}</div>
+      <label>Notatka do miesiąca<input name="notatka" maxlength="200" value="${esc(wl.notatka || '')}" placeholder="Np. wyzwanie: tylko reportaże"></label>
+      <div class="przyciski przyciski-koniec">${u.celeMiesiecy[ym] ? '<button type="button" class="btn btn-ryzyko" data-usun-cel>Przywróć domyślny</button>' : ''}
+        <button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc), v = n => f.elements.namedItem(n).value;
+  f.addEventListener('click', e => { const c = e.target.closest('[data-k]'); if (c) f.elements.namedItem('ksiazki').value = c.dataset.k; });
+  const zapisz = (dane, komunikat) => {
+    const nowy = v('ym');
+    if (!poprawnyMiesiac(nowy)) { toast('Wybierz miesiąc.', { typ: 'blad' }); return; }
+    const przed = JSON.parse(JSON.stringify(Z.ustawienia.celeMiesiecy));
+    if (nowy !== ym) delete Z.ustawienia.celeMiesiecy[ym];
+    ustawCelMiesiaca(nowy, dane);
+    utrwalUstawienia();
+    a.zamknij();
+    odswiez();
+    toast(komunikat(nowy), { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.celeMiesiecy = przed; utrwalUstawienia(); odswiez(); } });
+  };
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    zapisz({ ksiazki: v('ksiazki'), strony: v('strony'), notatka: v('notatka') }, n => `Zapisano cel: ${nazwaMiesiaca(n)}.`);
+  });
+  $('[data-usun-cel]', f)?.addEventListener('click', () => zapisz({}, n => `${nazwaMiesiaca(n).replace(/^./, c => c.toUpperCase())}: cel domyślny.`));
+}
+
+/* ---------- arkusz: plan książek na miesiąc ---------- */
+function arkuszPlanu(ym) {
+  const a = arkusz({
+    tytul: `Plan: ${nazwaMiesiaca(ym)}`, klasa: 'arkusz-maly', odswiezalny: true,
+    render: () => {
+      const kandydaci = [...czytane(), ...kolejka()];
+      const wybrane = kandydaci.filter(k => k.planMiesiac === ym);
+      const stron = wybrane.reduce((s, k) => s + k.strony - (k.status === 'czytam' ? k.strona : 0), 0);
+      const c = celMiesiaca(ym);
+      if (!kandydaci.length) return '<p class="pusto">Dodaj książki do listy „Do przeczytania”, żeby ułożyć plan.</p>';
+      return `<p class="plan-suma"><strong>${ile(wybrane.length, FORMY_KSIAZEK)}</strong>, ${ile(stron, FORMY_STRON)} do przeczytania
+        ${c.ksiazki ? `<span class="${wybrane.length >= c.ksiazki ? 'ok' : 'cichy'}">· cel ${fmtCel(c.ksiazki)}</span>` : ''}</p>
+        ${stron > c.strony * 1.15 ? `<p class="zle plan-ostrzezenie">To więcej niż twój cel stron na ten miesiąc (${liczba(c.strony)}). Plan jest ambitny.</p>` : ''}
+        <ul class="plan-lista">${kandydaci.map(k => {
+          const tu = k.planMiesiac === ym, gdzieIndziej = k.planMiesiac && !tu;
+          return `<li><label class="plan-wybor${tu ? ' wybrana' : ''}"><input type="checkbox" data-plan="${k.id}"${tu ? ' checked' : ''}>
+            ${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span>
+            <span class="wiersz-autor">${k.status === 'czytam' ? `czytasz, zostało ${ile(k.strony - k.strona, FORMY_STRON)}` : ile(k.strony, FORMY_STRON)}${gdzieIndziej ? `, w planie na ${nazwaMiesiaca(k.planMiesiac, false)}` : ''}</span></span></label></li>`;
+        }).join('')}</ul>
+        <div class="przyciski przyciski-koniec"><button type="button" class="btn btn-glowny" data-zamknij>Gotowe</button></div>`;
+    }
+  });
+  a.tresc.addEventListener('change', e => {
+    const id = e.target.dataset.plan;
+    if (!id) return;
+    utrwal(zaplanujNaMiesiac(znajdz(id), e.target.checked ? ym : null));
+    odswiez();
+  });
+}
+
+function arkuszPlanuKsiazki(id) {
+  const k = znajdz(id);
+  if (!k) return;
+  const opcje = Array.from({ length: 12 }, (_, i) => przesunMiesiac(miesiacTeraz(), i));
+  if (k.planMiesiac && !opcje.includes(k.planMiesiac)) opcje.unshift(k.planMiesiac);
+  const a = arkusz({
+    tytul: 'Zaplanuj na miesiąc', klasa: 'arkusz-maly',
+    render: () => `<div class="postep-ksiazka">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${ile(k.strony, FORMY_STRON)}</span></span></div>
+      <fieldset class="segment"><legend class="sr">Miesiąc</legend>${opcje.map(ym => radio('plan', ym, nazwaMiesiaca(ym, ym.slice(0, 4) !== miesiacTeraz().slice(0, 4)), k.planMiesiac === ym)).join('')}</fieldset>
+      <div class="przyciski przyciski-koniec">${k.planMiesiac ? '<button type="button" class="btn btn-ryzyko" data-bez-planu>Usuń z planu</button>' : ''}<button type="button" class="btn" data-zamknij>Zamknij</button></div>`
+  });
+  a.tresc.addEventListener('change', e => {
+    if (e.target.name !== 'plan') return;
+    utrwal(zaplanujNaMiesiac(k, e.target.value));
+    a.zamknij();
+    odswiez();
+    toast(`„${k.tytul}” w planie na ${nazwaMiesiaca(e.target.value)}.`, { akcja: 'Pokaż miesiąc', onAkcja: () => arkuszMiesiaca(e.target.value) });
+  });
+  $('[data-bez-planu]', a.tresc)?.addEventListener('click', () => { utrwal(zaplanujNaMiesiac(k, null)); a.zamknij(); odswiez(); toast('Usunięto z planu.'); });
+}
+
+/* ---------- statystyki: lista miesięcy ---------- */
+function htmlMiesiecy(m) {
+  const lista = miesiaceZDanymi().filter(ym => ym <= miesiacTeraz());
+  const pokaz = U.wszystkieMiesiace ? lista : lista.slice(0, 6);
+  return `<ul class="miesiace-lista">${pokaz.map(ym => {
+    const mc = danyMiesiac(ym, m);
+    const okK = mc.cel.ksiazki && mc.ukonczone.length >= mc.cel.ksiazki, okS = mc.strony >= mc.cel.strony;
+    return `<li><button type="button" class="miesiac-wiersz" data-akcja="miesiac" data-ym="${ym}">
+      <span class="miesiac-nazwa">${nazwaMiesiaca(ym)}${ym === miesiacTeraz() ? ' <small>teraz</small>' : ''}</span>
+      <span class="miesiac-dane"><span class="${okK ? 'ok' : ''}">${okK ? I.check : ''}${mc.ukonczone.length}${mc.cel.ksiazki ? `/${fmtCel(mc.cel.ksiazki)}` : ''} ks.</span>
+        <span class="${okS ? 'ok' : ''}">${okS ? I.check : ''}${liczba(mc.strony)} str.</span></span>
+      <span class="miesiac-pasek"><span style="width:${Math.min(100, mc.strony / mc.cel.strony * 100).toFixed(1)}%"></span></span>
+    </button></li>`;
+  }).join('')}</ul>
+  ${lista.length > 6 ? `<button type="button" class="btn-tekst" data-akcja="miesiace-wiecej">${U.wszystkieMiesiace ? 'Pokaż mniej' : `Pokaż wszystkie (${lista.length})`}</button>` : ''}`;
+}
+
+/* ---------- ustawienia: cele na kolejne miesiące ---------- */
+function htmlCelowMiesiecy() {
+  const u = Z.ustawienia, mies = [];
+  for (let ym = u.start.slice(0, 7); ym <= u.koniec.slice(0, 7) && mies.length < 24; ym = przesunMiesiac(ym, 1)) mies.push(ym);
+  for (const ym of Object.keys(u.celeMiesiecy)) if (!mies.includes(ym)) mies.push(ym);
+  mies.sort();
+  const wOkresie = mies.filter(ym => ym >= u.start.slice(0, 7) && ym <= u.koniec.slice(0, 7));
+  const suma = wOkresie.reduce((s, ym) => s + celMiesiaca(ym).ksiazki, 0);
+  return `<p class="cichy">Każdy miesiąc ma cel wyliczony z celu rocznego albo stały z pola powyżej. Kliknij miesiąc, żeby wpisać mu własny cel, np. mniej w miesiącu z egzaminami.</p>
+    <ul class="cele-mies">${mies.map(ym => {
+      const c = celMiesiaca(ym);
+      return `<li><button type="button" class="cel-mies${c.wlasny ? ' wlasny' : ''}${ym === miesiacTeraz() ? ' teraz' : ''}" data-akcja="cel-miesiaca" data-ym="${ym}">
+        <span class="cel-mies-nazwa">${nazwaMiesiaca(ym)}</span>
+        <span class="cel-mies-wart">${c.ksiazki ? `${fmtCel(c.ksiazki)} ks.` : '—'} · ${liczba(c.strony)} str.</span>
+        <span class="cel-mies-zrodlo">${c.wlasny ? 'własny' : c.zrodloK === 'stale' ? 'stały' : 'auto'}</span>
+        ${c.notatka ? `<span class="cel-mies-notatka">${esc(c.notatka)}</span>` : ''}</button></li>`;
+    }).join('')}</ul>
+    <p class="${suma >= u.cel ? 'ok' : 'zle'} cele-suma">Suma celów miesięcznych w okresie: ${ile(suma, FORMY_KSIAZEK)} ${suma >= u.cel ? `(cel roczny ${u.cel} jest pokryty)` : `(o ${ile(u.cel - suma, FORMY_KSIAZEK_B)} mniej niż cel roczny ${u.cel})`}.</p>
+    <div class="przyciski"><button type="button" class="btn" data-akcja="cel-miesiaca" data-ym="${miesiacTeraz()}">${I.plus}Cel na inny miesiąc</button></div>`;
+}
+
+/* ---------- powiadomienie o zrobionym celu tygodnia lub miesiąca ---------- */
+function sprawdzCele() {
+  if (!Z.ksiazki.length) return;
+  const m = mapaDni(), t = postepTygodnia(m), ym = miesiacTeraz(), mc = danyMiesiac(ym, m);
+  const teraz = [];
+  if (t.strony >= t.cel.strony) teraz.push([`T${t.od}s`, `Cel tygodnia zrobiony: ${ile(t.strony, FORMY_STRON)}!`]);
+  if (t.cel.ksiazki && t.ksiazki >= t.cel.ksiazki) teraz.push([`T${t.od}k`, `Tygodniowy cel książek zrobiony: ${t.ksiazki}.`]);
+  if (mc.strony >= mc.cel.strony) teraz.push([`M${ym}s`, `Cel stron na ${nazwaMiesiaca(ym, false)} zrobiony!`]);
+  if (mc.cel.ksiazki && mc.ukonczone.length >= mc.cel.ksiazki) teraz.push([`M${ym}k`, `${ile(mc.ukonczone.length, FORMY_KSIAZEK)} w tym miesiącu: cel zrobiony!`]);
+  const zapis = lsGet('zakladka-cele-zrobione');
+  const znane = new Set(zapis ? JSON.parse(zapis) : []);
+  const nowe = teraz.filter(([id]) => !znane.has(id));
+  if (zapis != null) nowe.forEach(([, tekst], i) => setTimeout(() => toast(tekst, { czas: 5000 }), 600 + i * 900));
+  if (nowe.length || zapis == null) {
+    const lista = [...znane, ...teraz.map(([id]) => id)];
+    lsSet('zakladka-cele-zrobione', JSON.stringify([...new Set(lista)].slice(-60)));
+  }
+}
+
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -1708,6 +2048,25 @@ const AKCJE = {
   wpis: d => arkuszWpisu(d.id, d.data),
   losuj: () => arkuszLosowania(),
   rok: () => arkuszRoku(),
+  'test-zrodel': async (d, btn) => {
+    const el = $('#stan-zrodel');
+    if (!el) return;
+    if (!navigator.onLine) { toast('Jesteś offline.', { typ: 'blad' }); return; }
+    btn.disabled = true;
+    el.hidden = false;
+    el.innerHTML = '<li class="cichy ladowanie">Sprawdzam…</li>';
+    try {
+      const w = await Wyszukiwarka.test();
+      const ok = t => t.startsWith('działa');
+      el.innerHTML = [['Google Books', w.google], ['Open Library', w.openLibrary], ['Biblioteka Narodowa', w.bn]]
+        .map(([n, t]) => `<li class="${ok(t) ? 'ok' : 'zle'}">${ok(t) ? I.check : I.zamknij}<strong>${n}</strong>: ${esc(t)}</li>`).join('');
+    } finally { btn.disabled = false; }
+  },
+  miesiac: d => arkuszMiesiaca(d.ym || miesiacTeraz()),
+  'cel-miesiaca': d => arkuszCeluMiesiaca(d.ym || miesiacTeraz()),
+  'plan-miesiaca': d => arkuszPlanu(d.ym || miesiacTeraz()),
+  'plan-ksiazki': d => arkuszPlanuKsiazki(d.id),
+  'miesiace-wiecej': () => { U.wszystkieMiesiace = !U.wszystkieMiesiace; renderWidok(); },
   'odznaki-wiecej': () => { U.wszystkieOdznaki = !U.wszystkieOdznaki; renderWidok(); },
   polka: d => { U.polka = d.polka; U.tag = null; U.sort = 'domyslnie'; renderWidok(); },
   tag: d => { U.tag = U.tag === d.tag ? null : d.tag; renderWidok(); },
@@ -1777,10 +2136,20 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('submit', e => {
+  if (e.target.id !== 'f-wyszukiwanie') return;
+  e.preventDefault();
+  const f = e.target, v = n => f.elements.namedItem(n).value.trim();
+  if (v('posrednik') && !/^https:\/\//.test(v('posrednik'))) { toast('Adres pośrednika musi zaczynać się od https://', { typ: 'blad' }); return; }
+  Z.ustawienia = normalizujUstawienia({ ...Z.ustawienia, googleKlucz: v('googleKlucz'), posrednik: v('posrednik') });
+  utrwalUstawienia();
+  toast('Zapisano ustawienia wyszukiwania.');
+});
+
+document.addEventListener('submit', e => {
   if (e.target.id !== 'f-ustawienia') return;
   e.preventDefault();
   const f = e.target, v = n => f.elements.namedItem(n).value;
-  const nowe = normalizujUstawienia({ ...Z.ustawienia, cel: v('cel'), srednia: v('srednia'), start: v('start'), koniec: v('koniec'), dziennyCel: v('dziennyCel') || 0, imie: v('imie') });
+  const nowe = normalizujUstawienia({ ...Z.ustawienia, cel: v('cel'), srednia: v('srednia'), start: v('start'), koniec: v('koniec'), dziennyCel: v('dziennyCel') || 0, imie: v('imie'), tydzienStrony: v('tydzienStrony') || 0, tydzienKsiazki: v('tydzienKsiazki') || 0, miesiacStrony: v('miesiacStrony') || 0, miesiacKsiazki: v('miesiacKsiazki') || 0 });
   if (!(v('koniec') > v('start'))) { toast('Data końca musi być po dacie startu.', { typ: 'blad' }); return; }
   Z.ustawienia = nowe;
   utrwalUstawienia();
@@ -1822,6 +2191,7 @@ async function start() {
   renderWidok();
   renderPigulka();
   sprawdzOdznaki();
+  sprawdzCele();
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));

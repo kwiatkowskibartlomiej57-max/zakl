@@ -1,8 +1,8 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.2.0';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto' };
+const WERSJA = '2.4.0';
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '' };
 const STATUSY = ['czytam', 'doPrzeczytania', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -27,6 +27,7 @@ function dodajDni(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 const dzienTygodnia = iso => (doDaty(iso).getUTCDay() + 6) % 7; // 0 = poniedziałek
+const poprawnyMiesiac = s => typeof s === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
 const poprawnaData = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(doDaty(s));
 
 /* ---------- drobiazgi ---------- */
@@ -82,7 +83,8 @@ function normalizujKsiazke(k = {}) {
     kolejnosc: Number.isFinite(+k.kolejnosc) ? +k.kolejnosc : 0,
     dodano: poprawnaData(k.dodano) ? k.dodano : dzisISO(),
     porzucono: poprawnaData(k.porzucono) ? k.porzucono : null,
-    bazowaWynik: ['wTerminie', 'po'].includes(k.bazowaWynik) ? k.bazowaWynik : null
+    bazowaWynik: ['wTerminie', 'po'].includes(k.bazowaWynik) ? k.bazowaWynik : null,
+    planMiesiac: poprawnyMiesiac(k.planMiesiac) ? k.planMiesiac : null
   };
   if (n.status === 'przeczytana') n.strona = n.strony;
   if (n.bazowa && !n.celData) n.celData = dodajDni(dzisISO(), 61);
@@ -101,6 +103,17 @@ function normalizujUstawienia(u = {}) {
   if (+u.srednia >= 20) w.srednia = Math.round(+u.srednia);
   if (+u.dziennyCel >= 0) w.dziennyCel = Math.round(+u.dziennyCel);
   if (['auto', 'jasny', 'ciemny'].includes(u.motyw)) w.motyw = u.motyw;
+  for (const n of ['tydzienStrony', 'tydzienKsiazki', 'miesiacStrony', 'miesiacKsiazki']) if (+u[n] >= 0) w[n] = Math.round(+u[n]);
+  if (typeof u.googleKlucz === 'string') w.googleKlucz = u.googleKlucz.trim().slice(0, 100);
+  if (typeof u.posrednik === 'string' && (/^https:\/\//.test(u.posrednik.trim()) || !u.posrednik.trim())) w.posrednik = u.posrednik.trim().slice(0, 300);
+  w.celeMiesiecy = {};
+  if (u.celeMiesiecy && typeof u.celeMiesiecy === 'object') {
+    for (const [ym, c] of Object.entries(u.celeMiesiecy)) {
+      if (!poprawnyMiesiac(ym) || !c) continue;
+      const x = { ksiazki: Math.max(0, Math.round(+c.ksiazki) || 0), strony: Math.max(0, Math.round(+c.strony) || 0), notatka: String(c.notatka || '').trim().slice(0, 200) };
+      if (x.ksiazki || x.strony || x.notatka) w.celeMiesiecy[ym] = x;
+    }
+  }
   return w;
 }
 
@@ -462,3 +475,120 @@ function podsumowanieRoku(rok) {
     minuty, najDzien: [...wRoku].sort((a, b) => b[1] - a[1])[0] || null
   };
 }
+
+/* ---------- cele tygodniowe i miesięczne (wersja 2.3) ---------- */
+const miesiacTeraz = () => dzisISO().slice(0, 7);
+function przesunMiesiac(ym, n) {
+  const [r, m] = ym.split('-').map(Number);
+  const x = r * 12 + (m - 1) + n;
+  return `${Math.floor(x / 12)}-${pad(x % 12 + 1)}`;
+}
+const dniWMiesiacu = ym => new Date(Date.UTC(+ym.slice(0, 4), +ym.slice(5, 7), 0)).getUTCDate();
+const zakresMiesiaca = ym => [`${ym}-01`, `${ym}-${pad(dniWMiesiacu(ym))}`];
+const poczatekTygodnia = (iso = dzisISO()) => dodajDni(iso, -dzienTygodnia(iso));
+
+/** Wspólna miara: ile dni okresu celu rocznego wypada w przedziale [od, do]. */
+function dniOkresuW(od, doDnia) {
+  const u = Z.ustawienia;
+  const a = od > u.start ? od : u.start, b = doDnia < u.koniec ? doDnia : u.koniec;
+  return a > b ? 0 : dniMiedzy(a, b) + 1;
+}
+function bazaDzienna() {
+  const u = Z.ustawienia;
+  if (u.dziennyCel > 0) return u.dziennyCel;
+  return Math.max(1, Math.ceil(u.cel * u.srednia / Math.max(1, dniMiedzy(u.start, u.koniec) + 1)));
+}
+const zaokr1 = n => Math.round(n * 10) / 10;
+
+/** Cel na tydzień zaczynający się od `pn`. auto = wyliczony z celu rocznego. */
+function celTygodnia(pn = poczatekTygodnia()) {
+  const u = Z.ustawienia, nd = dodajDni(pn, 6);
+  const dniCalosc = Math.max(1, dniMiedzy(u.start, u.koniec) + 1), w = dniOkresuW(pn, nd);
+  return {
+    strony: u.tydzienStrony || bazaDzienna() * 7,
+    ksiazki: u.tydzienKsiazki || (w ? Math.max(0.5, zaokr1(u.cel * 7 / dniCalosc)) : 0),
+    autoStrony: !u.tydzienStrony, autoKsiazki: !u.tydzienKsiazki
+  };
+}
+
+/** Cel na miesiąc: najpierw wpis dla tego miesiąca, potem stała wartość z ustawień, na końcu wyliczenie. */
+function celMiesiaca(ym) {
+  const u = Z.ustawienia, wl = u.celeMiesiecy[ym] || {};
+  const [od, doDnia] = zakresMiesiaca(ym);
+  const dniCalosc = Math.max(1, dniMiedzy(u.start, u.koniec) + 1), w = dniOkresuW(od, doDnia);
+  // narastająco, żeby suma automatycznych celów miesięcy dawała dokładnie cel roczny
+  const przed = dniOkresuW(u.start, dodajDni(od, -1));
+  const autoK = w ? Math.round(u.cel * (przed + w) / dniCalosc) - Math.round(u.cel * przed / dniCalosc) : 0;
+  const autoS = bazaDzienna() * dniWMiesiacu(ym);
+  return {
+    ksiazki: wl.ksiazki || u.miesiacKsiazki || autoK,
+    strony: wl.strony || u.miesiacStrony || autoS,
+    zrodloK: wl.ksiazki ? 'miesiac' : u.miesiacKsiazki ? 'stale' : 'auto',
+    zrodloS: wl.strony ? 'miesiac' : u.miesiacStrony ? 'stale' : 'auto',
+    notatka: wl.notatka || '', wlasny: !!u.celeMiesiecy[ym]
+  };
+}
+
+function ustawCelMiesiaca(ym, { ksiazki = 0, strony = 0, notatka = '' } = {}) {
+  const c = { ksiazki: Math.max(0, Math.round(+ksiazki) || 0), strony: Math.max(0, Math.round(+strony) || 0), notatka: String(notatka).trim().slice(0, 200) };
+  if (c.ksiazki || c.strony || c.notatka) Z.ustawienia.celeMiesiecy[ym] = c;
+  else delete Z.ustawienia.celeMiesiecy[ym];
+}
+
+/** Ile z przedziału czasu już minęło (0–1), żeby pokazać „gdzie powinieneś być”. */
+function czescOkresu(od, doDnia, dzis = dzisISO()) {
+  if (dzis < od) return 0;
+  if (dzis > doDnia) return 1;
+  return (dniMiedzy(od, dzis) + 1) / (dniMiedzy(od, doDnia) + 1);
+}
+
+function sumaStron(od, doDnia, m = mapaDni()) {
+  let s = 0;
+  for (const [d, v] of m) if (d >= od && d <= doDnia) s += v;
+  return s;
+}
+
+function postepTygodnia(m = mapaDni(), pn = poczatekTygodnia()) {
+  const nd = dodajDni(pn, 6), c = celTygodnia(pn);
+  return { od: pn, do: nd, cel: c, strony: sumaStron(pn, nd, m), ksiazki: ukonczenia(pn, nd).length, czesc: czescOkresu(pn, nd) };
+}
+
+/** Pełny obraz jednego miesiąca. */
+function danyMiesiac(ym, m = mapaDni()) {
+  const [od, doDnia] = zakresMiesiaca(ym);
+  const dni = {};
+  for (const [d, v] of m) if (d >= od && d <= doDnia && v > 0) dni[d] = v;
+  const czytane = [];
+  for (const k of Z.ksiazki) {
+    const s = k.log.reduce((a, w) => a + (w.data >= od && w.data <= doDnia ? w.strony : 0), 0);
+    if (s > 0) czytane.push({ k, strony: s, dni: new Set(k.log.filter(w => w.data >= od && w.data <= doDnia).map(w => w.data)).size });
+  }
+  czytane.sort((a, b) => b.strony - a.strony);
+  const ukon = ukonczenia(od, doDnia);
+  const minuty = Z.ksiazki.reduce((s, k) => s + k.sesje.filter(x => x.data >= od && x.data <= doDnia).reduce((a, x) => a + x.minuty, 0), 0);
+  const strony = Object.values(dni).reduce((s, v) => s + v, 0);
+  const zaplanowane = Z.ksiazki.filter(k => k.planMiesiac === ym)
+    .map(k => ({ k, zrobiona: ukon.some(x => x.k === k) }))
+    .sort((a, b) => a.zrobiona - b.zrobiona || (a.k.kolejnosc || 0) - (b.k.kolejnosc || 0));
+  const najDzien = Object.entries(dni).sort((a, b) => b[1] - a[1])[0] || null;
+  return {
+    ym, od, do: doDnia, dni, strony, dniCzytania: Object.keys(dni).length, czytane, ukonczone: ukon,
+    zaplanowane, minuty, najDzien, cel: celMiesiaca(ym), czesc: czescOkresu(od, doDnia),
+    seria: najdluzszaSeria(new Map(Object.entries(dni)))
+  };
+}
+
+/** Miesiące, w których coś się działo (od najnowszego), plus bieżący. */
+function miesiaceZDanymi() {
+  const s = new Set([miesiacTeraz()]);
+  for (const k of Z.ksiazki) {
+    for (const w of k.log) s.add(w.data.slice(0, 7));
+    if (k.status === 'przeczytana' && k.koniec) s.add(k.koniec.slice(0, 7));
+    for (const c of k.czytania) s.add(c.koniec.slice(0, 7));
+    if (k.planMiesiac) s.add(k.planMiesiac);
+  }
+  for (const ym of Object.keys(Z.ustawienia.celeMiesiecy)) s.add(ym);
+  return [...s].sort().reverse();
+}
+
+function zaplanujNaMiesiac(k, ym) { k.planMiesiac = poprawnyMiesiac(ym) ? ym : null; return [k]; }

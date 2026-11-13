@@ -697,3 +697,101 @@ body.arkusz-otwarty .toasty { bottom: auto; top: calc(env(safe-area-inset-top) +
 .rok-okladki { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 10px; }
 .rok-okladki .okl-m .okl-tytul { font-size: 9px; }
 .rok-okladki .okl-m .okl-autor { display: none; }
+
+/* ================= wersja 2.3: cele tygodniowe i miesięczne ================= */
+.naglowek-akcje { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.sekcja-gora .btn-tekst svg, .kd-plan svg { width: 17px; height: 17px; vertical-align: -3px; margin-right: 4px; }
+.okresy-siatka { display: grid; gap: 14px; }
+@media (min-width: 620px) { .okresy-siatka { grid-template-columns: 1fr 1fr; } }
+.okres { padding: 14px 16px; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); }
+.okres h3 { font-size: 16px; font-weight: 700; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.okres h3 small { font-size: 13px; font-weight: 500; color: var(--cichy); }
+.cel-wiersz + .cel-wiersz { margin-top: 12px; }
+.cel-wiersz-gora { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14.5px; }
+.cel-wiersz-gora > span:first-child { color: var(--cichy); font-weight: 600; }
+.cel-wiersz-gora strong { font-family: var(--font-ksiazka); font-size: 19px; }
+.cel-wiersz .pasek { margin: 6px 0 5px; }
+.cel-wiersz.zrobiony .pasek-wyp { background: var(--zloto); }
+.cel-wiersz-opis { font-size: 13.5px; color: var(--cichy); }
+.cel-wiersz-opis svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+.ok { color: var(--ok); }
+.zle { color: var(--zle); }
+.okres-notatka { margin-top: 10px; padding: 8px 12px; border-radius: 10px; background: var(--pole); border-left: 3px solid var(--zloto); font-size: 14px; font-style: italic; }
+.okres-plan { margin-top: 8px; font-size: 13.5px; }
+
+/* arkusz miesiąca */
+.mies-nawigacja { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.mies-tytul { font-family: var(--font-ksiazka); font-size: 24px; font-weight: 600; text-transform: capitalize; text-align: center; flex: 1; }
+.mies-wroc { text-align: center; margin-bottom: 6px; }
+.mies-cele .podpowiedz { margin-top: 10px; }
+.kalendarz { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.kal-naglowek { text-align: center; font-size: 12px; font-weight: 600; color: var(--cichy); padding-bottom: 2px; }
+.kal-dzien { position: relative; aspect-ratio: 1; border: 0; border-radius: 9px; padding: 4px; display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; cursor: pointer; color: var(--tusz); background: var(--hm0); }
+.kal-dzien.hm1 { background: var(--hm1); } .kal-dzien.hm2 { background: var(--hm2); }
+.kal-dzien.hm3 { background: var(--hm3); color: #fff; } .kal-dzien.hm4 { background: var(--hm4); color: #fff; }
+:root[data-theme="dark"] .kal-dzien.hm4 { color: #0f1b17; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .kal-dzien.hm4 { color: #0f1b17; } }
+.kal-dzien.kal-dzis { outline: 2px solid var(--wstazka); outline-offset: 1px; }
+.kal-dzien.kal-przyszly { opacity: .45; cursor: default; background: transparent; border: 1px dashed var(--linia); }
+.kal-nr { font-size: 12px; font-weight: 600; line-height: 1; }
+.kal-v { align-self: flex-end; font-size: 11.5px; font-weight: 700; line-height: 1; }
+.plan-zrobiona .wiersz-tytul { text-decoration: line-through; text-decoration-color: var(--zloto); }
+.plan-check { display: inline-flex; color: var(--ok); padding: 0 10px; }
+.plan-check svg { width: 22px; height: 22px; }
+.wiersz { position: relative; }
+.mies-strony { display: flex; flex-direction: column; align-items: flex-end; flex: none; padding-left: 8px; }
+.mies-strony strong { font-family: var(--font-ksiazka); font-size: 18px; }
+.mies-strony small { font-size: 12px; color: var(--cichy); white-space: nowrap; }
+.mies-udzial { position: absolute; left: 0; bottom: 0; height: 2px; width: var(--w); background: var(--zloto); border-radius: 1px; }
+.kafel-data { display: block; font-size: 12px; color: var(--cichy); text-align: center; margin-top: 4px; }
+
+/* plan książek */
+.plan-suma { font-size: 15px; margin-bottom: 8px; }
+.plan-ostrzezenie { font-size: 14px; margin-bottom: 8px; }
+.plan-lista { list-style: none; margin: 0 0 8px; padding: 0; max-height: 55vh; overflow-y: auto; }
+.plan-wybor { display: flex; align-items: center; gap: 12px; padding: 8px 4px; border-bottom: 1px solid var(--linia); cursor: pointer; }
+.plan-wybor input { width: 22px; height: 22px; flex: none; accent-color: var(--plotno); }
+.plan-wybor.wybrana { background: var(--powierzchnia); }
+.kd-plan { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 14px; font-size: 14.5px; color: var(--cichy); }
+.kd-plan > svg { margin: 0; }
+
+/* statystyki: miesiące */
+.miesiace-lista { list-style: none; margin: 0 0 8px; padding: 0; }
+.miesiac-wiersz { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 2px; background: none; border: 0; border-bottom: 1px solid var(--linia); color: var(--tusz); text-align: left; cursor: pointer; }
+.miesiac-nazwa { font-weight: 600; text-transform: capitalize; }
+.miesiac-nazwa small { margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--plotno); color: var(--plotno-tusz); font-size: 11.5px; text-transform: none; }
+.miesiac-dane { display: flex; gap: 14px; font-size: 14px; color: var(--cichy); font-variant-numeric: tabular-nums; }
+.miesiac-dane .ok { font-weight: 600; }
+.miesiac-dane svg { width: 13px; height: 13px; vertical-align: -1px; margin-right: 2px; }
+.miesiac-pasek { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--linia); overflow: hidden; }
+.miesiac-pasek span { display: block; height: 100%; background: var(--plotno); border-radius: inherit; }
+
+/* ustawienia: cele miesięcy */
+.f-podtytul { margin-top: 18px; }
+.cele-mies { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; }
+@media (min-width: 560px) { .cele-mies { grid-template-columns: 1fr 1fr; } }
+.cel-mies { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); text-align: left; cursor: pointer; }
+.cel-mies.wlasny { border-color: var(--zloto); box-shadow: inset 3px 0 0 var(--zloto); }
+.cel-mies.teraz .cel-mies-nazwa::after { content: ' · teraz'; color: var(--wstazka); font-weight: 600; }
+.cel-mies-nazwa { font-weight: 600; text-transform: capitalize; }
+.cel-mies-wart { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cel-mies-zrodlo { grid-column: 1 / -1; font-size: 12px; color: var(--cichy); }
+.cel-mies.wlasny .cel-mies-zrodlo { color: var(--zloto); font-weight: 600; }
+.cel-mies-notatka { grid-column: 1 / -1; font-size: 13px; font-style: italic; color: var(--cichy); }
+.cele-suma { font-size: 14px; margin-bottom: 10px; }
+.segment legend.sr { width: 1px; } /* legenda dla czytników nie może rozpychać strony w poziomie */
+
+/* ================= wersja 2.4: wyszukiwanie polskich książek ================= */
+.pomoc { margin: -2px 0 6px; font-size: 14px; }
+.pomoc summary { cursor: pointer; color: var(--plotno); font-weight: 600; }
+.pomoc p, .pomoc ol, .pomoc ul { margin-top: 8px; color: var(--cichy); }
+.pomoc ol, .pomoc ul { padding-left: 20px; }
+.pomoc li + li { margin-top: 4px; }
+.pomoc code { font-size: 13px; padding: 1px 5px; border-radius: 5px; background: var(--powierzchnia); border: 1px solid var(--linia); }
+.stan-zrodel { list-style: none; margin: 10px 0 0; padding: 0; font-size: 14.5px; }
+.stan-zrodel li { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.stan-zrodel svg { width: 16px; height: 16px; flex: none; }
+.zrodla-info { font-size: 12.5px; margin-top: 6px; }
+.rada-zrodla { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--powierzchnia); border-left: 3px solid var(--zloto); font-size: 13.5px; }
+.rada-zrodla p + p { margin-top: 4px; }
+.rada-zrodla .btn-tekst { margin-top: 6px; font-size: 14px; }

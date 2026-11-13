@@ -62,7 +62,7 @@ Jeśli wersja 1 działała pod tym samym adresem, dane wczytają się same, bo b
 
 ## Aktualizacja
 
-Po zmianie plików podbij numer w `sw.js` (`const WERSJA = 'zakladka-2.0.1'`). Telefon pobierze wtedy nową wersję przy następnym uruchomieniu z internetem.
+Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`). Telefon pobierze wtedy nową wersję przy następnym uruchomieniu z internetem.
 
 ## Pliki
 
@@ -76,8 +76,41 @@ Po zmianie plików podbij numer w `sw.js` (`const WERSJA = 'zakladka-2.0.1'`). T
 | `js/extras.js` | Wyszukiwarka książek, skaner ISBN, okładki, CSV Goodreads |
 | `js/ui.js` | Ekrany, okna i obsługa kliknięć |
 | `sw.js` | Service worker, czyli tryb offline |
+| `bn.php` | Pośrednik do katalogu Biblioteki Narodowej (serwer z PHP) |
+| `proxy/cloudflare-worker.js` | To samo jako darmowy Cloudflare Worker (dla GitHub Pages) |
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
+
+## Wersja 2.4: polskie książki po kodzie kreskowym
+
+**Dlaczego wcześniej nie działało.** Google Books bez klucza dzieli jeden limit zapytań z całym internetem i zwykle odpowiada „limit wyczerpany” (błąd 429). Aplikacja przechodziła wtedy na Open Library, która ma niewiele polskich wydań.
+
+**Co się zmieniło**
+- **Biblioteka Narodowa.** Jej katalog ma prawie każdą książkę wydaną w Polsce, z tytułem, autorem i liczbą stron. Serwer BN nie odpowiada przeglądarce bezpośrednio, więc aplikacja pyta przez małego pośrednika:
+  - **Własny serwer z PHP (np. Apache):** wystarczy wrzucić plik `bn.php` razem z aplikacją. Działa sam, niczego nie trzeba ustawiać.
+  - **GitHub Pages:** załóż darmowy Cloudflare Worker z pliku `proxy/cloudflare-worker.js` (instrukcja jest na początku pliku). Jego adres wklej w **Ustawienia → Wyszukiwanie książek → Adres pośrednika**.
+- **Własny klucz Google Books** (opcjonalny, darmowy) w **Ustawienia → Wyszukiwanie książek**. Z nim Google przestaje odmawiać. Instrukcja, jak go zdobyć, jest w aplikacji.
+- **Wszystkie źródła naraz.** Google Books, Open Library (nowe API wydań po ISBN) i Biblioteka Narodowa są odpytywane równocześnie. Wynik powstaje z najlepszych danych każdego źródła: tytuł i strony z BN, okładka z Google albo Open Library.
+- **Szybsze dodawanie.** Po zeskanowaniu kodu z jednym pewnym wynikiem formularz uzupełnia się sam, bez wybierania z listy.
+- **Brak wyniku.** Numer ISBN zostaje w formularzu, a aplikacja proponuje szukanie po tytule. Mówi też, czego brakuje, np. klucza Google albo włączonej BN.
+- Obsługa ISBN-10 i ISBN-13 (zamiana w obie strony).
+- Wyniki wyszukiwania po tytule są ułożone według trafności, a artykuły i recenzje z czasopism są odfiltrowane.
+- Przycisk **Sprawdź źródła** w Ustawieniach pokazuje, które wyszukiwarki działają.
+
+## Wersja 2.3: cele tygodniowe, miesięczne i plan miesiąca
+
+- **Tydzień i miesiąc na ekranie Dziś.** Dwie karty z paskami dla stron i książek. Złota kreska pokazuje, gdzie powinieneś być dzisiaj. Pod paskiem widać, czy jesteś przed planem, czy za nim, i ile stron dziennie trzeba czytać do końca tygodnia albo miesiąca.
+- **Cele tygodniowe i miesięczne w Ustawieniach.** Ustawiasz strony i książki na tydzień oraz na miesiąc. Puste pole liczy się samo z celu rocznego.
+- **Własny cel dla konkretnego miesiąca.** Ustawienia mają listę wszystkich miesięcy z okresu celu. Kliknij miesiąc i wpisz mu własną liczbę książek i stron oraz notatkę, np. „sesja egzaminacyjna, mniej czytania”. Na dole lista pokazuje, czy suma celów miesięcznych pokrywa cel roczny. Automatyczne cele miesięcy sumują się dokładnie do celu rocznego.
+- **Okno miesiąca.** Otwierasz je przyciskiem „Miesiąc” w Statystykach, z karty na ekranie Dziś albo klikając słupek na wykresie miesięcy. Strzałkami przechodzisz do innych miesięcy. Pokazuje:
+  - postęp celów,
+  - dni z czytaniem, średnią dzienną, serię i porównanie z poprzednim miesiącem,
+  - kalendarz dni (kliknięty dzień otwiera jego szczegóły),
+  - przeczytane książki z datami,
+  - książki czytane w tym miesiącu: ile stron i przez ile dni.
+- **Plan miesiąca.** Wybierasz książki, które chcesz przeczytać w danym miesiącu. Aplikacja liczy, ile stron dziennie to wymaga, i ostrzega, gdy plan przekracza cel. Książkę możesz też zaplanować z jej szczegółów („Zaplanuj na miesiąc”).
+- **Miesiąc po miesiącu w Statystykach.** Lista miesięcy z liczbą książek i stron na tle celu.
+- **Powiadomienia.** Gdy zrobisz cel tygodnia albo miesiąca, pojawia się gratulacja.
 
 ## Wersja 2.2: nowe funkcje
 
