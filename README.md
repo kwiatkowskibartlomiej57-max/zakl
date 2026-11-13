@@ -1,0 +1,110 @@
+# Zakładka: dziennik czytania
+
+Aplikacja na telefon (PWA) do śledzenia czytania. Działa w przeglądarce, instaluje się na ekranie głównym jak zwykła aplikacja, działa bez internetu, a wszystkie dane trzyma w bazie na urządzeniu.
+
+## Co umie
+
+**Ekran Dziś**
+- Pierścień z dzisiejszymi stronami i dziennym celem. Cel wylicza się z celu rocznego albo ustawiasz go ręcznie.
+- Seria dni z czytaniem i suma stron z bieżącego tygodnia.
+- **Książka bazowa**: jedna długa książka z terminem, np. „Europa” na 2 miesiące. Pasek wygląda jak brzeg kartek: czerwona wstążka pokazuje, gdzie jesteś, a złota kreska, gdzie powinieneś być na koniec dnia. Widzisz też normę na dziś, wynik względem planu („33 strony przed planem”), termin i ile godzin czytania zostało.
+- **Czytam też**: poboczne książki z szybkim zapisem postępu i prognozą, kiedy je skończysz.
+- **Cel roczny** (domyślnie 200 książek od 1.09.2026): ile książek tygodniowo i stron dziennie potrzebujesz, czy masz zapas, czy brakuje ci do planu, oraz prognoza przy obecnym tempie.
+- Następna książka w kolejce i codziennie inny cytat z twoich notatek.
+
+**Zapis postępu**
+- Wpisujesz „Jestem na stronie…” albo klikasz +5, +10, +25, +50.
+- Możesz zapisać stronę na wczoraj albo na dowolny dzień, jeśli zapomniałeś.
+- Pomyłkę poprawiasz, wpisując niższą stronę. Statystyki same się skorygują.
+
+**Sesje czytania**
+- Stoper na cały ekran z opcją „Nie wygaszaj ekranu”.
+- Po zakończeniu sesji wpisujesz stronę, a aplikacja liczy tempo w stronach na godzinę.
+- Gdy sesja trwa w tle, na dole widać pigułkę z czasem.
+
+**Biblioteka**
+- Półki: Czytam, Do przeczytania (kolejka, którą układasz strzałkami), Przeczytane (z oceną i wrażeniami), Porzucone.
+- Wyszukiwanie, sortowanie i filtrowanie po tagach.
+- **Dodawanie z internetu**: szukasz po tytule, autorze albo ISBN (Google Books i Open Library). Tytuł, autor, liczba stron i okładka uzupełnią się same.
+- **Skaner kodu kreskowego** (każdy telefon, także iPhone): aparat na żywo odczyta ISBN z tyłu książki. Gdy aparat nie łapie ostrości, zrób zdjęcie kodu i aplikacja odczyta numer ze zdjęcia. Na Androidzie jest też przycisk latarki.
+- **Zdjęcie okładki** z aparatu albo galerii. Jeśli książka nie ma okładki, aplikacja tworzy płócienną okładkę z tytułem.
+- Ponowne czytanie książki z zachowaną historią.
+
+**Cytaty i notatki**: zapisujesz zdanie albo własną myśl z numerem strony. Możesz je wyszukiwać, kopiować i udostępniać.
+
+**Statystyki**: strony z ostatnich 30 dni, mapa dni czytania z pół roku, książki w kolejnych miesiącach na tle planu, rekordy oraz ranking autorów i tagów.
+
+**Dane**
+- Wszystko jest w bazie IndexedDB na telefonie. Przy starcie aplikacja prosi o trwałą pamięć, żeby system nie skasował danych przy braku miejsca.
+- Kopię zapasową JSON zapiszesz przez „Udostępnij”, np. na Dysku Google. Co 7 dni pojawi się przypomnienie.
+- Import i eksport CSV w formacie Goodreads.
+- Jasny i ciemny motyw (albo taki jak w systemie).
+- Usunięcie książki czy cytatu możesz cofnąć.
+
+## Wrzucenie na GitHub Pages
+
+1. Załóż repozytorium, np. `zakladka`, i wrzuć do niego **zawartość** tego folderu: `index.html` ma leżeć w głównym katalogu repo.
+2. Wejdź w **Settings → Pages → Build and deployment**, wybierz **Deploy from a branch**, potem gałąź `main` i folder `/ (root)`, i kliknij **Save**.
+3. Po minucie aplikacja będzie dostępna pod adresem `https://<twój-login>.github.io/zakladka/`.
+
+Możesz też skopiować folder na swój serwer Apache, np. do `/var/www/html/zakladka`. Tryb offline i instalacja na telefonie wymagają **HTTPS** albo `localhost`.
+
+## Instalacja na telefonie
+
+- **Android (Chrome):** otwórz adres, potem menu ⋮ i **Zainstaluj aplikację**. Możesz też użyć przycisku w Ustawieniach aplikacji.
+- **iPhone (Safari):** otwórz adres, potem **Udostępnij** i **Do ekranu początkowego**.
+
+Po instalacji przytrzymaj ikonę, żeby dostać skróty „Zapisz postęp” i „Dodaj książkę” (Android).
+
+## Przeniesienie danych z wersji 1 („Półka”)
+
+Jeśli wersja 1 działała pod tym samym adresem, dane wczytają się same, bo baza ma tę samą nazwę. Jeśli adres był inny, w starej wersji zrób kopię JSON, a w Zakładce wybierz **Ustawienia → Wczytaj kopię**. Format jest zgodny.
+
+## Aktualizacja
+
+Po zmianie plików podbij numer w `sw.js` (`const WERSJA = 'zakladka-2.0.1'`). Telefon pobierze wtedy nową wersję przy następnym uruchomieniu z internetem.
+
+## Pliki
+
+| Plik | Co robi |
+| --- | --- |
+| `index.html` | Szkielet strony |
+| `css/app.css` | Wygląd, jasny i ciemny motyw |
+| `js/db.js` | Baza IndexedDB na urządzeniu |
+| `js/core.js` | Model danych, plan książki bazowej, cel roczny, statystyki |
+| `js/ean.js` | Własny odczyt kodów kreskowych EAN-13 (ISBN) z obrazu |
+| `js/extras.js` | Wyszukiwarka książek, skaner ISBN, okładki, CSV Goodreads |
+| `js/ui.js` | Ekrany, okna i obsługa kliknięć |
+| `sw.js` | Service worker, czyli tryb offline |
+| `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
+| `icons/` | Logo i ikony aplikacji |
+
+## Wersja 2.2: nowe funkcje
+
+- **Pauza w sesji czytania.** Przycisk Pauza/Wznów; czas pauzy nie wlicza się do sesji ani tempa. Pigułka na dole pokazuje, że sesja stoi.
+- **Dziennik czytania w książce.** W szczegółach książki lista wszystkich dziennych wpisów. Każdy wpis można poprawić (liczba stron, inny dzień) albo usunąć, z opcją „Cofnij”. Dla czytanej książki poprawka przesuwa też bieżącą stronę.
+- **Postęp w procentach.** W „Zapisz postęp” przełącznik Strona/Procent (e-booki i audiobooki domyślnie w procentach). Wybór zapamiętuje się dla każdej książki.
+- **Szczegóły dnia.** Kliknij słupek na wykresie albo kratkę na mapie dni w Statystykach: zobaczysz, co i ile czytałeś tego dnia, i od razu poprawisz wpis.
+- **Dni tygodnia.** Nowy wykres: średnio stron w każdy dzień tygodnia z ostatnich 12 tygodni.
+- **Odznaki.** 17 odznak (serie, maratony, cegły, kolekcja cytatów, cel roczny…) z paskiem postępu. Gdy zdobędziesz nową, pojawia się powiadomienie.
+- **Twój rok w książkach.** Podsumowanie wybranego roku: okładki przeczytanych, strony w miesiącach, rekordy, ulubione. Można je udostępnić jako tekst.
+- **Losuj z kolejki.** „Nie wiem, co czytać” losuje książkę z listy do przeczytania, z filtrem krótka/długa.
+- **Cytat jako obrazek.** Każdy cytat zapiszesz albo udostępnisz jako grafikę 1080×1350 w stylu aplikacji (np. na Instagram).
+- **Ostrzeżenie o serii.** Po 17:00, jeśli dziś nic nie przeczytałeś, ekran Dziś przypomina, że seria przepadnie o północy.
+
+## Wersja 2.1: nowy skaner
+
+- Skaner nie odczytywał kodów, bo polegał tylko na czytniku wbudowanym w Chrome. Na iPhonie go nie ma, a na części Androidów działa słabo. Teraz aplikacja ma własny odczyt kodu EAN-13 (`js/ean.js`), który działa w każdej przeglądarce i bez internetu.
+- Aparat pracuje w wyższej rozdzielczości i z ciągłym ustawianiem ostrości, a ramka na ekranie pokazuje, jak blisko trzymać kod.
+- Nowy przycisk **Zrób zdjęcie kodu**: zwykłe zdjęcie z aparatu jest ostrzejsze niż podgląd na żywo, więc to pewny sposób, gdy podgląd nie łapie kodu.
+- Na Androidzie jest przycisk latarki.
+
+## Co poprawiono względem wersji 1
+
+- Kliknięcie „Skończona” nie doliczało pozostałych stron do statystyk. Teraz pyta, czy wliczyć je do dzisiejszego dnia.
+- Systemowe okienka (`alert`, `prompt`, `confirm`) blokowały aplikację zainstalowaną na telefonie. Zastąpiły je własne okna.
+- Nie dało się poprawić tytułu ani liczby stron. Jest teraz edycja.
+- Nie dało się zapisać stron za wczoraj. Teraz można wybrać dowolny dzień.
+- Uszkodzona albo stara kopia JSON mogła wysypać aplikację. Dane są teraz sprawdzane i naprawiane przy wczytaniu.
+- Service worker nie miał numeru wersji, więc telefon trzymał stare pliki. Teraz każda wersja ma swój numer.
+- Sesja czytania zostawała aktywna po skończeniu albo usunięciu książki. Teraz się zamyka.
