@@ -81,6 +81,25 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.8: kreator tygodnia
+
+Planowanie tygodnia odbywa się teraz w jednym oknie. Otwierasz je przyciskiem **„Zaplanuj tydzień”**, który jest w planie tygodnia i na ekranie Dziś. Podgląd odświeża się przy każdej zmianie.
+
+1. **Cel:** ile książek chcesz przeczytać w tym tygodniu (1–6, np. 3–4). Cel zapisuje się dla tego tygodnia, a widok tygodnia pokazuje „skończone / cel”.
+2. **Książki:**
+   - „Dobierz za mnie” wybiera najpierw książki, które już czytasz (te najbliżej końca), potem kolejne z kolejki.
+   - Opcja „krótsze najpierw” ułatwia dobicie do celu.
+   - Dodasz też dowolną książkę z wyszukiwarki, a strzałkami ustawisz kolejność czytania.
+   - Przy każdej książce widać, w który dzień ją skończysz, ile stron zrobisz w tym tygodniu albo że się nie zmieści.
+3. **Twój czas w tym tygodniu:** minuty na każdy dzień (0 = wolne), z przyciskiem „Jak zwykle”. Zmiana dotyczy tylko tego tygodnia. Dochodzi pole **tempo** (stron na godzinę), wpisane ręcznie albo wzięte z sesji.
+4. **Jak czytać:** jedna po drugiej albo wszystkie naraz.
+5. **Podgląd:** paski stron na każdy dzień w kolorach książek, kreska twojego czasu, suma stron i liczba książek skończonych do niedzieli. Do tego ocena wykonalności:
+   - „Zmieścisz się” z procentem wykorzystanego czasu;
+   - „Za mało czasu”, z wyliczeniem, ile minut dziennie potrzebujesz, i trzema rozwiązaniami: ustaw tyle minut, planuj tylko w moim czasie, wybierz krótsze;
+   - **„Planuj tylko tyle, ile zdążę”**: każdy dzień dostaje dokładnie tyle stron, ile zmieści twój czas, a reszta przechodzi na kolejny tydzień.
+
+Zapis zastępuje wcześniejszy rozkład tych książek od dziś. Można go cofnąć.
+
 ## Wersja 2.7: zaawansowane planowanie, nowe półki, passa
 
 **Planowanie tygodnia, dzień po dniu**

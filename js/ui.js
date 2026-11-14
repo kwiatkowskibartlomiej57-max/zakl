@@ -2195,15 +2195,17 @@ function arkuszTygodnia(start = poczatekTygodnia()) {
       ${zalegle && pn === teraz ? `<div class="baner tyg-zalegle"><p>Masz ${ile(zalegle, ['niezrobiony wpis', 'niezrobione wpisy', 'niezrobionych wpisów'])} z poprzednich dni.</p><button type="button" class="btn btn-maly" data-zalegle>Przenieś na dziś</button></div>` : ''}
 
       <section class="kd-sekcja">
-        <div class="sekcja-gora"><h3>Książki na ten tydzień</h3><button type="button" class="btn btn-maly" data-akcja="tydzien-dodaj" data-pn="${pn}">${I.plus}Wybierz</button></div>
+        <div class="sekcja-gora"><h3>Książki na ten tydzień</h3>${t.cel.ksiazki ? `<span class="licznik tyg-cel-ks" title="Skończone / cel książek">${t.ksiazki}/${fmtCel(t.cel.ksiazki)}</span>` : ''}</div>
+        ${pn >= teraz ? `<div class="przyciski tyg-cta"><button type="button" class="btn btn-glowny" data-akcja="kreator" data-pn="${pn}">${I.kalendarz}${naTydzien.length ? 'Zmień plan tygodnia' : 'Zaplanuj tydzień'}</button>
+          <button type="button" class="btn btn-maly" data-akcja="tydzien-dodaj" data-pn="${pn}">${I.plus}Szybko dodaj</button></div>` : ''}
         ${naTydzien.length ? `<ul class="lista">${naTydzien.map(e => `<li class="wiersz${e.zrobione ? ' plan-zrobiona' : ''}">
           <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${e.k.id}">${okladka(e.k, 's')}
             <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(e.k.tytul)}</span>
             <span class="wiersz-autor">${e.zrobione ? 'zrobione' : `${e.przecz ? `+${e.przecz} str. w tym tygodniu, ` : ''}zostało ${ile(zostaloStron(e.k), FORMY_STRON)}${rozlozone.has(e.id) ? '' : ', jeszcze nie rozłożona'}`}</span></span></button>
           ${e.zrobione ? `<span class="plan-check">${I.check}</span>` : `<button type="button" class="btn-ikona" data-usun-wpis="${e.i}" aria-label="Usuń z planu">${I.zamknij}</button>`}
         </li>`).join('')}</ul>
-        ${pn >= teraz ? `<div class="przyciski"><button type="button" class="btn btn-glowny btn-maly" data-akcja="rozloz" data-pn="${pn}">${I.kalendarz}Rozłóż na dni…</button></div>` : ''}`
-        : '<p class="cichy">Wybierz książki z listy do przeczytania (albo czytane), a potem rozłóż je na dni według swojego czasu.</p>'}
+        `
+        : '<p class="cichy">Kliknij „Zaplanuj tydzień”: wybierzesz cel (np. 3–4 książki), aplikacja dobierze książki i rozłoży strony na dni według twojego czasu.</p>'}
       </section>
 
       <section class="kd-sekcja"><div class="sekcja-gora"><h3>Dzień po dniu</h3><button type="button" class="btn-tekst" data-akcja="czas-czytania">${I.zegar}Mój czas</button></div>
@@ -2426,34 +2428,199 @@ function arkuszCzasu() {
   });
 }
 
-/* ---------- arkusz: rozłóż na dni ---------- */
-function arkuszRozkladu(pn) {
+/* ---------- kreator tygodnia (2.8): cel książek, dobór, kolejność, czas, podgląd na żywo ---------- */
+const KOLORY_PLANU = ['#1f4a3d', '#a3233a', '#a77a2b', '#22385c', '#4a2f52', '#24555a', '#7a5218', '#38474f'];
+
+function arkuszKreatora(pn = poczatekTygodnia()) {
   const dzis = dzisISO(), nd = dodajDni(pn, 6);
-  const ksiazki = [...new Map(planTygodnia(pn).filter(e => !e.dzien && !e.ukryty).map(e => [e.id, znajdz(e.id)])).values()].filter(k => k && zostaloStron(k) > 0);
-  if (!ksiazki.length) { toast('Najpierw wybierz książki na ten tydzień.'); return; }
-  const odDomyslnie = pn > dzis ? pn : dzis;
+  const od = pn > dzis ? pn : dzis;
+  if (od > nd) { toast('Ten tydzień już minął. Zaplanuj następny.'); return; }
+  const wczesniej = [...new Set(planTygodnia(pn).filter(e => !e.ukryty).map(e => e.id))].filter(id => { const k = znajdz(id); return k && zostaloStron(k) > 0; });
+  const st = {
+    cel: Z.ustawienia.celeTygodni[pn] || Math.max(wczesniej.length, 3),
+    wybrane: [...wczesniej],
+    czasy: czasyTygodnia(pn),
+    tryb: Z.ustawienia.trybRozkladu,
+    krotsze: false, picker: false, filtr: '', limit: !!Z.ustawienia.planujWCzasie
+  };
+  if (!st.wybrane.length) st.wybrane = dobierzKsiazki(st.cel).map(k => k.id);
+  const kolor = id => KOLORY_PLANU[st.wybrane.indexOf(id) % KOLORY_PLANU.length];
+  const dniTyg = Array.from({ length: 7 }, (_, i) => dodajDni(pn, i));
+  const r = () => obliczRozklad(pn, st.wybrane, { od, tryb: st.tryb, czasy: st.czasy, limit: st.limit });
+
+  const htmlKsiazek = w => st.wybrane.length ? `<ol class="kr-lista">${st.wybrane.map((id, i) => {
+    const k = znajdz(id);
+    if (!k) return '';
+    const kon = w.koniec[id];
+    return `<li class="kr-ksiazka" style="--kol:${kolor(id)}">
+      <span class="kr-nr">${i + 1}</span>
+      <span class="tyg-mini-okl">${okladka(k, 's')}</span>
+      <span class="kr-tekst"><span class="kr-tytul">${esc(k.tytul)}</span>
+        <span class="kr-opis">${k.status === 'czytam' ? `czytasz, zostało ${zostaloStron(k)} str.` : `${zostaloStron(k)} str.`}${kon ? ` · <strong>skończysz: ${DNI_KR[dzienTygodnia(kon)]}</strong>` : w.czesc && w.czesc[id] ? ` · <em>w tym tygodniu ${w.czesc[id]} str.</em>` : st.wybrane.length && w.strony ? ' · <em>nie zmieści się</em>' : ''}</span></span>
+      ${st.tryb === 'kolejno' ? `<span class="kr-strzalki"><button type="button" class="btn-ikona maly" data-gora="${i}" aria-label="Wyżej"${i ? '' : ' disabled'}>${I.gora}</button><button type="button" class="btn-ikona maly" data-dol="${i}" aria-label="Niżej"${i < st.wybrane.length - 1 ? '' : ' disabled'}>${I.dol}</button></span>` : ''}
+      <button type="button" class="btn-ikona maly" data-usun-kr="${id}" aria-label="Usuń z planu">${I.zamknij}</button>
+    </li>`;
+  }).join('')}</ol>` : '<p class="cichy">Nie wybrałeś jeszcze książek. Kliknij „Dobierz za mnie” albo dodaj je z listy.</p>';
+
+  const htmlPodgladu = w => {
+    if (!st.wybrane.length) return '';
+    const maxS = Math.max(1, ...w.naDzien.map(x => x.strony), ...w.naDzien.map(x => stronZMinut(x.min)));
+    const wiersze = dniTyg.map(d => {
+      const x = w.naDzien.find(y => y.d === d);
+      const min = st.czasy[dzienTygodnia(d)] || 0;
+      if (!x) return `<li class="kr-dzien minal"><span class="kr-dzien-n">${DNI_KR[dzienTygodnia(d)]}</span><span class="kr-pasek"></span><span class="kr-dzien-l">minął</span></li>`;
+      const czesci = w.wpisy.filter(e => e.dzien === d);
+      const poj = stronZMinut(min);
+      return `<li class="kr-dzien${!min && !w.bezCzasu ? ' wolny' : ''}"><span class="kr-dzien-n">${DNI_KR[dzienTygodnia(d)]}</span>
+        <span class="kr-pasek">${czesci.map(e => `<span style="width:${(e.strony / maxS * 100).toFixed(1)}%;background:${kolor(e.id)}" title="${esc(znajdz(e.id).tytul)}: ${e.strony} str."></span>`).join('')}
+          ${poj && !w.bezCzasu ? `<i class="kr-poj" style="left:${Math.min(100, poj / maxS * 100).toFixed(1)}%" title="Twój czas: ${poj} str."></i>` : ''}</span>
+        <span class="kr-dzien-l">${x.strony ? `${x.strony} str.` : !min && !w.bezCzasu ? 'wolne' : '—'}${x.strony ? `<small>${czasTekst(minutZeStron(x.strony))}</small>` : ''}</span></li>`;
+    }).join('');
+    const skonczone = Object.keys(w.koniec).length;
+    const ocena = w.bezCzasu ? `<p class="kr-ocena cichy">Nie ustawiłeś czasu na czytanie, więc dzielę równo na dni.</p>`
+      : w.za_duzo && st.limit ? `<div class="kr-ocena"><p><strong>Plan w twoim czasie:</strong> zaplanowane ${ile(w.zaplanowane, FORMY_STRON)} z ${w.strony}. Skończysz ${skonczone} z ${st.wybrane.length} książek, reszta przejdzie na kolejny tydzień.</p>
+          <div class="przyciski"><button type="button" class="btn btn-maly" data-dopasuj-czas>Chcę skończyć wszystkie: ${w.minutDziennie} min dziennie</button></div></div>`
+      : w.za_duzo ? `<div class="kr-ocena zle"><p><strong>Za mało czasu.</strong> Ten plan to ok. ${czasTekst(w.potrzebaMin)} czytania, a masz ${czasTekst(w.maszMin)}. Potrzebujesz ok. <strong>${w.minutDziennie} min dziennie</strong>.</p>
+          <div class="przyciski"><button type="button" class="btn btn-maly" data-dopasuj-czas>Ustaw ${w.minutDziennie} min w dni czytania</button><button type="button" class="btn btn-maly" data-tylko-czas>Planuj tylko w moim czasie</button>${st.wybrane.length > 1 ? '<button type="button" class="btn btn-maly" data-zamien-krotsze>Wybierz krótsze</button>' : ''}</div></div>`
+      : `<p class="kr-ocena ok"><strong>Zmieścisz się.</strong> ok. ${czasTekst(w.potrzebaMin)} z twoich ${czasTekst(w.maszMin)} (${Math.round(w.potrzebaMin / w.maszMin * 100)}% czasu).</p>`;
+    return `<ol class="kr-dni">${wiersze}</ol>
+      <p class="kr-suma">${w.limit && w.zaplanowane < w.strony ? `${w.zaplanowane} z ${ile(w.strony, FORMY_STRON_D)}` : ile(w.strony, FORMY_STRON)} · ${skonczone} z ${st.wybrane.length} książek do końca tygodnia${st.cel ? ` · cel ${st.cel}` : ''}</p>
+      ${ocena}
+      <p class="legenda kr-legenda">${st.wybrane.map(id => `<span><i style="background:${kolor(id)}"></i>${esc(znajdz(id).tytul)}</span>`).join('')}${w.bezCzasu ? '' : '<span><i class="kr-poj-leg"></i>twój czas</span>'}</p>`;
+  };
+
+  const htmlPickera = () => {
+    const q = st.filtr.trim().toLowerCase();
+    const kand = [...czytane(), ...kolejka(), ...naPozniej()].filter(k => !st.wybrane.includes(k.id) && zostaloStron(k) > 0)
+      .filter(k => !q || `${k.tytul} ${k.autor} ${k.tagi.join(' ')}`.toLowerCase().includes(q));
+    return `<label class="pole-szukaj">${I.szukaj}<input type="search" data-filtr-kr placeholder="Szukaj w swoich książkach" value="${esc(st.filtr)}"></label>
+      <ul class="kr-picker">${kand.slice(0, 40).map(k => `<li><button type="button" class="kr-dodaj" data-dodaj-kr="${k.id}">${okladka(k, 's')}
+        <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${k.status === 'czytam' ? 'czytasz, ' : k.status === 'pozniej' ? 'na później, ' : ''}${zostaloStron(k)} str. ≈ ${czasTekst(minutZeStron(zostaloStron(k)))}</span></span>${I.plus}</button></li>`).join('') || '<li class="cichy">Brak pasujących książek.</li>'}</ul>`;
+  };
+
   const a = arkusz({
-    tytul: 'Rozłóż na dni', klasa: 'arkusz-maly',
-    render: () => `<form class="formularz" novalidate>
-      <p class="cichy">Rozłożę ${ile(ksiazki.reduce((s, k) => s + zostaloStron(k), 0), FORMY_STRON)} (${ksiazki.map(k => `„${esc(k.tytul)}”`).join(', ')}) na dni według twojego czasu na czytanie.</p>
-      <fieldset class="segment"><legend>Jak czytać</legend>${radio('tryb', 'kolejno', 'Jedna po drugiej', Z.ustawienia.trybRozkladu === 'kolejno')}${radio('tryb', 'rownolegle', 'Wszystkie naraz, po trochu', Z.ustawienia.trybRozkladu === 'rownolegle')}</fieldset>
-      <label>Od dnia<input name="od" type="date" min="${pn}" max="${nd}" value="${odDomyslnie}"></label>
-      <p class="podpowiedz">Dni z czasem 0 minut zostaną pominięte. Wcześniejszy rozkład tych książek od wybranego dnia zostanie zastąpiony.</p>
-      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-akcja="czas-czytania">${I.zegar}Mój czas</button><button type="submit" class="btn btn-glowny">Rozłóż</button></div>
-    </form>`
+    tytul: `Zaplanuj tydzień ${zakresTyg(pn)}`, klasa: 'arkusz-kreator',
+    render: () => {
+      const w = r();
+      return `<section class="kr-sekcja"><h3>Ile książek chcesz przeczytać w tym tygodniu?</h3>
+        <div class="kr-cel" role="group" aria-label="Cel książek">${[1, 2, 3, 4, 5, 6].map(n => `<button type="button" class="kr-cel-btn${st.cel === n ? ' wybrany' : ''}" data-cel="${n}">${n}</button>`).join('')}</div>
+        ${st.wybrane.length < st.cel ? `<p class="cichy">Wybrane: ${st.wybrane.length} z ${st.cel}. <button type="button" class="btn-tekst" data-dobierz>Dobierz brakujące</button></p>` : ''}
+      </section>
+      <section class="kr-sekcja"><div class="sekcja-gora"><h3>Książki ${st.tryb === 'kolejno' ? '<small>w kolejności czytania</small>' : ''}</h3>
+        <span class="sekcja-akcje"><button type="button" class="btn btn-maly" data-dobierz-wszystko>${I.kostka}Dobierz za mnie</button></span></div>
+        <label class="przelacznik maly"><input type="checkbox" data-krotsze${st.krotsze ? ' checked' : ''}><span>Przy doborze wybieraj krótsze książki, żeby łatwiej dobić do celu</span></label>
+        <div class="kr-ksiazki">${htmlKsiazek(w)}</div>
+        <button type="button" class="btn-tekst kr-pokaz-picker" data-picker>${st.picker ? 'Schowaj listę' : `${I.plus}Dodaj z moich książek`}</button>
+        ${st.picker ? `<div class="kr-picker-box">${htmlPickera()}</div>` : ''}
+      </section>
+      <section class="kr-sekcja"><div class="sekcja-gora"><h3>Twój czas w tym tygodniu</h3><button type="button" class="btn-tekst" data-czas-zwykly>Jak zwykle</button></div>
+        <div class="kr-czasy">${dniTyg.map((d, i) => `<label class="kr-czas${d < od ? ' minal' : ''}${!st.czasy[i] ? ' zero' : ''}"><span>${DNI_KR[i]}</span>
+          <input type="number" inputmode="numeric" min="0" max="600" step="5" data-czas="${i}" value="${st.czasy[i]}"${d < od ? ' disabled' : ''} aria-label="${DNI_PELNE[i]}, minut"><small>min</small></label>`).join('')}</div>
+        <label class="przelacznik maly"><input type="checkbox" data-limit${st.limit ? ' checked' : ''}><span>Planuj tylko tyle, ile zdążę w tym czasie</span></label>
+        <label class="kr-tempo">Twoje tempo<input type="number" inputmode="numeric" min="5" max="300" data-tempo value="${Math.round(tempoPlanu())}"><span>stron na godzinę</span></label>
+        <p class="podpowiedz">Minuty czytania w każdy dzień, 0 = dzień wolny. Zmiana dotyczy tylko tego tygodnia. ${tempoOgolne() ? `Tempo z twoich sesji: ${Math.round(tempoOgolne())} str./h.` : 'Zmierz tempo sesją ze stoperem albo wpisz je sam.'}</p>
+      </section>
+      <section class="kr-sekcja"><h3>Jak czytać</h3>
+        <fieldset class="segment"><legend class="sr">Tryb</legend>${radio('tryb-kr', 'kolejno', 'Jedna po drugiej', st.tryb === 'kolejno')}${radio('tryb-kr', 'rownolegle', 'Wszystkie naraz', st.tryb === 'rownolegle')}</fieldset>
+        <p class="podpowiedz">${st.tryb === 'kolejno' ? 'Kończysz jedną książkę, potem bierzesz następną. Najlepsze, gdy chcesz skończyć 3–4 książki w tygodniu.' : 'Codziennie trochu z każdej. Wszystkie skończysz pod koniec tygodnia.'}</p>
+      </section>
+      <section class="kr-sekcja kr-podglad-box"><h3>Podgląd ${od > pn ? `<small>od ${DNI_PELNE[dzienTygodnia(od)]}</small>` : ''}</h3><div class="kr-podglad">${htmlPodgladu(w)}</div></section>
+      <div class="przyciski przyciski-koniec kr-dol"><button type="button" class="btn" data-zamknij>Anuluj</button>
+        <button type="button" class="btn btn-glowny" data-zapisz-kr${st.wybrane.length ? '' : ' disabled'}>Zapisz plan tygodnia</button></div>`;
+    }
   });
-  const f = $('form', a.tresc);
-  f.addEventListener('submit', e => {
-    e.preventDefault();
-    const tryb = f.elements.tryb.value, od = poprawnaData(f.elements.od.value) ? f.elements.od.value : odDomyslnie;
-    const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni));
-    Z.ustawienia.trybRozkladu = tryb;
-    const w = rozlozPlan(pn, ksiazki.map(k => k.id), od, tryb);
-    utrwalUstawienia(); a.zamknij(); odswiez();
-    toast(w.za_duzo ? `Rozłożono, ale to ok. ${czasTekst(w.potrzebaMin)} czytania przy twoich ${czasTekst(w.maszMin)}. Plan jest ambitny.` : `Rozłożono ${ile(w.strony, FORMY_STRON)} na ${ile(w.dni, FORMY_DNI)}.`,
-      { czas: 6000, akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni = przed; utrwalUstawienia(); odswiez(); } });
+  const odswiezCzesci = () => {
+    const w = r();
+    const ks = $('.kr-ksiazki', a.tresc), pg = $('.kr-podglad', a.tresc);
+    if (ks) ks.innerHTML = htmlKsiazek(w);
+    if (pg) pg.innerHTML = htmlPodgladu(w);
+  };
+  const przerysuj = () => { const y = a.el.scrollTop; a.rysuj(); a.el.scrollTop = y; };
+
+  a.tresc.addEventListener('input', e => {
+    if (e.target.dataset.czas != null) {
+      st.czasy[+e.target.dataset.czas] = ogranicz(Math.round(+e.target.value) || 0, 0, 600);
+      e.target.closest('.kr-czas').classList.toggle('zero', !st.czasy[+e.target.dataset.czas]);
+      odswiezCzesci();
+    }
+    if (e.target.dataset.tempo != null && +e.target.value >= 5) {
+      Z.ustawienia.tempoReczne = ogranicz(Math.round(+e.target.value), 5, 300);
+      odswiezCzesci();
+    }
+    if (e.target.dataset.filtrKr != null) {
+      st.filtr = e.target.value;
+      const box = $('.kr-picker', a.tresc);
+      if (box) box.outerHTML = htmlPickera().replace(/^[\s\S]*?(<ul class="kr-picker">)/, '$1');
+    }
+  });
+  a.tresc.addEventListener('change', e => {
+    if (e.target.name === 'tryb-kr') { st.tryb = e.target.value; przerysuj(); }
+    if (e.target.dataset.krotsze != null) { st.krotsze = e.target.checked; }
+    if (e.target.dataset.limit != null) { st.limit = e.target.checked; odswiezCzesci(); }
+  });
+  a.tresc.addEventListener('click', e => {
+    const t = e.target;
+    const c = t.closest('[data-cel]');
+    if (c) {
+      st.cel = +c.dataset.cel;
+      if (st.wybrane.length < st.cel) st.wybrane.push(...dobierzKsiazki(st.cel - st.wybrane.length, { krotsze: st.krotsze, pomin: st.wybrane }).map(k => k.id));
+      przerysuj(); return;
+    }
+    if (t.closest('[data-dobierz]')) { st.wybrane.push(...dobierzKsiazki(st.cel - st.wybrane.length, { krotsze: st.krotsze, pomin: st.wybrane }).map(k => k.id)); przerysuj(); return; }
+    if (t.closest('[data-dobierz-wszystko]')) {
+      st.wybrane = dobierzKsiazki(st.cel, { krotsze: st.krotsze }).map(k => k.id);
+      if (!st.wybrane.length) toast('Dodaj książki do listy do przeczytania, żeby było z czego dobierać.');
+      przerysuj(); return;
+    }
+    if (t.closest('[data-zamien-krotsze]')) {
+      st.krotsze = true;
+      const czyt = st.wybrane.filter(id => znajdz(id).status === 'czytam');
+      st.wybrane = [...czyt, ...dobierzKsiazki(st.cel, { krotsze: true, pomin: czyt }).filter(k => k.status !== 'czytam').map(k => k.id)].slice(0, Math.max(st.cel, czyt.length));
+      przerysuj(); return;
+    }
+    if (t.closest('[data-tylko-czas]')) { st.limit = true; przerysuj(); return; }
+    if (t.closest('[data-dopasuj-czas]')) {
+      st.limit = false;
+      const w = r();
+      dniTyg.forEach((d, i) => { if (d >= od && st.czasy[i] > 0) st.czasy[i] = Math.max(st.czasy[i], Math.ceil(w.minutDziennie / 5) * 5); });
+      if (!dniTyg.some((d, i) => d >= od && st.czasy[i] > 0)) dniTyg.forEach((d, i) => { if (d >= od) st.czasy[i] = Math.ceil(w.minutDziennie / 5) * 5; });
+      przerysuj(); return;
+    }
+    if (t.closest('[data-czas-zwykly]')) { st.czasy = Z.ustawienia.czasDni.slice(); przerysuj(); return; }
+    if (t.closest('[data-picker]')) { st.picker = !st.picker; przerysuj(); return; }
+    const d = t.closest('[data-dodaj-kr]');
+    if (d) { st.wybrane.push(d.dataset.dodajKr); przerysuj(); return; }
+    const u = t.closest('[data-usun-kr]');
+    if (u) { st.wybrane = st.wybrane.filter(x => x !== u.dataset.usunKr); przerysuj(); return; }
+    const g = t.closest('[data-gora]'), dl = t.closest('[data-dol]');
+    if (g || dl) {
+      const i = +(g ? g.dataset.gora : dl.dataset.dol), j = g ? i - 1 : i + 1;
+      [st.wybrane[i], st.wybrane[j]] = [st.wybrane[j], st.wybrane[i]];
+      przerysuj(); return;
+    }
+    if (t.closest('[data-zapisz-kr]')) {
+      const przed = JSON.parse(JSON.stringify({ p: Z.ustawienia.planyTygodni, c: Z.ustawienia.czasTygodni, g: Z.ustawienia.celeTygodni, t: Z.ustawienia.trybRozkladu }));
+      // książki usunięte w kreatorze znikają z planu od dziś
+      const usuniete = wczesniej.filter(id => !st.wybrane.includes(id));
+      zapiszPlanTygodnia(pn, planTygodnia(pn).filter(e => !(usuniete.includes(e.id) && (!e.dzien || e.dzien >= od))));
+      // stara kolejność wpisów „na tydzień” → nowa, zgodnie z kreatorem
+      zapiszPlanTygodnia(pn, [...planTygodnia(pn).filter(e => e.dzien || e.ukryty || !st.wybrane.includes(e.id)), ...st.wybrane.map(id => ({ id, dzien: null, strony: 0, minuty: 0 }))]);
+      Z.ustawienia.trybRozkladu = st.tryb;
+      Z.ustawienia.celeTygodni[pn] = st.cel;
+      Z.ustawienia.planujWCzasie = st.limit;
+      Z.ustawienia = normalizujUstawienia(Z.ustawienia);
+      const w = rozlozPlan(pn, st.wybrane, od, st.tryb, st.czasy, st.limit);
+      utrwalUstawienia(); a.zamknij(); odswiez();
+      toast(`Plan gotowy: ${ile(st.wybrane.length, FORMY_KSIAZEK)}, ${ile(w.strony || 0, FORMY_STRON)}.`, { czas: 5000, akcja: 'Cofnij', onAkcja: () => {
+        Object.assign(Z.ustawienia, { planyTygodni: przed.p, czasTygodni: przed.c, celeTygodni: przed.g, trybRozkladu: przed.t });
+        utrwalUstawienia(); odswiez();
+      } });
+      if (!otwarte.some(x => x.el.classList.contains('arkusz-tydzien'))) arkuszTygodnia(pn);
+    }
   });
 }
+// stara nazwa z 2.7 prowadzi teraz do kreatora
+function arkuszRozkladu(pn) { arkuszKreatora(pn); }
 
 function arkuszDodajDoTygodnia(pn, dzien = null) {
   const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()];
@@ -2492,7 +2659,7 @@ function arkuszDodajDoTygodnia(pn, dzien = null) {
       zapiszPlanTygodnia(pn, lista);
       utrwalUstawienia();
       a.zamknij(); odswiez();
-      toast(dzien ? 'Zapisano plan dnia.' : 'Zapisano. Teraz możesz rozłożyć książki na dni.', dzien ? {} : { akcja: 'Rozłóż', onAkcja: () => arkuszRozkladu(pn) });
+      toast(dzien ? 'Zapisano plan dnia.' : 'Zapisano. Teraz rozłóż książki na dni.', dzien ? {} : { akcja: 'Rozłóż', onAkcja: () => arkuszKreatora(pn) });
     }
   });
 }
@@ -2501,8 +2668,8 @@ function blokPlanuDnia() {
   const dzis = dzisISO(), wpisy = planDnia(dzis);
   const tydz = planTygodnia().filter(e => !e.dzien && !e.ukryty);
   if (!wpisy.length && !tydz.length) {
-    return `<section class="sekcja plan-dnia pusty"><div class="sekcja-gora"><h2>Plan tygodnia</h2><button type="button" class="btn btn-maly" data-akcja="tydzien">${I.kalendarz}Zaplanuj</button></div>
-      <p class="cichy">Wybierz, co chcesz przeczytać w tym tygodniu. Rozłożę to na dni według twojego czasu i przypomnę o tym.</p></section>`;
+    return `<section class="sekcja plan-dnia pusty"><div class="sekcja-gora"><h2>Plan tygodnia</h2><button type="button" class="btn btn-maly btn-glowny" data-akcja="kreator">${I.kalendarz}Zaplanuj tydzień</button></div>
+      <p class="cichy">Ustal, ile książek chcesz przeczytać w tym tygodniu (np. 3–4). Dobiorę je i rozłożę strony na dni według twojego czasu.</p></section>`;
   }
   const zrobione = wpisy.filter(e => e.zrobione).length;
   const suma = wpisy.reduce((s, e) => s + (e.strony || 0), 0);
@@ -2516,7 +2683,7 @@ function blokPlanuDnia() {
       ${!e.zrobione && e.k.status === 'czytam' ? `<button type="button" class="btn-ikona maly" data-akcja="sesja" data-id="${e.k.id}" aria-label="Sesja czytania">${I.zegar}</button>` : ''}
       ${!e.zrobione && e.k.status !== 'czytam' ? `<button type="button" class="btn btn-maly" data-akcja="zacznij" data-id="${e.k.id}">Zacznij</button>` : ''}</li>`).join('')}</ul>
       <p class="cichy">${zrobione === wpisy.length ? 'Plan na dziś zrobiony.' : `Zrobione ${zrobione} z ${wpisy.length}${suma ? `, razem ${ile(suma, FORMY_STRON)}` : ''}.`}</p>`
-      : `<p class="cichy">Na dziś nic nie rozplanowane. W tym tygodniu: ${tydz.map(e => `„${esc(e.k.tytul)}”`).join(', ')}. <button type="button" class="btn-tekst" data-akcja="rozloz">Rozłóż na dni</button></p>`}
+      : `<p class="cichy">Na dziś nic nie rozplanowane. W tym tygodniu: ${tydz.map(e => `„${esc(e.k.tytul)}”`).join(', ')}. <button type="button" class="btn-tekst" data-akcja="kreator">Rozłóż na dni</button></p>`}
   </section>`;
 }
 
@@ -2970,7 +3137,8 @@ const AKCJE = {
   'tydzien-dodaj': d => arkuszDodajDoTygodnia(d.pn || poczatekTygodnia(), d.dzien || null),
   'do-tygodnia': d => { const k = znajdz(d.id); dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
   'dodaj-wiele': () => arkuszWielu(),
-  rozloz: d => arkuszRozkladu(d.pn || poczatekTygodnia()),
+  rozloz: d => arkuszKreatora(d.pn || poczatekTygodnia()),
+  kreator: d => arkuszKreatora(d.pn || poczatekTygodnia()),
   'czas-czytania': () => arkuszCzasu(),
   'staly-plan': d => arkuszStalegoPlanu(d.rid || null),
   passa: () => arkuszSerii(),

@@ -949,3 +949,67 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .kal-okl-gen { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--kolor); color: rgba(241, 237, 224, .55); font-family: var(--font-ksiazka); font-size: 20px; font-weight: 700; }
 .kal-okl + .kal-nr, .kal-okl ~ .kal-v { position: relative; z-index: 1; padding: 1px 4px; border-radius: 5px; background: rgba(0, 0, 0, .55); color: #fff; }
 .passa-siatka { max-width: 330px; margin-left: auto; margin-right: auto; }
+
+/* ================= wersja 2.8: kreator tygodnia ================= */
+.tyg-cta { margin-bottom: 10px; align-items: center; }
+.tyg-cel-ks { font-variant-numeric: tabular-nums; }
+.arkusz-kreator .arkusz-gora h2 { font-size: 20px; }
+.kr-sekcja { padding: 14px 0; border-bottom: 1px solid var(--linia); }
+.kr-sekcja h3 { font-size: 16.5px; margin-bottom: 10px; }
+.kr-sekcja h3 small { font-family: var(--font-ui); font-size: 12.5px; font-weight: 500; color: var(--cichy); margin-left: 4px; }
+.kr-sekcja .sekcja-gora h3 { margin-bottom: 0; }
+.kr-cel { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 6px; }
+.kr-cel-btn { aspect-ratio: 1.3; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font-family: var(--font-ksiazka); font-size: 22px; font-weight: 600; cursor: pointer; }
+.kr-cel-btn.wybrany { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); }
+.kr-lista { list-style: none; margin: 6px 0; padding: 0; }
+.kr-ksiazka { display: flex; align-items: center; gap: 8px; padding: 8px 6px 8px 0; border-bottom: 1px solid var(--linia); box-shadow: inset 4px 0 0 var(--kol); padding-left: 10px; }
+.kr-nr { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--kol); color: #fff; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.kr-tekst { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.kr-tytul { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kr-opis { font-size: 12.5px; color: var(--cichy); }
+.kr-opis strong { color: var(--ok); font-weight: 600; }
+.kr-strzalki { display: flex; flex-direction: column; }
+.kr-strzalki .btn-ikona { min-height: 26px; height: 26px; }
+.kr-pokaz-picker { margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; }
+.kr-pokaz-picker svg { width: 16px; height: 16px; }
+.kr-picker-box { margin-top: 8px; }
+.kr-picker { list-style: none; margin: 8px 0 0; padding: 0; max-height: 260px; overflow-y: auto; border: 1px solid var(--linia); border-radius: 12px; background: var(--pole); }
+.kr-picker li + li { border-top: 1px solid var(--linia); }
+.kr-picker li.cichy { padding: 10px; }
+.kr-dodaj { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: none; border: 0; color: var(--tusz); text-align: left; cursor: pointer; }
+.kr-dodaj > svg { width: 20px; height: 20px; margin-left: auto; color: var(--plotno); flex: none; }
+.kr-czasy { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.kr-czas { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; border-radius: 10px; border: 1px solid var(--linia); background: var(--pole); font-size: 12.5px; font-weight: 600; }
+.kr-czas input { width: 100%; max-width: 54px; padding: 4px 2px; border: 0; border-bottom: 1px solid var(--linia); background: transparent; color: var(--tusz); font: inherit; font-size: 16px; text-align: center; -moz-appearance: textfield; }
+.kr-czas input::-webkit-inner-spin-button, .kr-czas input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.kr-czas small { font-size: 10.5px; color: var(--cichy); font-weight: 500; }
+.kr-czas.zero { background: var(--powierzchnia); border-style: dashed; color: var(--cichy); }
+.kr-czas.minal { opacity: .45; }
+.kr-dni { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.kr-dzien { display: grid; grid-template-columns: 26px 1fr 64px; align-items: center; gap: 8px; font-size: 13.5px; }
+.kr-dzien-n { font-weight: 700; color: var(--cichy); }
+.kr-pasek { position: relative; display: flex; height: 16px; border-radius: 5px; background: var(--hm0); overflow: visible; }
+.kr-pasek > span { height: 100%; }
+.kr-pasek > span:first-child { border-radius: 5px 0 0 5px; }
+.kr-pasek > span:last-of-type { border-radius: 0 5px 5px 0; }
+.kr-poj { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tusz); border-radius: 1px; }
+.kr-dzien-l { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; line-height: 1.1; }
+.kr-dzien-l small { display: block; font-size: 11px; font-weight: 500; color: var(--cichy); }
+.kr-dzien.minal, .kr-dzien.wolny { opacity: .55; }
+.kr-suma { margin-top: 10px; font-size: 14px; font-weight: 600; }
+.kr-ocena { margin-top: 8px; padding: 10px 12px; border-radius: 12px; font-size: 14px; background: var(--powierzchnia); border-left: 3px solid currentColor; }
+.kr-ocena p { color: var(--tusz); }
+.kr-ocena .przyciski { margin-top: 8px; }
+.kr-legenda { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12.5px; }
+.kr-legenda span { display: inline-flex; align-items: center; gap: 5px; }
+.kr-legenda i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.kr-legenda i.kr-poj-leg { width: 2px; height: 12px; background: var(--tusz); }
+.kr-dol { position: sticky; bottom: 0; padding: 12px 0 4px; background: var(--powierzchnia); margin-top: 0; }
+@media (max-width: 360px) { .kr-czas input { font-size: 14px; } .kr-czas { padding: 5px 0; } }
+.kr-tempo { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; font-weight: 600; }
+.kr-tempo input { width: 70px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; text-align: center; }
+.kr-tempo span { font-weight: 500; color: var(--cichy); }
+.kr-tempo { flex-wrap: nowrap; }
+.kr-tempo input { flex: 0 0 72px; width: 72px !important; min-width: 0; }
+.kr-tempo span { white-space: nowrap; }
+.kr-opis em { font-style: normal; color: var(--zloto); font-weight: 600; }

@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.7.0';
+const WERSJA = '2.8.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno' };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {} };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -137,6 +137,13 @@ function normalizujUstawienia(u = {}) {
     .map(r => ({ rid: String(r.rid || noweId()), id: String(r.id), dni: [...new Set((r.dni || []).map(Number).filter(d => d >= 0 && d <= 6))].sort(), strony: Math.max(0, Math.round(+r.strony) || 0), minuty: Math.max(0, Math.round(+r.minuty) || 0) }))
     .filter(r => r.dni.length);
   if (['kolejno', 'rownolegle'].includes(u.trybRozkladu)) w.trybRozkladu = u.trybRozkladu;
+  w.planujWCzasie = !!u.planujWCzasie;
+  w.tempoReczne = +u.tempoReczne >= 5 ? ogranicz(Math.round(+u.tempoReczne), 5, 300) : 0;
+  // czas i cel książek ustawione dla konkretnego tygodnia (klucz: poniedziałek)
+  w.czasTygodni = {}; w.celeTygodni = {};
+  const granicaT = dodajDni(dzisISO(), -7 * 26);
+  for (const [pn, v] of Object.entries(u.czasTygodni || {})) if (poprawnaData(pn) && pn >= granicaT && Array.isArray(v) && v.length === 7) w.czasTygodni[pn] = v.map(x => ogranicz(Math.round(+x) || 0, 0, 600));
+  for (const [pn, v] of Object.entries(u.celeTygodni || {})) if (poprawnaData(pn) && pn >= granicaT && +v > 0) w.celeTygodni[pn] = ogranicz(Math.round(+v), 1, 30);
   const pr = u.przypomnienie || {};
   w.przypomnienie = {
     wlaczone: !!pr.wlaczone,
@@ -579,8 +586,8 @@ function celTygodnia(pn = poczatekTygodnia()) {
   const dniCalosc = Math.max(1, dniMiedzy(u.start, u.koniec) + 1), w = dniOkresuW(pn, nd);
   return {
     strony: u.tydzienStrony || bazaDzienna() * 7,
-    ksiazki: u.tydzienKsiazki || (w ? Math.max(0.5, zaokr1(u.cel * 7 / dniCalosc)) : 0),
-    autoStrony: !u.tydzienStrony, autoKsiazki: !u.tydzienKsiazki
+    ksiazki: (u.celeTygodni && u.celeTygodni[pn]) || u.tydzienKsiazki || (w ? Math.max(0.5, zaokr1(u.cel * 7 / dniCalosc)) : 0),
+    autoStrony: !u.tydzienStrony, autoKsiazki: !u.tydzienKsiazki && !(u.celeTygodni && u.celeTygodni[pn])
   };
 }
 
@@ -843,10 +850,14 @@ const listaZyczen = () => Z.ksiazki.filter(k => k.status === 'zyczenia')
 const naPozniej = () => Z.ksiazki.filter(k => k.status === 'pozniej').sort((a, b) => (b.odlozono || '').localeCompare(a.odlozono || ''));
 
 /* ---------- zaawansowany plan: czas na czytanie, stałe plany, przenoszenie (2.7) ---------- */
-const tempoPlanu = () => tempoOgolne() || 30; // stron na godzinę; bez sesji zakładamy 30
+const tempoPlanu = () => Z.ustawienia.tempoReczne || tempoOgolne() || 30; // stron na godzinę: wpisane ręcznie, z sesji albo 30
 const stronZMinut = min => Math.round(min * tempoPlanu() / 60);
 const minutZeStron = str => Math.round(str * 60 / tempoPlanu());
-const czasDnia = iso => (Z.ustawienia.czasDni || [])[dzienTygodnia(iso)] ?? 30;
+function czasDnia(iso) {
+  const t = Z.ustawienia.czasTygodni && Z.ustawienia.czasTygodni[poczatekTygodnia(iso)];
+  return (t || Z.ustawienia.czasDni || [])[dzienTygodnia(iso)] ?? 30;
+}
+const czasyTygodnia = pn => (Z.ustawienia.czasTygodni[pn] || Z.ustawienia.czasDni).slice();
 
 /** Wpisy wygenerowane ze stałych planów (np. „Lalka: pn–pt po 30 stron”). */
 function wpisyStale(pn) {
@@ -912,31 +923,41 @@ function przeniesNiezrobione(pn = poczatekTygodnia()) {
 }
 
 /**
- * Rozkłada pozostałe strony książek na dni od `od` do niedzieli, proporcjonalnie do czasu na czytanie w danym dniu.
- * tryb 'kolejno': najpierw kończy pierwszą książkę, potem następną; 'rownolegle': każda po trochu codziennie.
+ * Liczy rozkład (bez zapisu) — do podglądu na żywo i do zapisu.
+ * ids: kolejność ma znaczenie w trybie 'kolejno' (najpierw kończy pierwszą, potem następną).
+ * czasy: minuty na każdy dzień tygodnia (pn..nd) dla tego rozkładu; 0 = dzień bez czytania.
  */
-function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu) {
+function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkladu, czasy = czasyTygodnia(pn), limit = false } = {}) {
   const nd = dodajDni(pn, 6), start = od < pn ? pn : od;
-  if (start > nd) return { dni: 0 };
+  const pusty = { wpisy: [], dni: [], strony: 0, potrzebaMin: 0, maszMin: 0, za_duzo: false, naDzien: [], koniec: {} };
+  if (start > nd) return pusty;
   const dni = [];
   for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
-  let wagi = dni.map(czasDnia);
-  if (!wagi.some(v => v > 0)) wagi = dni.map(() => 1);
+  let wagi = dni.map(d => czasy[dzienTygodnia(d)] || 0);
+  const bezCzasu = !wagi.some(v => v > 0);
+  if (bezCzasu) wagi = dni.map(() => 1);
   const sumaW = wagi.reduce((a, b) => a + b, 0);
   const ksiazki = ids.map(znajdz).filter(k => k && zostaloStron(k) > 0);
   const razem = ksiazki.reduce((s, k) => s + zostaloStron(k), 0);
-  // ile stron przypada na każdy dzień (zaokrąglenia narastająco, żeby suma się zgadzała)
+  if (!razem) return { ...pusty, dni };
   const naDzien = [];
   let nar = 0;
   wagi.forEach((w, i) => { const przed = Math.round(razem * nar / sumaW); nar += w; naDzien[i] = Math.round(razem * nar / sumaW) - przed; });
-  let lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start));
+  if (limit && !bezCzasu) {
+    // tylko tyle, ile zmieści się w czasie: każdy dzień dostaje swoją pojemność, aż skończą się strony
+    let zostalo = razem;
+    dni.forEach((d, i) => { naDzien[i] = Math.min(zostalo, stronZMinut(czasy[dzienTygodnia(d)] || 0)); zostalo -= naDzien[i]; });
+  }
+  const zaplanowane = naDzien.reduce((a, b) => a + b, 0);
+  const wpisy = [], koniec = {}, czesc = {}; // koniec: dzień skończenia (tylko gdy plan domyka książkę); czesc: zaplanowane strony
   if (tryb === 'rownolegle') {
     for (const k of ksiazki) {
       const udzial = zostaloStron(k) / razem;
       let zostalo = zostaloStron(k);
+      if (zaplanowane < razem) zostalo = Math.round(zostalo * zaplanowane / razem);
       dni.forEach((d, i) => {
         const s = i === dni.length - 1 ? zostalo : Math.min(zostalo, Math.round(naDzien[i] * udzial));
-        if (s > 0) { lista.push({ id: k.id, dzien: d, strony: s, minuty: 0 }); zostalo -= s; }
+        if (s > 0) { wpisy.push({ id: k.id, dzien: d, strony: s, minuty: 0 }); zostalo -= s; czesc[k.id] = (czesc[k.id] || 0) + s; if (czesc[k.id] >= zostaloStron(k)) koniec[k.id] = d; }
       });
     }
   } else {
@@ -945,14 +966,44 @@ function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu) {
       let budzet = naDzien[i];
       while (budzet > 0 && ki < ksiazki.length) {
         const s = Math.min(budzet, resztaK);
-        if (s > 0) lista.push({ id: ksiazki[ki].id, dzien: d, strony: s, minuty: 0 });
+        if (s > 0) { wpisy.push({ id: ksiazki[ki].id, dzien: d, strony: s, minuty: 0 }); czesc[ksiazki[ki].id] = (czesc[ksiazki[ki].id] || 0) + s; }
         budzet -= s; resztaK -= s;
+        if (resztaK <= 0 && ksiazki[ki]) koniec[ksiazki[ki].id] = d;
         if (resztaK <= 0) { ki++; resztaK = ksiazki[ki] ? zostaloStron(ksiazki[ki]) : 0; }
       }
     });
   }
-  for (const k of ksiazki) if (!lista.some(e => e.id === k.id && !e.dzien)) lista.push({ id: k.id, dzien: null, strony: 0, minuty: 0 });
+  const potrzebaMin = minutZeStron(razem), maszMin = bezCzasu ? 0 : dni.reduce((s, d) => s + (czasy[dzienTygodnia(d)] || 0), 0);
+  const dniAktywne = bezCzasu ? dni.length : wagi.filter(v => v > 0).length;
+  return {
+    wpisy, dni, strony: razem, zaplanowane, potrzebaMin, maszMin, bezCzasu, dniAktywne, limit: limit && !bezCzasu,
+    za_duzo: maszMin > 0 && potrzebaMin > maszMin * 1.1,
+    minutDziennie: Math.ceil(potrzebaMin / Math.max(1, dniAktywne)),
+    naDzien: dni.map((d, i) => ({ d, strony: naDzien[i], min: czasy[dzienTygodnia(d)] || 0 })),
+    koniec, czesc
+  };
+}
+
+/** Zapisuje rozkład: zastępuje wcześniejsze wpisy tych książek od dnia `od`. */
+function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu, czasy = null, limit = false) {
+  const r = obliczRozklad(pn, ids, { od, tryb, limit, ...(czasy ? { czasy } : {}) });
+  if (!r.dni.length) return { dni: 0 };
+  const start = r.dni[0];
+  const lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start && !e.ukryty));
+  lista.push(...r.wpisy);
+  for (const id of ids) if (znajdz(id) && !lista.some(e => e.id === id && !e.dzien)) lista.push({ id, dzien: null, strony: 0, minuty: 0 });
   zapiszPlanTygodnia(pn, lista);
-  const potrzebaMin = minutZeStron(razem), maszMin = dni.reduce((s, d) => s + czasDnia(d), 0);
-  return { dni: dni.length, strony: razem, potrzebaMin, maszMin, za_duzo: maszMin > 0 && potrzebaMin > maszMin * 1.1 };
+  if (czasy) Z.ustawienia.czasTygodni[pn] = czasy.slice();
+  return { ...r, dni: r.dni.length };
+}
+
+/**
+ * Dobiera książki na tydzień: najpierw te, które już czytasz (najbliżej końca), potem kolejka.
+ * krotsze: z kolejki bierze najpierw krótsze, żeby łatwiej dobić do celu liczby książek.
+ */
+function dobierzKsiazki(ile, { krotsze = false, pomin = [] } = {}) {
+  const czyt = czytane().filter(k => !pomin.includes(k.id) && zostaloStron(k) > 0).sort((a, b) => zostaloStron(a) - zostaloStron(b));
+  let kol = kolejka().filter(k => !pomin.includes(k.id));
+  if (krotsze) kol = [...kol].sort((a, b) => a.strony - b.strony);
+  return [...czyt, ...kol].slice(0, ile);
 }
