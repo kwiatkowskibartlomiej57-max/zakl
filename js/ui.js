@@ -161,6 +161,7 @@ function arkusz({ tytul = '', render, klasa = '', ukryjTytul = false, onZamknij,
     if (e.target === tlo || e.target.closest('[data-zamknij]')) a.zamknij();
   });
   document.body.append(tlo);
+  przeciaganieArkusza(a);
   otwarte.push(a);
   document.body.classList.add('arkusz-otwarty');
   a.rysuj();
@@ -359,14 +360,14 @@ function widokDzis() {
   const zagrozona = !ss.dzisZrobione && !ss.dzisWolny && seria > 0 && new Date().getHours() >= 17
     ? `<div class="baner baner-seria"><p>${I.plomien}<span>Twoja seria <strong>${ile(seria, FORMY_DNI)}</strong> skończy się o północy. Wystarczy jedna strona, żeby ją utrzymać.</span></p>
       ${doZapisu ? `<div class="przyciski"><button type="button" class="btn btn-glowny" data-akcja="postep" data-id="${doZapisu.id}">Zapisz postęp</button><button type="button" class="btn" data-akcja="sesja" data-id="${doZapisu.id}">${I.zegar}Sesja</button></div>` : ''}</div>` : '';
-  return `${banery()}${zagrozona}${banerPozyczek()}${banerLosowania()}
+  return `${stosBanerow([banerPozyczek(), zagrozona, banery(), banerLosowania()])}
   <section class="powitanie">
     <p class="powitanie-data">${dataDzis()}</p>
     <h1>${powitanie()}</h1>
   </section>
   <section class="dzien" aria-label="Dzisiejsze czytanie">
     <div class="dzien-pierscien">${pierscien(dzisStron, cel)}
-      <div class="dzien-liczba"><strong>${dzisStron}</strong><span>z ${ile(cel, FORMY_STRON_D)}</span></div></div>
+      <div class="dzien-liczba"><strong data-licz="${dzisStron}">${dzisStron}</strong><span>z ${ile(cel, FORMY_STRON_D)}</span></div></div>
     <div class="dzien-boki">
       <p class="dzien-seria${seria ? ' aktywna' : ''}" data-akcja="passa" role="button" tabindex="0" title="Twoja passa">${I.plomien}<span>${seria ? `<strong>${ile(seria, FORMY_DNI)}</strong> z rzędu` : 'Przeczytaj dziś choć stronę, żeby zacząć serię'}</span></p>
       <p>W tym tygodniu <strong>${ile(tydzien, FORMY_STRON)}</strong></p>
@@ -433,9 +434,9 @@ function htmlSiatki() {
     return `<div class="pusto-duze"><p>${puste[U.polka]}</p>${U.polka !== 'porzucona' && U.polka !== 'przeczytana' ? '<button type="button" class="btn btn-glowny" data-akcja="dodaj">Dodaj książkę</button>' : ''}</div>`;
   }
   const kolejkowa = U.polka === 'doPrzeczytania' && U.sort === 'domyslnie' && !q && !U.tag;
-  return `<ul class="siatka">${lista.map((k, i) => `<li><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}">
+  return `<ul class="siatka">${lista.map((k, i) => `<li style="--n:${i}"><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}">
       ${okladka(k, 'm')}${kolejkowa ? `<span class="kafel-nr" aria-label="Pozycja w kolejce">${i + 1}</span>` : ''}${k.bazowa ? '<span class="kafel-wstazka" aria-label="Książka bazowa"></span>' : ''}
-      ${k.pozyczona ? `<span class="kafel-pozyczka" title="${k.pozyczona.kierunek === 'komus' ? 'Pożyczona: ' : 'Od: '}${esc(k.pozyczona.kto)}">${I.reka}${esc(k.pozyczona.kto)}</span>` : ''}
+      ${k.pozyczona ? `<span class="kafel-pozyczka${dniDoZwrotu(k) != null && dniDoZwrotu(k) < 0 ? ' po-terminie' : ''}" title="${k.pozyczona.kierunek === 'komus' ? 'Pożyczona: ' : 'Od: '}${esc(k.pozyczona.kto)}">${I.reka}${esc(k.pozyczona.kto)}</span>` : ''}
       <span class="kafel-tytul">${esc(k.tytul)}</span><span class="kafel-autor">${esc(k.autor)}${k.seria ? `<span class="kafel-seria">${esc(k.seria)}${k.tom != null ? ` ${String(k.tom).replace('.', ',')}` : ''}</span>` : ''}</span>
       ${k.status === 'czytam' || (k.status === 'pozniej' && k.strona) ? pasek(k.strona / k.strony * 100) : ''}
       ${k.status === 'zyczenia' && (k.cena || k.priorytet) ? `<span class="kafel-zycz">${k.priorytet ? `<span class="kafel-prio">${'♥'.repeat(k.priorytet)}</span>` : ''}${k.cena ? `${k.cena.toFixed(2).replace('.', ',')} zł` : ''}</span>` : ''}
@@ -607,6 +608,7 @@ function widokStatystyki() {
   <section class="sekcja"><h2>Cel roczny w czasie</h2>${wykresCeluWCzasie()}</section>
   <section class="sekcja"><h2>Książki w miesiącach</h2><p class="cichy">Od ${dataDluga(u.start)} do ${dataDluga(u.koniec)}.</p>${wykresMiesiecy()}</section>
   <section class="sekcja"><h2>Miesiąc po miesiącu</h2><p class="cichy">Kliknij miesiąc, żeby zobaczyć kalendarz, przeczytane książki i plan.</p>${htmlMiesiecy(m)}</section>
+  ${htmlWydatkow()}
   <section class="sekcja"><h2>Rekordy</h2><dl class="rekordy">
     ${najDzien ? `<div><dt>Najlepszy dzień</dt><dd>${ile(najDzien[1], FORMY_STRON)}, ${dataDluga(najDzien[0])}</dd></div>` : ''}
     ${najdluzsza ? `<div><dt>Najdłuższa przeczytana</dt><dd>${esc(najdluzsza.tytul)}, ${ile(najdluzsza.strony, FORMY_STRON)}</dd></div>` : ''}
@@ -768,10 +770,21 @@ function renderWidok() {
   el.dataset.widok = U.widok;
   renderNawigacja();
   if (U.widok === 'ustawienia') pokazStanPamieci();
+  if (U.widok === 'losuj') podlaczPodpowiedzi($('[data-los-dodaj] input'), { naWybor: q => { const f = $('[data-los-dodaj]'); if (f) f.requestSubmit(); } });
+  // wejście widoku: animacja i liczby
+  if (U.ostatniWidok !== U.widok) { el.classList.remove('wejscie'); void el.offsetWidth; el.classList.add('wejscie'); U.ostatniWidok = U.widok; }
+  animujLiczby(el);
   U.pierwszyRender = false;
 }
 
 function idz(widok, polka) {
+  // płynne przejście między zakładkami (View Transitions, gdy przeglądarka je ma)
+  if (document.startViewTransition && U.widok !== widok && !bezRuchu() && !U.wPrzejsciu) {
+    U.wPrzejsciu = true;
+    const t = document.startViewTransition(() => idz(widok, polka));
+    t.finished.finally(() => { U.wPrzejsciu = false; });
+    return;
+  }
   U.widok = widok;
   if (polka) { U.polka = polka; U.tag = null; U.sort = 'domyslnie'; }
   lsSet('zakladka-widok', widok);
@@ -853,8 +866,10 @@ function htmlKsiazki(k) {
     : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}
     ${k.bazowa ? '<span class="kd-plan-tydz">· norma dzienna liczona automatycznie</span>' : planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
   ${k.status === 'przeczytana' || k.recenzja ? `<label class="kd-recenzja">Twoje wrażenia<textarea name="recenzja" rows="3" placeholder="Co zostanie ci z tej książki?">${esc(k.recenzja)}</textarea></label>` : ''}
+  ${htmlOpisu(k)}
   ${htmlPozyczki(k)}
   ${htmlSerii(k)}
+  ${htmlPodobnych(k)}
   <section class="kd-sekcja">
     <div class="sekcja-gora"><h3>Cytaty i notatki</h3><button type="button" class="btn btn-maly" data-akcja="cytat-dodaj" data-id="${k.id}">${I.plus}Dodaj cytat</button></div>
     ${cytaty.length ? cytaty.map(c => `<article class="cytat${c.notatka ? ' cytat-notatka' : ''}">
@@ -901,7 +916,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
   const edytowana = id ? znajdz(id) : null;
   const k = edytowana || { tytul: '', autor: '', strony: '', isbn: '', format: 'papier', tagi: [], okladka: null, seria: '', tom: null };
   let okl = k.okladka;
-  let wyniki = [];
+  let wyniki = [], opisWyniku = '';
   const a = arkusz({
     tytul: edytowana ? 'Edytuj książkę' : 'Dodaj książkę',
     render: () => `<form class="formularz" novalidate>
@@ -966,7 +981,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     if (!navigator.onLine) { box.innerHTML = '<p class="cichy">Jesteś offline. Wpisz dane ręcznie albo spróbuj, gdy wróci internet.</p>'; return; }
     box.innerHTML = '<p class="cichy ladowanie">Szukam…</p>';
     try {
-      wyniki = await Wyszukiwarka.szukaj(q);
+      wyniki = await Wyszukiwarka.szukajMadrze(q);
       box.innerHTML = wyniki.length
         ? `<ul class="wyniki-lista">${wyniki.slice(0, 12).map((w, i) => `<li><button type="button" class="wynik" data-wynik="${i}">
             ${okladka({ tytul: w.tytul, autor: w.autor, okladka: w.okladka }, 's')}
@@ -974,6 +989,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
             <span class="wiersz-autor">${esc([w.autor, w.rok, w.strony ? ile(w.strony, FORMY_STRON) : ''].filter(Boolean).join(', '))}</span></span></button></li>`).join('')}</ul>`
         : bezWynikow(q);
       if (wyniki.length) box.insertAdjacentHTML('beforeend', `<p class="cichy zrodla-info">Źródło: ${esc([...new Set(wyniki.map(w => w.zrodlo))].join(', '))}.</p>`);
+      if (Wyszukiwarka.stan.poprawka) box.insertAdjacentHTML('afterbegin', `<p class="poprawka">Czy chodziło ci o: <button type="button" class="btn-tekst" data-poprawka>${esc(Wyszukiwarka.stan.poprawka)}</button>?</p>`);
       const isbn = Wyszukiwarka.czyIsbn(q);
       if (isbn) {
         el('isbn').value = isbn.length === 10 ? Wyszukiwarka.isbn10na13(isbn) || isbn : isbn;
@@ -988,6 +1004,8 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
 
   f.addEventListener('click', async e => {
     if (e.target.closest('[data-szukaj]')) szukaj();
+    const pop = e.target.closest('[data-poprawka]');
+    if (pop) { $('#f-q', f).value = pop.textContent; szukaj(); }
     if (e.target.closest('[data-wiele]')) { a.zamknij(); arkuszWielu(); return; }
     if (e.target.closest('[data-skanuj]')) arkuszSkanera(kod => { $('#f-q', f).value = kod; el('isbn').value = kod; szukaj(); });
     if (e.target.closest('[data-bez-okladki]')) { okl = null; podglad(); }
@@ -1001,6 +1019,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       const r = wyniki[+w.dataset.wynik];
       el('tytul').value = r.tytul;
       el('autor').value = r.autor;
+      opisWyniku = r.opis || '';
       if (r.strony) el('strony').value = r.strony;
       if (r.isbn) el('isbn').value = r.isbn;
       if (r.seria) { el('seria').value = r.seria; el('tom').value = r.tom ?? ''; }
@@ -1016,6 +1035,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     }
   });
   $('#f-q', f)?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); szukaj(); } });
+  podlaczPodpowiedzi($('#f-q', f), { naWybor: () => szukaj() });
   $('[data-plik]', f).addEventListener('change', async e => {
     const plik = e.target.files[0];
     if (!plik) return;
@@ -1071,6 +1091,8 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     if (U.widok === 'biblioteka') U.polka = nowa.status;
     odswiez();
     toast(`Dodano „${nowa.tytul}”.`);
+    if (opisWyniku && !nowa.opis) { nowa.opis = opisWyniku; nowa.opisZrodlo = 'Biblioteka Narodowa'; utrwal(nowa); }
+    if (!nowa.opis) uzupelnijOpis(nowa, { cicho: true });
   });
   if (!edytowana) setTimeout(() => $('#f-q', f).focus(), 80);
 }
@@ -1470,6 +1492,7 @@ function celebracja(id) {
   const wCelu = k.koniec >= u.start && k.koniec <= u.koniec;
   const n = ukonczenia(u.start, u.koniec).length;
   if (navigator.vibrate) navigator.vibrate([20, 60, 30]);
+  setTimeout(() => konfetti(), 250);
   arkusz({
     tytul: 'Przeczytane', ukryjTytul: true, klasa: 'arkusz-maly arkusz-brawo', odswiezalny: true, ksiazkaId: id,
     render: () => {
@@ -1480,6 +1503,7 @@ function celebracja(id) {
         <p>„${esc(kk.tytul)}”${wCelu ? ` to twoja ${n}. książka w tym celu. Zostało ${Math.max(0, u.cel - n)}.` : ' trafia na półkę przeczytanych.'}</p>
         <p class="cichy">Jak ją oceniasz?</p>
         ${gwiazdki(kk)}
+        ${kk.ocena >= 4 ? htmlPodobnych(kk, { naglowek: 'Skoro ci się podobała, może też…', kompakt: true }) : kk.ocena ? '' : '<p class="cichy brawo-podp">Oceń ją na 4 albo 5, a podsunę podobne książki.</p>'}
         ${(() => { const nt = nastepnyTom(kk); return nt && nt.status === 'doPrzeczytania' ? `<p class="brawo-nastepny">Następny w cyklu: <strong>${esc(nt.tytul)}</strong></p><div class="przyciski"><button type="button" class="btn btn-zloty" data-akcja="zacznij" data-id="${nt.id}">Zacznij następny tom</button></div>` : ''; })()}
         <div class="przyciski"><button type="button" class="btn" data-akcja="cytat-dodaj" data-id="${kk.id}">Dodaj cytat</button>
           <button type="button" class="btn btn-glowny" data-zamknij>Gotowe</button></div>
@@ -1968,6 +1992,7 @@ function sprawdzCele() {
   const znane = new Set(zapis ? JSON.parse(zapis) : []);
   const nowe = teraz.filter(([id]) => !znane.has(id));
   if (zapis != null) nowe.forEach(([, tekst], i) => setTimeout(() => toast(tekst, { czas: 5000 }), 600 + i * 900));
+  if (zapis != null && nowe.length) setTimeout(() => konfetti({ ile: 90 }), 500);
   if (nowe.length || zapis == null) {
     const lista = [...znane, ...teraz.map(([id]) => id)];
     lsSet('zakladka-cele-zrobione', JSON.stringify([...new Set(lista)].slice(-60)));
@@ -1996,40 +2021,64 @@ function htmlSerii(k) {
 
 function htmlPozyczki(k) {
   const p = k.pozyczona;
-  if (!p) return `<p class="kd-pozyczka">${I.reka}<button type="button" class="btn-tekst" data-akcja="pozyczka" data-id="${k.id}">Pożyczona? Zapisz komu albo od kogo</button></p>`;
-  const dni = dniMiedzy(p.data, dzisISO());
-  return `<p class="kd-pozyczka aktywna${dni > 30 ? ' dawno' : ''}">${I.reka}<span>${p.kierunek === 'komus' ? `Pożyczona: <strong>${esc(p.kto)}</strong>` : `Pożyczona od: <strong>${esc(p.kto)}</strong>`}, od ${dataDluga(p.data, false)} (${ile(dni, FORMY_DNI)})</span>
-    <button type="button" class="btn-tekst" data-akcja="pozyczka" data-id="${k.id}">Zmień</button>
-    <button type="button" class="btn-tekst" data-akcja="zwrot" data-id="${k.id}">${p.kierunek === 'komus' ? 'Wróciła' : 'Oddana'}</button></p>`;
+  const hist = (k.historiaPozyczek || []).length;
+  if (!p) return `<p class="kd-pozyczka">${I.reka}<button type="button" class="btn-tekst" data-akcja="pozyczka" data-id="${k.id}">Pożyczona? Zapisz komu, od kogo albo z biblioteki</button>${hist ? `<span class="cichy"> · pożyczana ${ile(hist, ['raz', 'razy', 'razy'])}</span>` : ''}</p>`;
+  const dni = dniMiedzy(p.data, dzisISO()), dz = dniDoZwrotu(k);
+  const stanT = dz == null ? '' : dz < 0 ? `<strong class="zle">po terminie ${ile(-dz, FORMY_DNI)}</strong>` : dz === 0 ? '<strong class="zle">oddać dziś</strong>' : dz <= 3 ? `<strong class="ostrzezenie">oddać za ${ile(dz, FORMY_DNI)}</strong>` : `oddać do ${dataDluga(p.termin, false)}`;
+  const kto = p.typ === 'biblioteka' ? `z biblioteki: <strong>${esc(p.kto)}</strong>` : p.kierunek === 'komus' ? `pożyczona: <strong>${esc(p.kto)}</strong>` : `od: <strong>${esc(p.kto)}</strong>`;
+  return `<div class="kd-pozyczka aktywna${dz != null && dz < 0 ? ' dawno' : dz != null && dz <= 3 ? ' blisko' : !p.termin && dni > 30 ? ' dawno' : ''}">
+    <p>${I.reka}<span>${kto.replace(/^./, c => c.toUpperCase())}, od ${dataKrotka(p.data)} (${ile(dni, FORMY_DNI)})${stanT ? ` · ${stanT}` : ''}${p.prolongaty ? ` · prolongat: ${p.prolongaty}` : ''}</span></p>
+    <div class="przyciski">
+      ${p.termin ? `<button type="button" class="btn btn-maly" data-akcja="prolonguj" data-id="${k.id}" data-dni="${p.typ === 'biblioteka' ? 30 : 14}">Przedłuż o ${p.typ === 'biblioteka' ? 30 : 14} dni</button>` : ''}
+      ${p.termin ? `<button type="button" class="btn btn-maly" data-akcja="ics-zwrot" data-id="${k.id}">${I.dzwonek}Do kalendarza</button>` : ''}
+      <button type="button" class="btn btn-maly btn-glowny" data-akcja="zwrot" data-id="${k.id}">${p.kierunek === 'komus' ? 'Wróciła' : 'Oddana'}</button>
+      <button type="button" class="btn-tekst" data-akcja="pozyczka" data-id="${k.id}">Zmień</button></div></div>`;
 }
 
 function arkuszPozyczki(id) {
   const k = znajdz(id);
   if (!k) return;
-  const p = k.pozyczona || { kto: '', data: dzisISO(), kierunek: 'komus' };
-  const znani = [...new Set(Z.ksiazki.map(x => x.pozyczona && x.pozyczona.kto).filter(Boolean))];
+  const p = k.pozyczona || { kto: '', data: dzisISO(), kierunek: 'komus', typ: 'osoba', termin: null };
+  const znani = [...new Set(Z.ksiazki.flatMap(x => [x.pozyczona && x.pozyczona.kto, ...(x.historiaPozyczek || []).map(h => h.kto)]).filter(Boolean))];
+  let typ = p.typ === 'biblioteka' ? 'biblioteka' : p.kierunek === 'od' ? 'od' : 'komus';
   const a = arkusz({
     tytul: 'Pożyczona książka', klasa: 'arkusz-maly',
     render: () => `<form class="formularz" novalidate>
       <div class="postep-ksiazka">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor)}</span></span></div>
-      <fieldset class="segment"><legend class="sr">Kierunek</legend>${radio('kierunek', 'komus', 'Pożyczyłem komuś', p.kierunek === 'komus')}${radio('kierunek', 'od', 'Pożyczyłem od kogoś', p.kierunek === 'od')}</fieldset>
-      <label><span data-kto-et>${p.kierunek === 'od' ? 'Od kogo' : 'Komu'}</span><input name="kto" value="${esc(p.kto)}" list="znani-pozyczajacy" autocomplete="off" required placeholder="np. Ania" autofocus></label>
+      <fieldset class="segment"><legend class="sr">Rodzaj</legend>${radio('typ', 'komus', 'Pożyczyłem komuś', typ === 'komus')}${radio('typ', 'od', 'Mam od kogoś', typ === 'od')}${radio('typ', 'biblioteka', 'Z biblioteki', typ === 'biblioteka')}</fieldset>
+      <label><span data-kto-et>${typ === 'biblioteka' ? 'Która biblioteka' : typ === 'od' ? 'Od kogo' : 'Komu'}</span><input name="kto" value="${esc(p.kto)}" list="znani-pozyczajacy" autocomplete="off" required placeholder="${typ === 'biblioteka' ? 'np. Biblioteka Miejska, filia 3' : 'np. Ania'}"></label>
       <datalist id="znani-pozyczajacy">${znani.map(z => `<option value="${esc(z)}">`).join('')}</datalist>
-      <label>Od kiedy<input name="data" type="date" max="${dzisISO()}" value="${p.data}"></label>
-      <p class="podpowiedz">Po 30 dniach ekran Dziś przypomni o tej książce.</p>
+      <div class="f-rzad"><label>Od kiedy<input name="data" type="date" max="${dzisISO()}" value="${p.data}"></label>
+        <label>Oddać do<input name="termin" type="date" value="${p.termin || ''}"></label></div>
+      <div class="szybkie" role="group" aria-label="Termin zwrotu">${[[7, 'tydzień'], [14, '2 tygodnie'], [30, 'miesiąc'], [60, '2 miesiące']].map(([d, n]) => `<button type="button" class="chip" data-termin="${d}">${n}</button>`).join('')}<button type="button" class="chip" data-termin="0">bez terminu</button></div>
+      <p class="podpowiedz" data-podp-termin>${typ === 'biblioteka' ? 'Biblioteki zwykle dają 30 dni. Przypomnę 3 dni przed terminem, a „Przedłuż” doda kolejne 30 dni.' : 'Z terminem przypomnę 3 dni przed. Bez terminu przypomnę po 30 dniach.'}</p>
       <div class="przyciski przyciski-koniec">${k.pozyczona ? `<button type="button" class="btn btn-ryzyko" data-zwrot>${p.kierunek === 'komus' ? 'Wróciła' : 'Oddana'}</button>` : ''}
         <button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
     </form>`
   });
   const f = $('form', a.tresc);
-  f.addEventListener('change', e => { if (e.target.name === 'kierunek') $('[data-kto-et]', f).textContent = e.target.value === 'od' ? 'Od kogo' : 'Komu'; });
+  const od = () => poprawnaData(f.elements.data.value) ? f.elements.data.value : dzisISO();
+  if (!k.pozyczona && typ === 'biblioteka') f.elements.termin.value = dodajDni(od(), 30);
+  f.addEventListener('change', e => {
+    if (e.target.name !== 'typ') return;
+    typ = e.target.value;
+    $('[data-kto-et]', f).textContent = typ === 'biblioteka' ? 'Która biblioteka' : typ === 'od' ? 'Od kogo' : 'Komu';
+    f.elements.kto.placeholder = typ === 'biblioteka' ? 'np. Biblioteka Miejska, filia 3' : 'np. Ania';
+    if (typ === 'biblioteka' && !f.elements.termin.value) f.elements.termin.value = dodajDni(od(), 30);
+  });
+  f.addEventListener('click', e => {
+    const c = e.target.closest('[data-termin]');
+    if (c) f.elements.termin.value = +c.dataset.termin ? dodajDni(od(), +c.dataset.termin) : '';
+  });
   f.addEventListener('submit', e => {
     e.preventDefault();
     const kto = f.elements.kto.value.trim();
     if (!kto) { f.elements.kto.focus(); return; }
-    k.pozyczona = { kto: kto.slice(0, 60), data: poprawnaData(f.elements.data.value) ? f.elements.data.value : dzisISO(), kierunek: f.elements.kierunek.value };
+    const termin = poprawnaData(f.elements.termin.value) ? f.elements.termin.value : null;
+    if (termin && termin < od()) { toast('Termin zwrotu musi być po dacie pożyczenia.', { typ: 'blad' }); return; }
+    k.pozyczona = { kto: kto.slice(0, 60), data: od(), kierunek: typ === 'komus' ? 'komus' : 'od', typ: typ === 'biblioteka' ? 'biblioteka' : 'osoba', termin, prolongaty: (k.pozyczona && k.pozyczona.prolongaty) || 0 };
     utrwal(k); a.zamknij(); odswiez();
-    toast(k.pozyczona.kierunek === 'komus' ? `Zapisano: „${k.tytul}” ma ${kto}.` : `Zapisano: „${k.tytul}” od ${kto}.`);
+    toast(`Zapisano${termin ? `. Oddać do ${dataDluga(termin, false)}` : ''}.`, termin ? { akcja: 'Do kalendarza', onAkcja: () => AKCJE['ics-zwrot']({ id: k.id }) } : {});
   });
   $('[data-zwrot]', f)?.addEventListener('click', () => { a.zamknij(); zwrocKsiazke(k.id); });
 }
@@ -2037,21 +2086,36 @@ function arkuszPozyczki(id) {
 function zwrocKsiazke(id) {
   const k = znajdz(id);
   if (!k || !k.pozyczona) return;
-  const przed = { ...k.pozyczona };
-  k.pozyczona = null;
-  utrwal(k); odswiez();
-  toast(przed.kierunek === 'komus' ? `„${k.tytul}” wróciła na półkę.` : `Oddano „${k.tytul}”.`, { akcja: 'Cofnij', onAkcja: () => { k.pozyczona = przed; utrwal(k); odswiez(); } });
+  const przed = { pozyczona: { ...k.pozyczona }, historiaPozyczek: [...(k.historiaPozyczek || [])] };
+  utrwal(zwrocPozyczke(k)); odswiez();
+  toast(przed.pozyczona.kierunek === 'komus' ? `„${k.tytul}” wróciła na półkę.` : `Oddano „${k.tytul}”.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, przed); utrwal(k); odswiez(); } });
 }
 
 function banerPozyczek() {
-  const dawno = pozyczoneKsiazki().filter(k => dniMiedzy(k.pozyczona.data, dzisISO()) > 30);
-  if (!dawno.length) return '';
-  const k = dawno[0], p = k.pozyczona, dni = dniMiedzy(p.data, dzisISO());
-  return `<div class="baner baner-pozyczka"><p>${I.reka}<span>${p.kierunek === 'komus'
-    ? `<strong>${esc(p.kto)}</strong> ma „${esc(k.tytul)}” od ${ile(dni, FORMY_DNI)}.`
-    : `Masz „${esc(k.tytul)}” od <strong>${esc(p.kto)}</strong> już ${ile(dni, FORMY_DNI)}.`}${dawno.length > 1 ? ` I ${ile(dawno.length - 1, FORMY_KSIAZEK)} więcej.` : ''}</span></p>
-    <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="zwrot" data-id="${k.id}">${p.kierunek === 'komus' ? 'Już wróciła' : 'Już oddana'}</button>
+  const lista = pozyczoneKsiazki().map(k => ({ k, dz: dniDoZwrotu(k), dni: dniMiedzy(k.pozyczona.data, dzisISO()) }))
+    .filter(x => (x.dz != null && x.dz <= 3) || (x.dz == null && x.dni > 30))
+    .sort((a, b) => (a.dz ?? 99) - (b.dz ?? 99));
+  if (!lista.length) return '';
+  const { k, dz, dni } = lista[0], p = k.pozyczona;
+  const tekst = dz != null
+    ? (dz < 0 ? `„${esc(k.tytul)}” jest <strong>po terminie ${ile(-dz, FORMY_DNI)}</strong>${p.typ === 'biblioteka' ? ` (${esc(p.kto)})` : ''}.` : dz === 0 ? `Dziś trzeba oddać „${esc(k.tytul)}”${p.typ === 'biblioteka' ? ` do: ${esc(p.kto)}` : ''}.` : `Za ${ile(dz, FORMY_DNI)} trzeba oddać „${esc(k.tytul)}”${p.typ === 'biblioteka' ? ` (${esc(p.kto)})` : ''}.`)
+    : p.kierunek === 'komus' ? `<strong>${esc(p.kto)}</strong> ma „${esc(k.tytul)}” od ${ile(dni, FORMY_DNI)}.` : `Masz „${esc(k.tytul)}” od <strong>${esc(p.kto)}</strong> już ${ile(dni, FORMY_DNI)}.`;
+  return `<div class="baner baner-pozyczka${dz != null && dz < 0 ? ' baner-zle' : ''}"><p>${I.reka}<span>${tekst}${lista.length > 1 ? ` I ${ile(lista.length - 1, FORMY_KSIAZEK)} więcej.` : ''}</span></p>
+    <div class="przyciski">${p.termin ? `<button type="button" class="btn btn-maly" data-akcja="prolonguj" data-id="${k.id}" data-dni="${p.typ === 'biblioteka' ? 30 : 14}">Przedłuż</button>` : ''}
+      <button type="button" class="btn btn-maly" data-akcja="zwrot" data-id="${k.id}">${p.kierunek === 'komus' ? 'Już wróciła' : 'Już oddana'}</button>
       <button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-pozyczone="1">Wszystkie pożyczone</button></div></div>`;
+}
+
+function icsZwrotu(k) {
+  const p = k.pozyczona;
+  if (!p || !p.termin) return '';
+  return icsKalendarz([{
+    uid: `zwrot-${k.id}-${p.termin}`, start: icsData(dodajDni(p.termin, -2), Z.ustawienia.przypomnienie.godzina || '18:00'), minuty: 15,
+    tytul: `📚 Oddać za 2 dni: ${k.tytul}`, opis: `${p.typ === 'biblioteka' ? `Biblioteka: ${p.kto}` : p.kierunek === 'komus' ? `${p.kto} ma twoją książkę` : `Pożyczona od: ${p.kto}`}. Termin: ${p.termin}.`
+  }, {
+    uid: `zwrot-dzien-${k.id}-${p.termin}`, start: icsData(p.termin, '09:00'), minuty: 15,
+    tytul: `📚 Dziś termin zwrotu: ${k.tytul}`, opis: p.kto
+  }]);
 }
 
 /* ---------- wykres: cel roczny w czasie ---------- */
@@ -2737,28 +2801,6 @@ function arkuszSerii() {
 }
 
 /* ================= lista życzeń i na później (2.7) ================= */
-function htmlZyczenia(k) {
-  if (k.status !== 'zyczenia') return '';
-  const q = encodeURIComponent(`${k.tytul} ${k.autor} ${k.isbn || ''} cena`.trim());
-  return `<section class="kd-sekcja kd-zyczenia"><h3>Lista życzeń</h3>
-    <div class="f-rzad"><label>Cena (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cena" data-id="${k.id}" value="${k.cena ?? ''}" placeholder="np. 39,90"></label>
-      <label>Priorytet<select data-pole-zycz="priorytet" data-id="${k.id}">${[[0, 'zwykły'], [1, 'chcę'], [2, 'bardzo chcę'], [3, 'muszę mieć']].map(([v, n]) => `<option value="${v}"${k.priorytet === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
-    <label>Link do sklepu<input type="url" data-pole-zycz="link" data-id="${k.id}" value="${esc(k.link)}" placeholder="https://…"></label>
-    <div class="przyciski">${k.link ? `<a class="btn btn-maly" href="${esc(k.link)}" target="_blank" rel="noopener">Otwórz sklep</a>` : ''}
-      <a class="btn btn-maly" href="https://www.google.com/search?tbm=shop&q=${q}" target="_blank" rel="noopener">${I.szukaj}Porównaj ceny</a></div>
-  </section>`;
-}
-
-function naglowekPolki() {
-  if (U.pozyczone) return '';
-  if (U.polka === 'zyczenia') {
-    const l = listaZyczen(), suma = l.reduce((s, k) => s + (k.cena || 0), 0);
-    return l.length ? `<p class="polka-info">${ile(l.length, FORMY_KSIAZEK)} na liście${suma ? `, razem ok. <strong>${suma.toFixed(2).replace('.', ',')} zł</strong>` : ''}. Kupiłeś? Otwórz książkę i kliknij „Mam ją”.</p>` : '';
-  }
-  if (U.polka === 'pozniej') return naPozniej().length ? '<p class="polka-info">Odłożone na później: nie zaśmiecają kolejki, a zapamiętują stronę, na której skończyłeś.</p>' : '';
-  return '';
-}
-
 /* ================= kalendarz z okładkami (2.7) ================= */
 function okladkiDni(od, doDnia) {
   const naj = {};
@@ -2868,7 +2910,7 @@ function arkuszWielu({ pula = false } = {}) {
   };
   async function szukajWiersza(r) {
     try {
-      const wyn = await Wyszukiwarka.szukaj(r.zap);
+      const wyn = await Wyszukiwarka.szukajMadrze(r.zap);
       r.wyniki = wyn;
       // spośród najtrafniejszych wybierz wydanie z liczbą stron; okładkę dobierz z innego wydania tego samego tytułu
       const rdzen = t => t.toLowerCase().split(/[:.(]/)[0].trim();
@@ -3135,7 +3177,7 @@ async function dodajDoPuli(q) {
   if (navigator.onLine) {
     LOS.szukam = true; renderWidok();
     try {
-      const wyn = await Wyszukiwarka.szukaj(q);
+      const wyn = await Wyszukiwarka.szukajMadrze(q);
       const rdzen = t => t.toLowerCase().split(/[:.(]/)[0].trim();
       const top = wyn.slice(0, 4).filter(x => wyn[0] && rdzen(x.tytul) === rdzen(wyn[0].tytul));
       const best = top.find(x => x.strony && x.okladka) || top.find(x => x.strony) || wyn[0];
@@ -3410,6 +3452,332 @@ document.addEventListener('click', e => {
   if (k) odhaczZCofnieciem(k, b.dataset.odhaczNast, true);
 });
 
+const SKLEPY = [
+  ['Ceneo', q => `https://www.ceneo.pl/;szukaj-${encodeURIComponent(q).replace(/%20/g, '+')}`],
+  ['Allegro', q => `https://allegro.pl/listing?string=${encodeURIComponent(q)}`],
+  ['Empik', q => `https://www.empik.com/szukaj/produkt?q=${encodeURIComponent(q)}`],
+  ['TaniaKsiążka', q => `https://www.taniaksiazka.pl/Szukaj/q-${encodeURIComponent(q)}`],
+  ['Bonito', q => `https://bonito.pl/szukaj?q=${encodeURIComponent(q)}`],
+  ['Google Zakupy', q => `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(q)}`]
+];
+const SKLEPY_EBOOK = [
+  ['Legimi', q => `https://www.legimi.pl/szukaj/?szukaj=${encodeURIComponent(q)}`],
+  ['Woblink', q => `https://woblink.com/katalog?szukasz=${encodeURIComponent(q)}`],
+  ['Lubimyczytać', q => `https://lubimyczytac.pl/szukaj/ksiazki?phrase=${encodeURIComponent(q)}`]
+];
+const OKAZJE = ['', 'urodziny', 'imieniny', 'Gwiazdka', 'Dzień Matki', 'Dzień Ojca', 'rocznica', 'kupię sam'];
+
+function htmlZyczenia(k) {
+  if (k.status !== 'zyczenia') return '';
+  const fraza = `${k.tytul} ${k.autor ? k.autor.split(',')[0] : ''}`.trim();
+  const qIsbn = k.isbn || fraza;
+  const okaz = czyOkazja(k);
+  const min = k.ceny.length ? Math.min(...k.ceny.map(c => c.cena)) : null;
+  return `<section class="kd-sekcja kd-zyczenia"><div class="sekcja-gora"><h3>Lista życzeń</h3>${okaz ? '<span class="znacznik-okazja">okazja!</span>' : ''}</div>
+    <div class="f-rzad"><label>Aktualna cena (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cena" data-id="${k.id}" value="${k.cena ?? ''}" placeholder="np. 39,90"></label>
+      <label>Kupię za max. (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cenaDocelowa" data-id="${k.id}" value="${k.cenaDocelowa ?? ''}" placeholder="cena docelowa"></label></div>
+    <div class="f-rzad"><label>Priorytet<select data-pole-zycz="priorytet" data-id="${k.id}">${[[0, 'zwykły'], [1, '♥ chcę'], [2, '♥♥ bardzo chcę'], [3, '♥♥♥ muszę mieć']].map(([v, n]) => `<option value="${v}"${k.priorytet === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      <label>Okazja<select data-pole-zycz="okazja" data-id="${k.id}">${OKAZJE.map(o => `<option value="${o}"${k.okazja === o ? ' selected' : ''}>${o || 'bez okazji'}</option>`).join('')}</select></label></div>
+    <label>Link do sklepu<input type="url" data-pole-zycz="link" data-id="${k.id}" value="${esc(k.link)}" placeholder="https://… (wklej link do oferty)"></label>
+    ${k.ceny.length ? `<details class="ceny-hist"><summary>Historia cen (${k.ceny.length})${min != null ? ` · najniżej ${zl(min)}` : ''}</summary>
+      <ol>${[...k.ceny].reverse().map(c => `<li><span>${dataKrotka(c.data)}</span><strong>${zl(c.cena)}</strong>${c.sklep ? `<span class="cichy">${esc(c.sklep)}</span>` : ''}</li>`).join('')}</ol></details>` : ''}
+    <p class="podpowiedz">Sprawdź ceny i wpisz najniższą. Zapamiętam historię, a gdy cena spadnie do twojego progu, oznaczę książkę jako okazję.</p>
+    <div class="sklepy">${k.link ? `<a class="btn btn-maly btn-glowny" href="${esc(k.link)}" target="_blank" rel="noopener">Twój sklep</a>` : ''}
+      ${SKLEPY.map(([n, u]) => `<a class="btn btn-maly" href="${esc(u(n === 'Ceneo' || n === 'Google Zakupy' ? qIsbn : fraza))}" target="_blank" rel="noopener">${n}</a>`).join('')}</div>
+    <details class="sklepy-ebook"><summary>E-book i audiobook</summary><div class="sklepy">${SKLEPY_EBOOK.map(([n, u]) => `<a class="btn btn-maly" href="${esc(u(fraza))}" target="_blank" rel="noopener">${n}</a>`).join('')}
+      <button type="button" class="btn btn-maly" data-akcja="cena-ebooka" data-id="${k.id}">Cena w Google Play</button></div><p class="cichy" data-cena-ebooka="${k.id}"></p></details>
+  </section>`;
+}
+
+function naglowekPolki() {
+  if (U.pozyczone) return '';
+  if (U.polka === 'zyczenia') {
+    const l = listaZyczen();
+    if (!l.length) return '';
+    const suma = l.reduce((s, k) => s + (k.cena || 0), 0), sumaDoc = l.reduce((s, k) => s + (k.cenaDocelowa || k.cena || 0), 0);
+    const okazje = l.filter(czyOkazja).length;
+    const dzis = dzisISO(), w = wydatki(dzis.slice(0, 8) + '01', dzis), b = Z.ustawienia.budzet;
+    return `<div class="zycz-podsum">
+      <p><strong>${ile(l.length, FORMY_KSIAZEK)}</strong>${suma ? ` · razem <strong>${zl(suma)}</strong>` : ''}${sumaDoc && sumaDoc < suma ? ` · w cenach docelowych ${zl(sumaDoc)}` : ''}${okazje ? ` · <span class="znacznik-okazja">${okazje} ${odmiana(okazje, ['okazja', 'okazje', 'okazji'])}</span>` : ''}</p>
+      <p class="cichy">${b ? `Budżet na ten miesiąc: wydane ${zl(w.suma)} z ${zl(b)}${w.suma > b ? ' — <span class="zle">przekroczony</span>' : `, zostało ${zl(b - w.suma)}`}.` : `W tym miesiącu wydane na książki: ${zl(w.suma)}.`}
+        <button type="button" class="btn-tekst" data-akcja="budzet">${b ? 'Zmień budżet' : 'Ustaw budżet'}</button></p>
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="udostepnij-zyczenia">${I.udostepnij}Udostępnij listę (np. na prezent)</button></div>
+    </div>`;
+  }
+  if (U.polka === 'pozniej') return naPozniej().length ? '<p class="polka-info">Odłożone na później: nie zaśmiecają kolejki, a zapamiętują stronę, na której skończyłeś.</p>' : '';
+  return '';
+}
+
+function tekstListyZyczen() {
+  const l = listaZyczen();
+  return ['Moja lista życzeń książkowych 📚', '', ...l.map(k => `• ${k.tytul}${k.autor ? ` — ${k.autor}` : ''}${k.cena ? ` (ok. ${zl(k.cena)})` : ''}${k.okazja && k.okazja !== 'kupię sam' ? ` [${k.okazja}]` : ''}${k.link ? `\n  ${k.link}` : ''}`), '', '— z aplikacji Zakładka'].join('\n');
+}
+
+function arkuszZakupu(id) {
+  const k = znajdz(id);
+  if (!k) return;
+  const a = arkusz({
+    tytul: 'Masz ją!', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <div class="postep-ksiazka">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor)}</span></span></div>
+      <fieldset class="segment"><legend class="sr">Skąd</legend>${radio('skad', 'kupiona', 'Kupiłem', true)}${radio('skad', 'prezent', 'Dostałem w prezencie', false)}</fieldset>
+      <div class="f-rzad" data-zakup><label>Zapłaciłem (zł)<input name="cena" type="number" inputmode="decimal" min="0" step="0.01" value="${k.cena ?? ''}"></label>
+        <label>Dnia<input name="data" type="date" max="${dzisISO()}" value="${dzisISO()}"></label></div>
+      <p class="podpowiedz">Cena trafi do statystyki wydatków na książki.</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button>
+        <button type="submit" class="btn" data-gdzie="kolejka">Do kolejki</button><button type="submit" class="btn btn-glowny" data-gdzie="czytaj">Zacznij czytać</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('change', e => { if (e.target.name === 'skad') $('[data-zakup]', f).hidden = e.target.value === 'prezent'; });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const gdzie = e.submitter && e.submitter.dataset.gdzie;
+    if (f.elements.skad.value === 'kupiona') {
+      const c = +String(f.elements.cena.value).replace(',', '.');
+      k.cenaZakupu = c > 0 ? Math.round(c * 100) / 100 : null;
+      k.dataZakupu = poprawnaData(f.elements.data.value) ? f.elements.data.value : dzisISO();
+    } else { k.cenaZakupu = null; k.dataZakupu = null; k.okazja = k.okazja || 'prezent'; }
+    if (gdzie === 'czytaj') zacznijCzytac(k); else doKolejki(k);
+    utrwal(k); a.zamknij(); odswiez();
+    konfetti({ ile: 60 });
+    toast(gdzie === 'czytaj' ? `Miłej lektury: „${k.tytul}”!` : `„${k.tytul}” w kolejce do przeczytania.`);
+  });
+}
+
+function arkuszBudzetu() {
+  const a = arkusz({
+    tytul: 'Budżet na książki', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <label>Ile chcesz wydawać miesięcznie (zł)<input name="b" type="number" inputmode="numeric" min="0" step="10" value="${Z.ustawienia.budzet || ''}" placeholder="np. 100"></label>
+      <p class="podpowiedz">Zostaw puste, żeby wyłączyć budżet. Wydatki liczą się z ceny wpisanej przy „Mam ją”.</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div></form>`
+  });
+  $('form', a.tresc).addEventListener('submit', e => {
+    e.preventDefault();
+    Z.ustawienia.budzet = Math.max(0, Math.round(+e.target.elements.b.value) || 0);
+    utrwalUstawienia(); a.zamknij(); odswiez();
+  });
+}
+
+function htmlWydatkow() {
+  const dzis = dzisISO(), rok = dzis.slice(0, 4);
+  const r = wydatki(`${rok}-01-01`, `${rok}-12-31`);
+  if (!r.ile) return '';
+  const m = wydatki(dzis.slice(0, 8) + '01', dzis);
+  const top = [...r.lista].sort((a, b) => b.cenaZakupu - a.cenaZakupu)[0];
+  return `<section class="sekcja"><h2>Wydatki na książki</h2><dl class="liczby">
+    <div><dt>W tym miesiącu</dt><dd>${m.suma.toFixed(0)}<small> zł</small></dd></div>
+    <div><dt>W ${rok}</dt><dd>${r.suma.toFixed(0)}<small> zł, ${ile(r.ile, FORMY_KSIAZEK)}</small></dd></div>
+    <div><dt>Średnio za książkę</dt><dd>${(r.suma / r.ile).toFixed(2).replace('.', ',')}<small> zł</small></dd></div>
+    <div><dt>Najdroższa</dt><dd><small>${esc(top.tytul)}, ${zl(top.cenaZakupu)}</small></dd></div>
+  </dl></section>`;
+}
+
+/* ================= opis książki i podobne (2.11) ================= */
+function htmlOpisu(k) {
+  if (k.opis) {
+    return `<section class="kd-sekcja kd-opis"><h3>O książce</h3>
+      <div class="opis-tekst${k.opis.length > 380 ? ' zwiniety' : ''}">${esc(k.opis).replace(/\n+/g, '</p><p>').replace(/^/, '<p>')}</p></div>
+      ${k.opis.length > 380 ? '<button type="button" class="btn-tekst" data-rozwin-opis>Pokaż więcej</button>' : ''}
+      <p class="cichy opis-zrodlo">Źródło: ${esc(k.opisZrodlo || 'własny')}${k.opisZrodlo === 'Open Library' ? ' (często po angielsku)' : ''} · <button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Edytuj</button></p></section>`;
+  }
+  return `<section class="kd-sekcja kd-opis"><h3>O książce</h3><p class="cichy" data-opis-stan="${k.id}">Brak opisu.</p>
+    <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="opis-pobierz" data-id="${k.id}">${I.szukaj}Znajdź opis</button><button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Napisz własny</button></div></section>`;
+}
+
+async function uzupelnijOpis(k, { cicho = false } = {}) {
+  if (!k || !navigator.onLine) return false;
+  const stan = $(`[data-opis-stan="${k.id}"]`);
+  if (stan) { stan.textContent = 'Szukam opisu…'; stan.classList.add('ladowanie'); }
+  try {
+    const o = await Wyszukiwarka.opis(k);
+    if (o) {
+      k.opis = o.tekst; k.opisZrodlo = o.zrodlo;
+      if (o.tematy && !k.tagi.length) k.tagi = o.tematy.slice(0, 2).map(t => t.toLowerCase()).filter(t => t.length < 25);
+      utrwal(k); odswiez();
+      if (!cicho) toast(`Dodano opis (${o.zrodlo}).`);
+      return true;
+    }
+  } catch (e) { console.warn(e); }
+  if (stan) { stan.textContent = 'Nie znalazłem opisu w Wikipedii, Google Books ani Open Library.'; stan.classList.remove('ladowanie'); }
+  return false;
+}
+
+function arkuszOpisu(id) {
+  const k = znajdz(id);
+  const a = arkusz({
+    tytul: 'Opis książki', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate><label>Opis<textarea name="opis" rows="9" placeholder="O czym jest ta książka?">${esc(k.opis)}</textarea></label>
+      <div class="przyciski przyciski-koniec">${k.opis ? '<button type="button" class="btn btn-ryzyko" data-usun-opis>Usuń</button>' : ''}<button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div></form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('submit', e => { e.preventDefault(); k.opis = f.elements.opis.value.trim().slice(0, 4000); k.opisZrodlo = k.opis ? 'własny' : ''; utrwal(k); a.zamknij(); odswiez(); });
+  $('[data-usun-opis]', f)?.addEventListener('click', () => { k.opis = ''; k.opisZrodlo = ''; utrwal(k); a.zamknij(); odswiez(); });
+}
+
+U.podobne = {};
+function htmlPodobnych(k, { naglowek = 'Podobne książki', kompakt = false } = {}) {
+  const st = U.podobne[k.id];
+  const tresc = !st ? `<button type="button" class="btn btn-maly" data-akcja="podobne" data-id="${k.id}">${I.kostka}Pokaż podobne</button>`
+    : st === 'laduje' ? '<p class="cichy ladowanie">Szukam podobnych książek…</p>'
+    : !st.length ? '<p class="cichy">Nie znalazłem podobnych książek.</p>'
+    : `<ul class="podobne-lista">${st.slice(0, kompakt ? 6 : 12).map((p, i) => `<li style="--i:${i}">
+        <span class="podobne-okl">${okladka({ tytul: p.tytul, autor: p.autor, okladka: p.okladka }, 'm')}</span>
+        <span class="podobne-tytul">${esc(p.tytul)}</span><span class="podobne-autor">${esc(p.autor)}</span>
+        <span class="podobne-powod">${esc(p.powod)}</span>
+        <span class="podobne-akcje"><button type="button" class="btn-ikona maly" data-dodaj-podobna="${i}" data-dla="${k.id}" data-gdzie="doPrzeczytania" aria-label="Do przeczytania" title="Do przeczytania">${I.plus}</button>
+          <button type="button" class="btn-ikona maly" data-dodaj-podobna="${i}" data-dla="${k.id}" data-gdzie="zyczenia" aria-label="Na listę życzeń" title="Na listę życzeń">♥</button></span></li>`).join('')}</ul>`;
+  return `<section class="kd-sekcja kd-podobne"><h3>${naglowek}</h3>${tresc}</section>`;
+}
+
+async function zaladujPodobne(id) {
+  const k = znajdz(id);
+  if (!k || U.podobne[id] === 'laduje' || Array.isArray(U.podobne[id])) return;
+  if (!navigator.onLine) { toast('Jesteś offline.'); return; }
+  U.podobne[id] = 'laduje'; odswiez();
+  try { U.podobne[id] = await Wyszukiwarka.podobne(k, Z.ksiazki); } catch { U.podobne[id] = []; }
+  odswiez();
+}
+
+/* ================= animacje i interakcje (2.11) ================= */
+const bezRuchu = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/** Konfetti w kolorach aplikacji. */
+function konfetti({ ile: n = 120, czas = 1800 } = {}) {
+  if (bezRuchu()) return;
+  const c = document.createElement('canvas');
+  c.className = 'konfetti';
+  c.width = innerWidth * devicePixelRatio; c.height = innerHeight * devicePixelRatio;
+  document.body.append(c);
+  const ctx = c.getContext('2d'), s = devicePixelRatio;
+  const kol = ['#a3233a', '#d9b66e', '#1f4a3d', '#7fa48e', '#f1ede0', '#22385c'];
+  const cz = Array.from({ length: n }, () => ({ x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .35, vx: (Math.random() - .5) * 11, vy: -Math.random() * 12 - 4, r: Math.random() * 6 + 4, k: kol[Math.floor(Math.random() * kol.length)], o: Math.random() * 6, w: Math.random() * .3 + .1 }));
+  const t0 = performance.now();
+  const klatka = t => {
+    const dt = t - t0;
+    ctx.clearRect(0, 0, c.width, c.height);
+    for (const p of cz) {
+      p.vy += .32; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.o += p.w;
+      ctx.save(); ctx.translate(p.x * s, p.y * s); ctx.rotate(p.o);
+      ctx.globalAlpha = Math.max(0, 1 - dt / czas);
+      ctx.fillStyle = p.k; ctx.fillRect(-p.r * s / 2, -p.r * s / 4, p.r * s, p.r * s / 2);
+      ctx.restore();
+    }
+    if (dt < czas) requestAnimationFrame(klatka); else c.remove();
+  };
+  requestAnimationFrame(klatka);
+}
+
+/** Liczby „nabijają się” od zera do wartości. */
+function animujLiczby(root = document) {
+  if (bezRuchu()) return;
+  $$('[data-licz]', root).forEach(el => {
+    const cel = +el.dataset.licz;
+    if (!(cel > 0) || el.dataset.zrobione) return;
+    el.dataset.zrobione = '1';
+    const t0 = performance.now(), czas = Math.min(900, 350 + cel * 4);
+    const krok = t => { const f = Math.min(1, (t - t0) / czas), e = 1 - Math.pow(1 - f, 3); el.textContent = Math.round(cel * e).toLocaleString('pl-PL'); if (f < 1) requestAnimationFrame(krok); };
+    el.textContent = '0';
+    requestAnimationFrame(krok);
+  });
+}
+
+/** Przeciągnij arkusz w dół, żeby go zamknąć. */
+function przeciaganieArkusza(a) {
+  let y0 = null, dy = 0, aktywne = false;
+  const el = a.el;
+  el.addEventListener('touchstart', e => {
+    const t = e.target;
+    if (el.scrollTop > 2 || t.closest('input, textarea, select, .kr-pasek, .kalendarz')) return;
+    const r = el.getBoundingClientRect();
+    if (e.touches[0].clientY - r.top > 90 && !t.closest('.arkusz-gora')) return;
+    y0 = e.touches[0].clientY; dy = 0; aktywne = true; el.style.transition = 'none';
+  }, { passive: true });
+  el.addEventListener('touchmove', e => {
+    if (!aktywne) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    el.style.transform = `translateY(${dy}px)`;
+    a.tlo.style.setProperty('--zaslona-o', String(Math.max(.2, 1 - dy / 400)));
+  }, { passive: true });
+  el.addEventListener('touchend', () => {
+    if (!aktywne) return;
+    aktywne = false;
+    el.style.transition = '';
+    if (dy > 110) { if (navigator.vibrate) navigator.vibrate(10); a.zamknij(); } else el.style.transform = '';
+    a.tlo.style.removeProperty('--zaslona-o');
+  });
+}
+
+/* ---------- podpowiedzi przy pisaniu w wyszukiwarce ---------- */
+function podlaczPodpowiedzi(input, { naWybor }) {
+  if (!input) return;
+  const box = document.createElement('ul');
+  box.className = 'podpowiedzi';
+  box.hidden = true;
+  box.setAttribute('role', 'listbox');
+  input.closest('.szukajka-rzad, .los-dodaj')?.after(box);
+  let timer = null, ostatnie = [];
+  const pokaz = lista => {
+    ostatnie = lista;
+    box.innerHTML = lista.map((p, i) => `<li role="option"><button type="button" data-podp="${i}">${p.lokalna ? '<span class="podp-moja">masz</span>' : ''}<span class="podp-tytul">${esc(p.tytul)}</span><span class="podp-autor">${esc(p.autor || '')}${p.rok ? ` · ${p.rok}` : ''}</span></button></li>`).join('');
+    box.hidden = !lista.length;
+  };
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    const q = input.value.trim();
+    if (q.length < 3 || Wyszukiwarka.czyIsbn(q)) { pokaz([]); return; }
+    const norm = t => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l');
+    const lok = Z.ksiazki.filter(k => norm(`${k.tytul} ${k.autor}`).includes(norm(q))).slice(0, 3).map(k => ({ tytul: k.tytul, autor: k.autor, lokalna: true }));
+    pokaz(lok);
+    if (!navigator.onLine) return;
+    timer = setTimeout(async () => {
+      try {
+        const zew = await Wyszukiwarka.podpowiedzi(q);
+        if (input.value.trim() !== q) return;
+        const kl = new Set(lok.map(x => norm(x.tytul)));
+        pokaz([...lok, ...zew.filter(x => !kl.has(norm(x.tytul)))].slice(0, 7));
+      } catch { /* przerwane albo offline */ }
+    }, 320);
+  });
+  box.addEventListener('click', e => {
+    const b = e.target.closest('[data-podp]');
+    if (!b) return;
+    const p = ostatnie[+b.dataset.podp];
+    input.value = `${p.tytul}${p.autor ? ' ' + p.autor.split(',')[0] : ''}`;
+    pokaz([]);
+    naWybor(input.value, p);
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Escape' || e.key === 'Enter') pokaz([]); });
+  input.addEventListener('blur', () => setTimeout(() => pokaz([]), 180));
+}
+
+
+document.addEventListener('click', async e => {
+  const r = e.target.closest('[data-rozwin-opis]');
+  if (r) { const t = r.previousElementSibling; t.classList.toggle('zwiniety'); r.textContent = t.classList.contains('zwiniety') ? 'Pokaż więcej' : 'Pokaż mniej'; return; }
+  const b = e.target.closest('[data-dodaj-podobna]');
+  if (!b) return;
+  const lista = U.podobne[b.dataset.dla];
+  const p = Array.isArray(lista) && lista[+b.dataset.dodajPodobna];
+  if (!p) return;
+  b.disabled = true;
+  const okl = p.okladka ? await urlNaOkladke(p.okladka) : null;
+  const k = nowaKsiazka({ tytul: p.tytul, autor: p.autor, strony: p.strony || Z.ustawienia.srednia, isbn: p.isbn, okladka: okl });
+  if (b.dataset.gdzie === 'zyczenia') naListeZyczen(k);
+  utrwal(k);
+  U.podobne[b.dataset.dla] = lista.filter(x => x !== p);
+  odswiez();
+  toast(`„${k.tytul}” ${b.dataset.gdzie === 'zyczenia' ? 'na liście życzeń' : 'w kolejce do przeczytania'}.`, { akcja: 'Pokaż', onAkcja: () => arkuszKsiazki(k.id) });
+  uzupelnijOpis(k, { cicho: true });
+});
+/** Najwyżej dwa przypomnienia naraz (od najważniejszego), reszta zwinięta. */
+function stosBanerow(lista) {
+  const b = lista.filter(Boolean);
+  if (b.length <= 2) return b.join('');
+  return `${b.slice(0, 2).join('')}<details class="banery-wiecej"><summary>Jeszcze ${ile(b.length - 2, ['przypomnienie', 'przypomnienia', 'przypomnień'])}</summary>${b.slice(2).join('')}</details>`;
+}
+
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -3513,7 +3881,12 @@ const AKCJE = {
   kolejka: d => { utrwal(przesunWKolejce(znajdz(d.id), +d.kierunek)); odswiez(); },
   'na-poczatek': d => { utrwal(naPoczatekKolejki(znajdz(d.id))); odswiez(); toast('Przeniesiono na początek kolejki.'); },
   usun: d => usunKsiazke(d.id),
-  ocena: d => { const k = znajdz(d.id); k.ocena = k.ocena === +d.n ? 0 : +d.n; utrwal(k); odswiez(); },
+  ocena: d => {
+    const k = znajdz(d.id); k.ocena = k.ocena === +d.n ? 0 : +d.n; utrwal(k); odswiez();
+    if (navigator.vibrate) navigator.vibrate(12);
+    // wysoka ocena: od razu podsuń podobne książki
+    if (k.ocena >= 4) { if (k.ocena === 5 && $('.arkusz-brawo')) konfetti({ ile: 70 }); zaladujPodobne(k.id); }
+  },
   'cytat-dodaj': d => arkuszCytatu(d.id),
   'cytat-edytuj': d => arkuszCytatu(d.id, d.cid),
   'cytat-kopiuj': async d => {
@@ -3542,6 +3915,25 @@ const AKCJE = {
   'rozdzialy-podziel': d => arkuszPodzialu(d.id),
   'rozdzial-edytuj': d => arkuszRozdzialu(d.id, d.rid),
   rok: () => arkuszRoku(),
+  prolonguj: d => { const k = znajdz(d.id), przed = { ...k.pozyczona }; utrwal(prolonguj(k, +d.dni || 14)); odswiez(); toast(`Przedłużono do ${dataDluga(k.pozyczona.termin, false)}.`, { akcja: 'Cofnij', onAkcja: () => { k.pozyczona = przed; utrwal(k); odswiez(); } }); },
+  'ics-zwrot': async d => { const k = znajdz(d.id); if (k && k.pozyczona && k.pozyczona.termin && await zapiszPlik(`zwrot-${k.pozyczona.termin}.ics`, icsZwrotu(k), 'text/calendar')) toast('Otwórz plik, żeby dodać termin zwrotu do kalendarza.'); },
+  budzet: () => arkuszBudzetu(),
+  'udostepnij-zyczenia': async () => {
+    const t = tekstListyZyczen();
+    if (navigator.share) { try { await navigator.share({ title: 'Moja lista życzeń', text: t }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(t); toast('Skopiowano listę życzeń.'); } catch { toast('Nie udało się skopiować.', { typ: 'blad' }); }
+  },
+  'cena-ebooka': async d => {
+    const k = znajdz(d.id), el = $(`[data-cena-ebooka="${d.id}"]`);
+    if (el) { el.textContent = 'Sprawdzam…'; el.classList.add('ladowanie'); }
+    try {
+      const c = await Wyszukiwarka.cenaEbooka(k);
+      if (el) { el.classList.remove('ladowanie'); el.innerHTML = c ? `E-book w Google Play: <strong>${zl(c.cena)}</strong>${c.link ? ` · <a href="${esc(c.link)}" target="_blank" rel="noopener">kup</a>` : ''}` : 'Google Play nie sprzedaje tej książki w Polsce.'; }
+    } catch (e) { if (el) { el.classList.remove('ladowanie'); el.textContent = e.message; } }
+  },
+  'opis-pobierz': d => uzupelnijOpis(znajdz(d.id)),
+  'opis-edytuj': d => arkuszOpisu(d.id),
+  podobne: d => zaladujPodobne(d.id),
   tydzien: d => arkuszTygodnia(d.pn || poczatekTygodnia()),
   'tydzien-dodaj': d => arkuszDodajDoTygodnia(d.pn || poczatekTygodnia(), d.dzien || null),
   'do-tygodnia': d => { const k = znajdz(d.id); if (k.bazowa) { toast('Książka bazowa ma normę dzienną liczoną automatycznie.'); return; } dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
@@ -3554,7 +3946,7 @@ const AKCJE = {
   'na-pozniej': d => { const k = znajdz(d.id), przed = { status: k.status, bazowa: k.bazowa, odlozono: k.odlozono }; utrwal(odlozNaPozniej(k)); odswiez(); toast(`„${k.tytul}” odłożona na później.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, przed); utrwal(k); odswiez(); } }); },
   'do-kolejki': d => { const k = znajdz(d.id); utrwal(doKolejki(k, !!d.poczatek)); odswiez(); toast(`„${k.tytul}” wraca do kolejki${d.poczatek ? ' na początek' : ''}.`); },
   zyczenia: d => { const k = znajdz(d.id); utrwal(naListeZyczen(k)); odswiez(); toast(`„${k.tytul}” na liście życzeń.`); },
-  'mam-ja': d => { const k = znajdz(d.id); utrwal(doKolejki(k)); odswiez(); toast(`„${k.tytul}” w kolejce do przeczytania.`, { akcja: 'Na początek', onAkcja: () => { utrwal(doKolejki(k, true)); odswiez(); } }); },
+  'mam-ja': d => arkuszZakupu(d.id),
   'powiadomienia-zgoda': async () => {
     try {
       const w = await Notification.requestPermission();
@@ -3654,10 +4046,13 @@ document.addEventListener('change', e => {
     const k = znajdz(e.target.dataset.id);
     if (!k) return;
     const v = e.target.value.trim().replace(',', '.');
-    if (pz === 'cena') k.cena = +v > 0 ? Math.round(+v * 100) / 100 : null;
+    if (pz === 'cena') zapiszCene(k, v);
+    if (pz === 'cenaDocelowa') k.cenaDocelowa = +v > 0 ? Math.round(+v * 100) / 100 : null;
+    if (pz === 'okazja') k.okazja = e.target.value;
     if (pz === 'priorytet') k.priorytet = ogranicz(+v || 0, 0, 3);
     if (pz === 'link') { if (v && !/^https?:\/\//.test(v)) { toast('Link musi zaczynać się od https://', { typ: 'blad' }); return; } k.link = v; }
     utrwal(k); odswiez();
+    if (czyOkazja(k) && (pz === 'cena' || pz === 'cenaDocelowa')) { toast(`Okazja! „${k.tytul}” za ${zl(k.cena)}, czyli w twojej cenie.`); konfetti({ ile: 50 }); }
     return;
   }
   if (e.target.id === 'sort-bib') { U.sort = e.target.value; $('#siatka-bib').innerHTML = htmlSiatki(); }

@@ -1097,3 +1097,94 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .kr-legenda i.kr-seg-baz { width: 10px; height: 10px; }
 .kr-baz { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13.5px; color: var(--cichy); }
 .kr-baz .tyg-bazowa { margin-top: 2px; }
+
+/* ================= wersja 2.11: animacje, wyszukiwarka, opis, podobne, pożyczki, lista życzeń ================= */
+@media (prefers-reduced-motion: no-preference) {
+  /* wejście widoku: sekcje wjeżdżają po kolei */
+  .widok.wejscie > * { animation: wjazd .42s cubic-bezier(.2, .8, .2, 1) both; }
+  .widok.wejscie > *:nth-child(2) { animation-delay: 40ms; } .widok.wejscie > *:nth-child(3) { animation-delay: 80ms; }
+  .widok.wejscie > *:nth-child(4) { animation-delay: 120ms; } .widok.wejscie > *:nth-child(5) { animation-delay: 160ms; }
+  .widok.wejscie > *:nth-child(6) { animation-delay: 200ms; } .widok.wejscie > *:nth-child(n+7) { animation-delay: 240ms; }
+  @keyframes wjazd { from { opacity: 0; transform: translateY(12px); } }
+  /* siatka książek i listy */
+  .wejscie .siatka > li { animation: wjazd .4s cubic-bezier(.2, .8, .2, 1) both; }
+  .wejscie .siatka > li:nth-child(-n+12) { animation-delay: calc(var(--n, 0) * 30ms); }
+  .podobne-lista > li { animation: wjazd .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 50ms); }
+  /* dotyk: przyciski lekko się wciskają */
+  .btn, .btn-ikona, .chip, .kafel, .kr-cel-btn, .seg span, .dol button, .btn-dodaj, .btn-gora { transition: transform .12s ease, background-color .2s, border-color .2s, color .2s, box-shadow .2s; }
+  .btn:active, .btn-ikona:active, .chip:active, .kr-cel-btn:active, .btn-dodaj:active, .btn-gora:active { transform: scale(.95); }
+  .kafel:active { transform: scale(.97); }
+  @media (hover: hover) { .kafel:hover .okl { transform: translateY(-3px) rotate(-.6deg); box-shadow: 0 2px 2px rgba(0,0,0,.15), 0 14px 22px -12px rgba(0,0,0,.6); } }
+  .kafel .okl { transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
+  /* dolny pasek: ikona podskakuje przy wyborze */
+  .dol button[aria-current="page"] svg { animation: podskok .45s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes podskok { 40% { transform: translateY(-4px) scale(1.1); } }
+  /* pierścień dnia i paski rosną */
+  .pasek-wyp { animation: rosnij .8s cubic-bezier(.2, .8, .2, 1) both; transform-origin: left; }
+  @keyframes rosnij { from { transform: scaleX(0); } }
+  .baner { animation: wjazd .5s cubic-bezier(.2, .8, .2, 1) both; }
+  .okres, .tyg-dzien, .los-karta { animation: wjazd .45s cubic-bezier(.2, .8, .2, 1) both; }
+  /* przejście między zakładkami */
+  ::view-transition-old(root) { animation: .18s ease-in both zanik; }
+  ::view-transition-new(root) { animation: .28s cubic-bezier(.2, .8, .2, 1) both wjazd; }
+  @keyframes zanik { to { opacity: 0; } }
+  .opis-tekst { transition: max-height .35s ease; }
+}
+.konfetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 200; }
+.arkusz { will-change: transform; }
+
+/* podpowiedzi przy pisaniu */
+.podpowiedzi { list-style: none; margin: 4px 0 0; padding: 4px; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); box-shadow: 0 12px 28px -14px rgba(0,0,0,.4); max-height: 300px; overflow-y: auto; }
+.podpowiedzi button { width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--tusz); text-align: left; cursor: pointer; }
+.podpowiedzi button:hover, .podpowiedzi button:focus-visible { background: var(--powierzchnia); }
+.podp-tytul { font-weight: 600; }
+.podp-autor { font-size: 13px; color: var(--cichy); }
+.podp-moja { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: var(--hm1); }
+.los-karta + .sekcja .podpowiedzi, .los-dodaj + .podpowiedzi { margin: -4px 0 10px; }
+.poprawka { margin-bottom: 8px; padding: 8px 12px; border-radius: 10px; background: var(--powierzchnia); border-left: 3px solid var(--zloto); font-size: 14.5px; }
+.poprawka .btn-tekst { font-weight: 700; }
+
+/* opis */
+.opis-tekst p + p { margin-top: 8px; }
+.opis-tekst { font-size: 15px; line-height: 1.6; position: relative; }
+.opis-tekst.zwiniety { max-height: 7.2em; overflow: hidden; }
+.opis-tekst.zwiniety::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2.6em; background: linear-gradient(transparent, var(--powierzchnia)); }
+.opis-zrodlo { font-size: 12.5px; margin-top: 6px; }
+
+/* podobne */
+.podobne-lista { list-style: none; margin: 4px 0 0; padding: 0 0 6px; display: grid; grid-auto-flow: column; grid-auto-columns: 112px; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; }
+.podobne-lista li { scroll-snap-align: start; display: flex; flex-direction: column; gap: 2px; }
+.podobne-okl { width: 100%; }
+.podobne-tytul { font-family: var(--font-ksiazka); font-weight: 600; font-size: 13.5px; line-height: 1.2; margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.podobne-autor { font-size: 12px; color: var(--cichy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podobne-powod { font-size: 11px; color: var(--zloto); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.podobne-akcje { display: flex; gap: 4px; margin-top: 2px; }
+.podobne-akcje .btn-ikona { color: var(--wstazka); font-size: 16px; }
+.brawo .kd-podobne { text-align: left; margin-top: 14px; }
+.brawo-podp { margin-top: 8px; font-size: 13.5px; }
+
+/* pożyczki 2.0 */
+.kd-pozyczka.aktywna { display: block; }
+.kd-pozyczka.aktywna > p { display: flex; gap: 8px; align-items: flex-start; }
+.kd-pozyczka.aktywna .przyciski { margin-top: 8px; align-items: center; }
+.kd-pozyczka.blisko { border-color: var(--zloto); }
+.ostrzezenie { color: var(--zloto); }
+.baner-zle { border-left-color: var(--zle); }
+.kafel-pozyczka.po-terminie { background: var(--zle); color: #fff; }
+
+/* lista życzeń 2.0 */
+.znacznik-okazja { display: inline-block; padding: 1px 9px; border-radius: 999px; background: var(--ok); color: #fff; font-size: 12px; font-weight: 700; animation: puls 1.6s ease-in-out 2; }
+.zycz-podsum { margin: -2px 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); font-size: 14.5px; }
+.zycz-podsum p + p { margin-top: 4px; font-size: 13.5px; }
+.zycz-podsum .przyciski { margin-top: 8px; }
+.sklepy { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sklepy a.btn { text-decoration: none; }
+.ceny-hist { margin-top: 8px; font-size: 14px; }
+.ceny-hist summary { cursor: pointer; font-weight: 600; }
+.ceny-hist ol { list-style: none; margin: 6px 0 0; padding: 0; }
+.ceny-hist li { display: grid; grid-template-columns: 60px 90px 1fr; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--linia); }
+.sklepy-ebook { margin-top: 10px; font-size: 14px; }
+.sklepy-ebook summary { cursor: pointer; color: var(--plotno); font-weight: 600; }
+.banery-wiecej { margin: -4px 0 12px; }
+.banery-wiecej summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--cichy); padding: 4px 2px; }
+.banery-wiecej[open] summary { margin-bottom: 6px; }

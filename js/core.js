@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.10.0';
+const WERSJA = '2.11.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3 };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0 };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -98,8 +98,21 @@ function normalizujKsiazke(k = {}) {
     link: /^https?:\/\//.test(String(k.link || '')) ? String(k.link).slice(0, 500) : '',
     priorytet: ogranicz(Math.round(+k.priorytet) || 0, 0, 3),
     pozyczona: k.pozyczona && String(k.pozyczona.kto || '').trim()
-      ? { kto: String(k.pozyczona.kto).trim().slice(0, 60), data: poprawnaData(k.pozyczona.data) ? k.pozyczona.data : dzisISO(), kierunek: k.pozyczona.kierunek === 'od' ? 'od' : 'komus' }
-      : null
+      ? {
+        kto: String(k.pozyczona.kto).trim().slice(0, 60), data: poprawnaData(k.pozyczona.data) ? k.pozyczona.data : dzisISO(),
+        kierunek: k.pozyczona.kierunek === 'od' ? 'od' : 'komus', typ: k.pozyczona.typ === 'biblioteka' ? 'biblioteka' : 'osoba',
+        termin: poprawnaData(k.pozyczona.termin) ? k.pozyczona.termin : null, prolongaty: ogranicz(Math.round(+k.pozyczona.prolongaty) || 0, 0, 20)
+      }
+      : null,
+    historiaPozyczek: (Array.isArray(k.historiaPozyczek) ? k.historiaPozyczek : []).filter(h => h && h.kto && poprawnaData(h.od)).slice(-30)
+      .map(h => ({ kto: String(h.kto).slice(0, 60), od: h.od, do: poprawnaData(h.do) ? h.do : null, kierunek: h.kierunek === 'od' ? 'od' : 'komus', typ: h.typ === 'biblioteka' ? 'biblioteka' : 'osoba', poTerminie: !!h.poTerminie })),
+    opis: String(k.opis || '').slice(0, 4000),
+    opisZrodlo: String(k.opisZrodlo || '').slice(0, 40),
+    cenaDocelowa: +k.cenaDocelowa > 0 ? Math.round(+k.cenaDocelowa * 100) / 100 : null,
+    ceny: (Array.isArray(k.ceny) ? k.ceny : []).filter(c => c && +c.cena > 0 && poprawnaData(c.data)).slice(-20).map(c => ({ data: c.data, cena: Math.round(+c.cena * 100) / 100, sklep: String(c.sklep || '').slice(0, 40) })),
+    okazja: String(k.okazja || '').slice(0, 40),
+    cenaZakupu: +k.cenaZakupu > 0 ? Math.round(+k.cenaZakupu * 100) / 100 : null,
+    dataZakupu: poprawnaData(k.dataZakupu) ? k.dataZakupu : null
   };
   if (n.status === 'przeczytana') n.strona = n.strony;
   if (n.bazowa && !n.celData) n.celData = dodajDni(dzisISO(), 61);
@@ -144,6 +157,7 @@ function normalizujUstawienia(u = {}) {
   if (['kolejno', 'rownolegle'].includes(u.trybRozkladu)) w.trybRozkladu = u.trybRozkladu;
   w.planujWCzasie = !!u.planujWCzasie;
   w.losIle = ogranicz(Math.round(+u.losIle) || 3, 1, 8);
+  w.budzet = +u.budzet > 0 ? Math.round(+u.budzet) : 0;
   w.losowania = {};
   for (const [pn, v] of Object.entries(u.losowania || {})) {
     if (!poprawnaData(pn) || !v || !Array.isArray(v.ids)) continue;
@@ -709,7 +723,7 @@ function serie() {
   }
   return [...m.values()].sort((a, b) => a.nazwa.localeCompare(b.nazwa, 'pl'));
 }
-const pozyczoneKsiazki = () => Z.ksiazki.filter(k => k.pozyczona).sort((a, b) => a.pozyczona.data.localeCompare(b.pozyczona.data));
+const pozyczoneKsiazki = () => Z.ksiazki.filter(k => k.pozyczona).sort((a, b) => (a.pozyczona.termin || '9999').localeCompare(b.pozyczona.termin || '9999') || a.pozyczona.data.localeCompare(b.pozyczona.data));
 
 /** Cel roczny w czasie: ile książek przeczytane narastająco w każdym dniu okresu. */
 function celWCzasie() {
@@ -1137,3 +1151,36 @@ function prognozaTechnicznej(k) {
   return { naTydzien, koniec: dodajDni(dzisISO(), Math.ceil(zostalo / naTydzien * 7)), zostalo };
 }
 const dniBezCzytania = k => dniMiedzy(ostatniaAktywnosc(k), dzisISO());
+
+/* ---------- pożyczki 2.0 i wydatki (wersja 2.11) ---------- */
+/** Ile dni do terminu zwrotu (ujemne = po terminie), null gdy bez terminu. */
+const dniDoZwrotu = k => k.pozyczona && k.pozyczona.termin ? dniMiedzy(dzisISO(), k.pozyczona.termin) : null;
+function zwrocPozyczke(k, data = dzisISO()) {
+  const p = k.pozyczona;
+  if (!p) return [];
+  k.historiaPozyczek = [...(k.historiaPozyczek || []), { kto: p.kto, od: p.data, do: data, kierunek: p.kierunek, typ: p.typ, poTerminie: !!(p.termin && data > p.termin) }].slice(-30);
+  k.pozyczona = null;
+  return [k];
+}
+function prolonguj(k, dni) {
+  const p = k.pozyczona;
+  if (!p) return [];
+  p.termin = dodajDni(p.termin && p.termin > dzisISO() ? p.termin : dzisISO(), dni);
+  p.prolongaty = (p.prolongaty || 0) + 1;
+  return [k];
+}
+/** Kupione książki z ceną: wydatki w okresie. */
+function wydatki(od, doDnia) {
+  const lista = Z.ksiazki.filter(k => k.cenaZakupu && k.dataZakupu && k.dataZakupu >= od && k.dataZakupu <= doDnia);
+  return { suma: lista.reduce((s, k) => s + k.cenaZakupu, 0), ile: lista.length, lista };
+}
+const czyOkazja = k => k.status === 'zyczenia' && k.cena && k.cenaDocelowa && k.cena <= k.cenaDocelowa;
+const zl = n => `${(+n).toFixed(2).replace('.', ',')} zł`;
+function zapiszCene(k, cena, sklep = '') {
+  cena = Math.round(+cena * 100) / 100;
+  if (!(cena > 0)) { k.cena = null; return [k]; }
+  const ost = k.ceny[k.ceny.length - 1];
+  if (!ost || ost.cena !== cena || ost.sklep !== sklep) k.ceny = [...k.ceny, { data: dzisISO(), cena, sklep }].slice(-20);
+  k.cena = cena;
+  return [k];
+}

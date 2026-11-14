@@ -81,6 +81,50 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.11: mądrzejsza wyszukiwarka, opisy, podobne, pożyczki i lista życzeń 2.0, animacje
+
+**Wyszukiwarka**
+- **Literówki i brak polskich znaków:** gdy wyników jest mało, aplikacja szuka drugi raz po rdzeniach słów („sapkowsky” → „sapkow*”) i sama ocenia podobieństwo każdego wyniku. Przykład: „sapkowsky krew elfow” znajduje „Krew elfów”, a „tokarczk bieguni” znajduje „Biegunów”.
+- **„Czy chodziło ci o…?”:** gdy wynik pasuje dopiero z poprawką, podsuwa poprawne zapytanie jednym kliknięciem.
+- **Podpowiedzi przy pisaniu:** od 3 liter pod polem wyszukiwania pojawiają się pasujące tytuły. Najpierw te z twojej biblioteki (oznaczone „masz”), potem z internetu. Działa w formularzu dodawania i w zakładce Losuj.
+- Słabo pasujące wyniki są odsiewane, a polskie wydania idą wyżej.
+
+**Opis i podobne książki**
+- **Opis książki** pobiera się sam po dodaniu. Źródła po kolei: polska Wikipedia, Google Books, streszczenie z Biblioteki Narodowej, Open Library (często po angielsku). Opis jest zwinięty z przyciskiem „Pokaż więcej”. Możesz go edytować albo napisać własny.
+- **Podobne książki:** inne książki tego samego autora i książki o podobnym temacie, z okładkami. Każdą dodasz jednym kliknięciem do kolejki albo na listę życzeń.
+- **Po ocenie 4–5 gwiazdek** okno „Przeczytane” od razu podsuwa „Skoro ci się podobała, może też…”.
+
+**Pożyczki 2.0**
+- Trzy rodzaje: pożyczyłem komuś, mam od kogoś, **z biblioteki**. Dla biblioteki termin ustawia się na 30 dni.
+- **Termin zwrotu** wpisujesz datą albo szybkim wyborem (tydzień, 2 tygodnie, miesiąc, 2 miesiące, bez terminu).
+- Stan terminu jest zawsze widoczny: „oddać za 2 dni”, „po terminie 3 dni” (na czerwono, także na okładce w Bibliotece).
+- **Przedłuż** dodaje 30 dni dla biblioteki i 14 dla osoby, z licznikiem prolongat.
+- **Do kalendarza:** przypomnienie 2 dni przed terminem i w dniu zwrotu.
+- Ekran Dziś przypomina 3 dni przed terminem i gdy minie termin.
+- **Historia pożyczek** przy książce, a półka „Pożyczone” jest ułożona według terminu.
+
+**Lista życzeń 2.0**
+- Aktualna cena, **cena docelowa** („kupię za max.”), **historia cen** z najniższą ceną. Gdy cena spadnie do progu, książka dostaje oznaczenie **„okazja!”** z powiadomieniem.
+- **Okazja prezentowa:** urodziny, imieniny, Gwiazdka…
+- **Porównanie cen jednym kliknięciem:** Ceneo, Allegro, Empik, TaniaKsiążka, Bonito, Google Zakupy, a dla e-booków Legimi, Woblink i Lubimyczytać. „Cena w Google Play” sprawdza cenę e-booka, gdy Google ją udostępnia.
+- **„Mam ją”:** zapisujesz, ile zapłaciłeś albo że to prezent, i od razu wybierasz „do kolejki” albo „zacznij czytać”.
+- **Budżet miesięczny** na książki z licznikiem wydanych pieniędzy. „Udostępnij listę” wysyła tekst z tytułami, cenami i linkami, np. dla rodziny przed urodzinami.
+- W Statystykach jest nowa sekcja **Wydatki na książki**: miesiąc, rok, średnia cena i najdroższa książka.
+
+**Animacje i interaktywność**
+- Płynne przejścia między zakładkami (View Transitions). Sekcje i okładki pojawiają się kolejno, a paski postępu „rosną”.
+- Przyciski i okładki reagują na dotyk. Ikona w dolnym pasku podskakuje przy wyborze.
+- **Konfetti:** po skończeniu książki, przy ocenie 5, po zrobieniu celu tygodnia albo miesiąca, przy zakupie z listy życzeń i przy okazji cenowej.
+- Liczba stron na ekranie Dziś „nabija się” od zera.
+- **Okna da się zamknąć przeciągnięciem w dół** (na telefonie).
+- Gdy ktoś wyłączy animacje w systemie, wszystkie animacje są wyłączone.
+
+**Przegląd i poprawki**
+- Każdy ekran, każda półka, każdy rodzaj książki i każde z ponad 20 okien zostały otwarte automatycznie na danych testowych. Kopia JSON, eksport CSV i pliki kalendarza też zostały sprawdzone.
+- Eksport CSV wpisywał „undefined” jako półkę dla książek z „Na później” i „Listy życzeń”.
+- Plik kalendarza dla zwrotu wywracał się przy pożyczce bez terminu.
+- Ekran Dziś pokazywał do 4 banerów naraz. Teraz są najwyżej 2 najważniejsze (przeterminowana pożyczka przed passą), a reszta jest zwinięta.
+
 ## Wersja 2.10: książka bazowa w planie tygodnia
 
 Książkę bazową (długą, czytaną codziennie przez wyznaczony okres) planuje system, nie ty.
