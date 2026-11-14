@@ -16,7 +16,8 @@ const dataDzis = () => new Date().toLocaleDateString('pl-PL', { weekday: 'long',
 const U = {
   widok: ['dzis', 'biblioteka', 'losuj', 'statystyki', 'cytaty', 'ustawienia'].includes(lsGet('zakladka-widok')) ? lsGet('zakladka-widok') : 'dzis',
   polka: 'czytam', szukaj: '', sort: 'domyslnie', tag: null, szukajCytat: '',
-  pierwszyRender: true, instalacja: null, skaner: false, dzien: dzisISO()
+  pierwszyRender: true, instalacja: null, skaner: false, dzien: dzisISO(),
+  losTryb: lsGet('zakladka-los-tryb') === 'odkrywaj' ? 'odkrywaj' : 'losuj'
 };
 
 /* ================= ikony ================= */
@@ -353,7 +354,7 @@ function widokDzis() {
   for (let d = dodajDni(dzis, -dzienTygodnia(dzis)); d <= dzis; d = dodajDni(d, 1)) tydzien += m.get(d) || 0;
   const baz = bazowa();
   const pob = czytane().filter(k => !k.bazowa && !czyTechniczna(k));
-  const nast = kolejka()[0];
+  const nastI = nastepnaKsiazka(), nast = nastI && nastI.k;
   const brak = cel - dzisStron;
   const doZapisu = baz || czytane()[0];
   const ss = seriaSzczegoly(m);
@@ -385,9 +386,9 @@ function widokDzis() {
   ${blokOkresow(m)}
   ${blokCelu(m)}
   ${nast ? `<section class="sekcja">
-    <div class="sekcja-gora"><h2>Następna w kolejce</h2><span class="sekcja-akcje">${kolejka().length > 1 ? `<button type="button" class="btn-tekst" data-akcja="losuj">Losuj</button>` : ''}<button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-polka="doPrzeczytania">Cała lista</button></span></div>
+    <div class="sekcja-gora"><h2>Następna do czytania</h2><span class="sekcja-akcje">${kolejka().length > 1 ? `<button type="button" class="btn-tekst" data-akcja="losuj">Losuj</button>` : ''}<button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-polka="doPrzeczytania">Cała lista</button></span></div>
     <div class="nastepna"><button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${nast.id}">${okladka(nast, 's')}
-      <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(nast.tytul)}</span><span class="wiersz-autor">${esc(nast.autor)}${nast.autor ? ', ' : ''}${ile(nast.strony, FORMY_STRON)}</span></span></button>
+      <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(nast.tytul)}</span><span class="wiersz-autor">${esc(nast.autor)}${nast.autor ? ', ' : ''}${ile(nast.strony, FORMY_STRON)}</span><span class="wiersz-info">${esc(nastI.powod)}</span></span></button>
       <button type="button" class="btn" data-akcja="zacznij" data-id="${nast.id}">Zacznij</button></div>
   </section>` : ''}
   ${cytatDnia()}`;
@@ -1093,6 +1094,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     toast(`Dodano „${nowa.tytul}”.`);
     if (opisWyniku && !nowa.opis) { nowa.opis = opisWyniku; nowa.opisZrodlo = 'Biblioteka Narodowa'; utrwal(nowa); }
     if (!nowa.opis) uzupelnijOpis(nowa, { cicho: true });
+    if (nowa.status === 'zyczenia') sprawdzCeny(nowa, { cicho: true });
   });
   if (!edytowana) setTimeout(() => $('#f-q', f).focus(), 80);
 }
@@ -3063,6 +3065,14 @@ function arkuszLosowania() {
 const LOS = { pn: null, dlugosc: 'dowolna', kreci: false, szukam: false };
 
 function widokLosowanie() {
+  const tryb = U.losTryb || 'losuj';
+  return `<div class="los-przelacznik" role="tablist">
+    <button type="button" role="tab" aria-selected="${tryb === 'losuj'}" data-los-tryb="losuj">${I.kostka}Losowanie</button>
+    <button type="button" role="tab" aria-selected="${tryb === 'odkrywaj'}" data-los-tryb="odkrywaj"><span class="los-serce">♥</span>Odkrywaj</button>
+  </div>${tryb === 'odkrywaj' ? widokOdkrywaj() : widokLosowania()}`;
+}
+
+function widokLosowania() {
   const pula = pulaLosowania();
   const dzis = dzisISO(), teraz = poczatekTygodnia(), nast = dodajDni(teraz, 7);
   if (!LOS.pn || (LOS.pn !== teraz && LOS.pn !== nast)) LOS.pn = tydzienDoLosowania();
@@ -3478,6 +3488,7 @@ function htmlZyczenia(k) {
       <label>Kupię za max. (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cenaDocelowa" data-id="${k.id}" value="${k.cenaDocelowa ?? ''}" placeholder="cena docelowa"></label></div>
     <div class="f-rzad"><label>Priorytet<select data-pole-zycz="priorytet" data-id="${k.id}">${[[0, 'zwykły'], [1, '♥ chcę'], [2, '♥♥ bardzo chcę'], [3, '♥♥♥ muszę mieć']].map(([v, n]) => `<option value="${v}"${k.priorytet === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
       <label>Okazja<select data-pole-zycz="okazja" data-id="${k.id}">${OKAZJE.map(o => `<option value="${o}"${k.okazja === o ? ' selected' : ''}>${o || 'bez okazji'}</option>`).join('')}</select></label></div>
+    ${htmlCenCeneo(k)}
     <label>Link do sklepu<input type="url" data-pole-zycz="link" data-id="${k.id}" value="${esc(k.link)}" placeholder="https://… (wklej link do oferty)"></label>
     ${k.ceny.length ? `<details class="ceny-hist"><summary>Historia cen (${k.ceny.length})${min != null ? ` · najniżej ${zl(min)}` : ''}</summary>
       <ol>${[...k.ceny].reverse().map(c => `<li><span>${dataKrotka(c.data)}</span><strong>${zl(c.cena)}</strong>${c.sklep ? `<span class="cichy">${esc(c.sklep)}</span>` : ''}</li>`).join('')}</ol></details>` : ''}
@@ -3501,7 +3512,8 @@ function naglowekPolki() {
       <p><strong>${ile(l.length, FORMY_KSIAZEK)}</strong>${suma ? ` · razem <strong>${zl(suma)}</strong>` : ''}${sumaDoc && sumaDoc < suma ? ` · w cenach docelowych ${zl(sumaDoc)}` : ''}${okazje ? ` · <span class="znacznik-okazja">${okazje} ${odmiana(okazje, ['okazja', 'okazje', 'okazji'])}</span>` : ''}</p>
       <p class="cichy">${b ? `Budżet na ten miesiąc: wydane ${zl(w.suma)} z ${zl(b)}${w.suma > b ? ' — <span class="zle">przekroczony</span>' : `, zostało ${zl(b - w.suma)}`}.` : `W tym miesiącu wydane na książki: ${zl(w.suma)}.`}
         <button type="button" class="btn-tekst" data-akcja="budzet">${b ? 'Zmień budżet' : 'Ustaw budżet'}</button></p>
-      <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="udostepnij-zyczenia">${I.udostepnij}Udostępnij listę (np. na prezent)</button></div>
+      <div class="przyciski"><button type="button" class="btn btn-maly btn-glowny" data-akcja="sprawdz-ceny-wszystkie">${I.szukaj}Sprawdź ceny wszystkich</button><button type="button" class="btn btn-maly" data-akcja="udostepnij-zyczenia">${I.udostepnij}Udostępnij listę</button></div>
+      <label class="przelacznik maly"><input type="checkbox" data-ceny-auto${Z.ustawienia.cenyAuto ? ' checked' : ''}><span>Sprawdzaj ceny automatycznie raz dziennie</span></label>
     </div>`;
   }
   if (U.polka === 'pozniej') return naPozniej().length ? '<p class="polka-info">Odłożone na później: nie zaśmiecają kolejki, a zapamiętują stronę, na której skończyłeś.</p>' : '';
@@ -3575,35 +3587,6 @@ function htmlWydatkow() {
 }
 
 /* ================= opis książki i podobne (2.11) ================= */
-function htmlOpisu(k) {
-  if (k.opis) {
-    return `<section class="kd-sekcja kd-opis"><h3>O książce</h3>
-      <div class="opis-tekst${k.opis.length > 380 ? ' zwiniety' : ''}">${esc(k.opis).replace(/\n+/g, '</p><p>').replace(/^/, '<p>')}</p></div>
-      ${k.opis.length > 380 ? '<button type="button" class="btn-tekst" data-rozwin-opis>Pokaż więcej</button>' : ''}
-      <p class="cichy opis-zrodlo">Źródło: ${esc(k.opisZrodlo || 'własny')}${k.opisZrodlo === 'Open Library' ? ' (często po angielsku)' : ''} · <button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Edytuj</button></p></section>`;
-  }
-  return `<section class="kd-sekcja kd-opis"><h3>O książce</h3><p class="cichy" data-opis-stan="${k.id}">Brak opisu.</p>
-    <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="opis-pobierz" data-id="${k.id}">${I.szukaj}Znajdź opis</button><button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Napisz własny</button></div></section>`;
-}
-
-async function uzupelnijOpis(k, { cicho = false } = {}) {
-  if (!k || !navigator.onLine) return false;
-  const stan = $(`[data-opis-stan="${k.id}"]`);
-  if (stan) { stan.textContent = 'Szukam opisu…'; stan.classList.add('ladowanie'); }
-  try {
-    const o = await Wyszukiwarka.opis(k);
-    if (o) {
-      k.opis = o.tekst; k.opisZrodlo = o.zrodlo;
-      if (o.tematy && !k.tagi.length) k.tagi = o.tematy.slice(0, 2).map(t => t.toLowerCase()).filter(t => t.length < 25);
-      utrwal(k); odswiez();
-      if (!cicho) toast(`Dodano opis (${o.zrodlo}).`);
-      return true;
-    }
-  } catch (e) { console.warn(e); }
-  if (stan) { stan.textContent = 'Nie znalazłem opisu w Wikipedii, Google Books ani Open Library.'; stan.classList.remove('ladowanie'); }
-  return false;
-}
-
 function arkuszOpisu(id) {
   const k = znajdz(id);
   const a = arkusz({
@@ -3778,6 +3761,282 @@ function stosBanerow(lista) {
   return `${b.slice(0, 2).join('')}<details class="banery-wiecej"><summary>Jeszcze ${ile(b.length - 2, ['przypomnienie', 'przypomnienia', 'przypomnień'])}</summary>${b.slice(2).join('')}</details>`;
 }
 
+/* ================= opis „pro” (2.12) ================= */
+const FAKTY_ETYKIETY = [['gatunek', 'Gatunek'], ['wydanie', 'Pierwsze wydanie'], ['wydawca', 'Wydawca'], ['cykl', 'Cykl'], ['poprzednia', 'Poprzednia część'], ['nastepna', 'Następna część'], ['kraj', 'Kraj'], ['jezyk', 'Język oryginału'], ['tytulOryginalny', 'Tytuł oryginalny'], ['tlumacz', 'Tłumaczenie'], ['miejsceAkcji', 'Miejsce akcji'], ['temat', 'Tematy'], ['nagrody', 'Nagrody']];
+
+function htmlOpisu(k) {
+  const f = k.fakty || {};
+  const ileFaktow = Object.keys(f).length;
+  if (!k.opis && !ileFaktow) {
+    return `<section class="kd-sekcja kd-opis"><h3>O książce</h3><p class="cichy" data-opis-stan="${k.id}">Brak opisu.</p>
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-akcja="opis-pobierz" data-id="${k.id}">${I.szukaj}Znajdź opis i fakty</button><button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Napisz własny</button></div></section>`;
+  }
+  const nast = f.nastepna && f.nastepna[0];
+  const mamNast = nast && Z.ksiazki.find(x => kluczKsiazki(x.tytul) .startsWith(kluczKsiazki(nast).split('|')[0]));
+  return `<section class="kd-sekcja kd-opis"><h3>O książce</h3>
+    ${ileFaktow ? `<dl class="fakty">${FAKTY_ETYKIETY.filter(([n]) => f[n] && f[n].length).map(([n, e]) => `<div class="fakt fakt-${n}"><dt>${e}</dt><dd>${f[n].map(esc).join(', ')}</dd></div>`).join('')}</dl>` : ''}
+    ${nast && !mamNast && k.status === 'przeczytana' ? `<div class="fakt-dalej">Następna część: <strong>${esc(nast)}</strong> <button type="button" class="btn btn-maly" data-dodaj-nastepna="${k.id}">♥ Na listę życzeń</button></div>` : ''}
+    ${k.opis ? `<div class="opis-tekst${k.opis.length > 420 ? ' zwiniety' : ''}"><p>${esc(k.opis).replace(/\n+/g, '</p><p>')}</p></div>
+      ${k.opis.length > 420 ? '<button type="button" class="btn-tekst" data-rozwin-opis>Pokaż więcej</button>' : ''}` : ''}
+    ${k.fabula ? `<details class="fabula"><summary>Fabuła <span class="cichy">(może zdradzać zakończenie)</span></summary><div class="fabula-tekst spoiler" data-spoiler><p>${esc(k.fabula).replace(/\n+/g, '</p><p>')}</p><button type="button" class="spoiler-zaslona" data-odkryj-spoiler>Dotknij, żeby odsłonić</button></div></details>` : ''}
+    <p class="cichy opis-zrodlo">${k.opisZrodlo ? `Źródło: ${esc(k.opisZrodlo)}${k.opisZrodlo === 'Open Library' ? ' (często po angielsku)' : ''} · ` : ''}${(k.opisLinki || []).map(l => `<a href="${esc(l.link)}" target="_blank" rel="noopener">${esc(l.nazwa)}</a>`).join(' · ')}${k.opisLinki && k.opisLinki.length ? ' · ' : ''}
+      <button type="button" class="btn-tekst" data-akcja="opis-pobierz" data-id="${k.id}">${ileFaktow ? 'Odśwież' : 'Wzbogać o fakty'}</button> · <button type="button" class="btn-tekst" data-akcja="opis-edytuj" data-id="${k.id}">Edytuj</button></p>
+    <p class="cichy" data-opis-stan="${k.id}"></p></section>`;
+}
+
+async function uzupelnijOpis(k, { cicho = false } = {}) {
+  if (!k || !navigator.onLine) return false;
+  const stan = $(`[data-opis-stan="${k.id}"]`);
+  if (stan) { stan.textContent = 'Szukam w Wikipedii, Wikidata i bibliotekach…'; stan.classList.add('ladowanie'); }
+  try {
+    const w = await Wyszukiwarka.opisPro(k);
+    if (w) {
+      if (w.opis && (k.opisZrodlo !== 'własny' || !k.opis)) { k.opis = w.opis; k.opisZrodlo = w.zrodlo; }
+      k.fabula = w.fabula || k.fabula;
+      k.fakty = { ...k.fakty, ...w.fakty };
+      k.opisLinki = w.zrodla;
+      // gatunek z Wikidata jako tag, cykl jako seria — jeśli ich jeszcze nie ma
+      if (!k.tagi.length && w.fakty.gatunek) k.tagi = w.fakty.gatunek.slice(0, 2).map(t => t.toLowerCase()).filter(t => t.length < 30);
+      if (!k.seria && w.fakty.cykl) k.seria = w.fakty.cykl[0];
+      utrwal(k); odswiez();
+      if (!cicho) toast(`Dodano opis${Object.keys(w.fakty).length ? ` i ${ile(Object.keys(w.fakty).length, ['fakt', 'fakty', 'faktów'])}` : ''} (${w.zrodlo || 'Wikidata'}).`);
+      return true;
+    }
+  } catch (e) { console.warn(e); }
+  if (stan) { stan.textContent = 'Nie znalazłem opisu w Wikipedii, Google Books ani Open Library.'; stan.classList.remove('ladowanie'); }
+  return false;
+}
+
+/* ================= ceny z Ceneo dla listy życzeń (2.12) ================= */
+function htmlCenCeneo(k) {
+  const c = k.cenyCeneo;
+  const wiersze = c ? [['papier', 'Papier'], ['ebook', 'E-book'], ['audio', 'Audiobook']].filter(([f]) => c[f]).map(([f, n]) => `<li class="${f === preferowanyFormat(k) ? 'pref' : ''}"><span>${n}</span><strong>${zl(c[f].cena)}</strong><a href="${esc(c[f].link)}" target="_blank" rel="noopener">porównaj oferty</a></li>`).join('') : '';
+  return `<div class="ceny-teraz" data-ceny-box="${k.id}">
+    <div class="sekcja-gora"><h4>Ceny w sklepach</h4><button type="button" class="btn btn-maly" data-akcja="sprawdz-ceny" data-id="${k.id}">${I.szukaj}${c ? 'Sprawdź ponownie' : 'Sprawdź ceny'}</button></div>
+    ${c ? (wiersze ? `<ul class="ceny-lista">${wiersze}</ul><p class="cichy">Najniższe ceny z porównywarki Ceneo (wiele sklepów, m.in. Empik), sprawdzone ${dataKrotka(c.data)}.</p>` : `<p class="cichy">Ceneo nie ma teraz ofert tej książki (sprawdzone ${dataKrotka(c.data)}).</p>`)
+      : '<p class="cichy">Sprawdzę najniższe ceny w wielu sklepach naraz i zapiszę je w historii.</p>'}
+  </div>`;
+}
+const preferowanyFormat = k => k.format === 'ebook' ? 'ebook' : k.format === 'audio' ? 'audio' : 'papier';
+
+async function sprawdzCeny(k, { cicho = false } = {}) {
+  if (!k || !navigator.onLine) return null;
+  const box = $(`[data-ceny-box="${k.id}"] h4`);
+  if (box) box.classList.add('ladowanie');
+  try {
+    const c = await Wyszukiwarka.ceny(k);
+    const przed = k.cena;
+    k.cenyCeneo = { papier: c.papier, ebook: c.ebook, audio: c.audio, data: c.data };
+    const naj = c[preferowanyFormat(k)] || c.papier || c.ebook || c.audio;
+    if (naj) zapiszCene(k, naj.cena, 'Ceneo');
+    utrwal(k); odswiez();
+    const tanszej = naj && przed && naj.cena < przed ? przed - naj.cena : 0;
+    if (czyOkazja(k)) { toast(`Okazja! „${k.tytul}” za ${zl(k.cena)}.`, { czas: 6000 }); konfetti({ ile: 50 }); }
+    else if (!cicho) toast(naj ? `„${k.tytul}”: najtaniej ${zl(naj.cena)}${tanszej ? `, o ${zl(tanszej)} taniej niż ostatnio` : ''}.` : `Brak ofert „${k.tytul}” w Ceneo.`);
+    return { k, naj, tanszej };
+  } catch (e) {
+    if (!cicho) toast(e.message, { typ: 'blad', czas: 7000 });
+    return { k, blad: e };
+  } finally { if (box) box.classList.remove('ladowanie'); }
+}
+
+/** Raz dziennie (po starcie) sprawdza ceny całej listy życzeń. */
+async function sprawdzCenyListy({ wymus = false } = {}) {
+  const dzis = dzisISO();
+  if (!wymus && (!Z.ustawienia.cenyAuto || lsGet('zakladka-ceny-dzien') === dzis || !navigator.onLine)) return;
+  const lista = listaZyczen().filter(k => wymus || !k.cenyCeneo || k.cenyCeneo.data !== dzis).slice(0, 15);
+  if (!lista.length) { if (wymus) toast('Ceny są aktualne.'); return; }
+  lsSet('zakladka-ceny-dzien', dzis);
+  if (wymus) toast(`Sprawdzam ceny ${ile(lista.length, FORMY_KSIAZEK_D)}…`);
+  const wyniki = [];
+  for (const k of lista) { wyniki.push(await sprawdzCeny(k, { cicho: true })); await new Promise(r => setTimeout(r, 700)); }
+  const blad = wyniki.find(w => w && w.blad);
+  if (blad && wyniki.every(w => !w || w.blad)) { if (wymus) toast(blad.blad.message, { typ: 'blad', czas: 8000 }); return; }
+  const tansze = wyniki.filter(w => w && w.tanszej > 0), okazje = lista.filter(czyOkazja);
+  if (tansze.length || okazje.length || wymus) {
+    toast([`Sprawdziłem ceny ${ile(lista.length, FORMY_KSIAZEK_D)}.`, tansze.length ? `Taniej: ${tansze.map(w => `„${w.k.tytul}” (−${zl(w.tanszej)})`).join(', ')}.` : '', okazje.length ? `Okazje: ${okazje.length}!` : ''].filter(Boolean).join(' '),
+      { czas: 8000, akcja: 'Pokaż', onAkcja: () => { U.polka = 'zyczenia'; U.pozyczone = false; idz('biblioteka'); } });
+  }
+}
+
+/* ================= Odkrywaj: propozycje z serduszkami (2.12) ================= */
+U.odk = { kolejka: [], laduje: false, opisy: {}, cofnij: [], zebrane: false };
+
+async function zbierzPropozycje({ odNowa = false } = {}) {
+  if (U.odk.laduje) return;
+  if (!navigator.onLine) { toast('Odkrywanie potrzebuje internetu.'); return; }
+  U.odk.laduje = true; if (U.widok === 'losuj') renderWidok();
+  const zrodla = zrodlaGustu(6);
+  const odrzucone = new Set([...Z.ustawienia.odkrywaj.nie, ...Z.ustawienia.odkrywaj.tak, ...Z.ksiazki.map(k => kluczKsiazki(k.tytul, k.autor))]);
+  const tylkoTytul = new Set(Z.ksiazki.map(k => kluczKsiazki(k.tytul).split('|')[0]));
+  const listy = await Promise.all(zrodla.map(async s => {
+    let p = U.podobne[s.id];
+    if (!Array.isArray(p)) { try { p = await Wyszukiwarka.podobne(s, Z.ksiazki); U.podobne[s.id] = p; } catch { p = []; } }
+    return p.map(x => ({ ...x, powod: s.ocena >= 4 ? `Bo ${'★'.repeat(s.ocena)} dla „${s.tytul}”` : `Podobne do „${s.tytul}”`, rodzaj: x.powod }));
+  }));
+  const wynik = [], widziane = new Set(odNowa ? [] : U.odk.kolejka.map(x => kluczKsiazki(x.tytul, x.autor)));
+  for (let i = 0; i < 12; i++) for (const l of listy) {
+    const x = l[i];
+    if (!x) continue;
+    const kl = kluczKsiazki(x.tytul, x.autor);
+    if (odrzucone.has(kl) || widziane.has(kl) || tylkoTytul.has(kl.split('|')[0])) continue;
+    widziane.add(kl); wynik.push(x);
+  }
+  U.odk.kolejka = odNowa ? wynik : [...U.odk.kolejka, ...wynik];
+  U.odk.laduje = false; U.odk.zebrane = true;
+  if (U.widok === 'losuj') renderWidok();
+  dociagnijOpisy();
+}
+
+async function dociagnijOpisy() {
+  for (const x of U.odk.kolejka.slice(0, 2)) {
+    const kl = kluczKsiazki(x.tytul, x.autor);
+    if (U.odk.opisy[kl] !== undefined) continue;
+    U.odk.opisy[kl] = null;
+    try { const o = await Wyszukiwarka.opis({ tytul: x.tytul, autor: x.autor, isbn: x.isbn }); U.odk.opisy[kl] = o ? o.tekst : ''; } catch { U.odk.opisy[kl] = ''; }
+    if (U.widok === 'losuj' && U.losTryb === 'odkrywaj') { const el = $(`[data-odk-opis="${CSS.escape(kl)}"]`); if (el) { el.textContent = (U.odk.opisy[kl] || 'Brak opisu.').slice(0, 320) + ((U.odk.opisy[kl] || '').length > 320 ? '…' : ''); el.classList.remove('ladowanie'); } }
+  }
+}
+
+function widokOdkrywaj() {
+  if (!U.odk.zebrane && !U.odk.laduje) setTimeout(() => zbierzPropozycje(), 0);
+  const zr = zrodlaGustu(6);
+  const [x, nast] = U.odk.kolejka;
+  const polubione = Z.ksiazki.filter(k => Z.ustawienia.odkrywaj.tak.includes(kluczKsiazki(k.tytul, k.autor))).slice(-12).reverse();
+  const kl = x && kluczKsiazki(x.tytul, x.autor);
+  return `<section class="naglowek-widoku"><h1>Odkrywaj</h1><button type="button" class="btn btn-maly" data-odk-odswiez${U.odk.laduje ? ' disabled' : ''}>${I.kostka}Nowe propozycje</button></section>
+  <p class="cichy odk-podstawa">${zr.length ? `Na podstawie: ${zr.slice(0, 4).map(k => `„${esc(k.tytul)}”`).join(', ')}${zr.length > 4 ? ' i innych' : ''}. Oceń więcej książek na 4–5 ★, a propozycje będą trafniejsze.` : 'Oceń kilka przeczytanych książek, a podsunę podobne.'}</p>
+  <div class="odk-scena">
+    ${x ? `${nast ? `<div class="odk-karta odk-nastepna" aria-hidden="true">${okladka({ tytul: nast.tytul, autor: nast.autor, okladka: nast.okladka }, 'l')}</div>` : ''}
+      <article class="odk-karta" data-odk-karta tabindex="0" aria-label="${esc(x.tytul)}">
+        <span class="odk-znak odk-tak">CHCĘ ♥</span><span class="odk-znak odk-nie">NIE ✕</span>
+        <div class="odk-okl">${okladka({ tytul: x.tytul, autor: x.autor, okladka: x.okladka }, 'l')}</div>
+        <h2 class="odk-tytul">${esc(x.tytul)}</h2>
+        <p class="odk-autor">${esc(x.autor)}${x.strony ? ` · ${x.strony} s.` : ''}</p>
+        <p class="odk-powod">${esc(x.powod)}${x.rodzaj && x.rodzaj.startsWith('Inna') ? ' · ten sam autor' : x.rodzaj ? ` · ${esc(x.rodzaj.replace(/^Podobny temat: |^Temat: /, 'temat: '))}` : ''}</p>
+        <p class="odk-opis${U.odk.opisy[kl] == null ? ' ladowanie' : ''}" data-odk-opis="${esc(kl)}">${U.odk.opisy[kl] == null ? 'Szukam opisu…' : esc((U.odk.opisy[kl] || 'Brak opisu.').slice(0, 320)) + ((U.odk.opisy[kl] || '').length > 320 ? '…' : '')}</p>
+      </article>` : `<div class="odk-pusto">${U.odk.laduje ? '<p class="ladowanie">Szukam książek dla ciebie…</p>' : `<p>${zr.length ? 'Na razie nie mam nowych propozycji.' : 'Nie znam jeszcze twojego gustu.'}</p><button type="button" class="btn" data-odk-odswiez>Szukaj jeszcze raz</button>`}</div>`}
+  </div>
+  ${x ? `<div class="odk-przyciski">
+    <button type="button" class="odk-btn odk-btn-cofnij" data-odk="cofnij" aria-label="Cofnij"${U.odk.cofnij.length ? '' : ' disabled'}>↶</button>
+    <button type="button" class="odk-btn odk-btn-nie" data-odk="nie" aria-label="Nie interesuje mnie">✕</button>
+    <button type="button" class="odk-btn odk-btn-tak" data-odk="tak" aria-label="Chcę: na listę życzeń">♥</button>
+    <button type="button" class="odk-btn odk-btn-mam" data-odk="mam" aria-label="Mam ją: do przeczytania">${I.biblioteka}</button>
+  </div>
+  <p class="cichy odk-podp">Przesuń kartę w prawo (♥ lista życzeń) albo w lewo (✕ pomiń). „Mam ją” dodaje do kolejki i puli losowania. Zostało propozycji: ${U.odk.kolejka.length}.</p>` : ''}
+  ${polubione.length ? `<section class="sekcja"><div class="sekcja-gora"><h2>Polubione ♥</h2><span class="licznik">${Z.ustawienia.odkrywaj.tak.length}</span></div>
+    <ul class="odk-polubione">${polubione.map(k => `<li><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}" aria-label="${esc(k.tytul)}">${okladka(k, 'm')}<span class="kafel-zycz">${k.cena ? zl(k.cena) : ''}</span></button></li>`).join('')}</ul></section>` : ''}`;
+}
+
+async function decyzjaOdkrywaj(rodzaj) {
+  const x = U.odk.kolejka[0];
+  if (!x) return;
+  const kl = kluczKsiazki(x.tytul, x.autor);
+  U.odk.kolejka.shift();
+  const zapis = { x, rodzaj, id: null };
+  if (rodzaj === 'nie') Z.ustawienia.odkrywaj.nie.push(kl);
+  else {
+    const k = nowaKsiazka({ tytul: x.tytul, autor: x.autor, strony: x.strony || Z.ustawienia.srednia, isbn: x.isbn, okladka: x.okladka, opis: U.odk.opisy[kl] || '', opisZrodlo: U.odk.opisy[kl] ? 'Wikipedia' : '' });
+    if (rodzaj === 'tak') { naListeZyczen(k); Z.ustawienia.odkrywaj.tak.push(kl); } else { k.pula = true; }
+    zapis.id = k.id;
+    utrwal(k);
+    if (x.okladka) urlNaOkladke(x.okladka).then(o => { if (o !== k.okladka) { k.okladka = o; utrwal(k); } });
+    setTimeout(() => { uzupelnijOpis(k, { cicho: true }); if (rodzaj === 'tak') sprawdzCeny(k, { cicho: true }); }, 400);
+    if (navigator.vibrate) navigator.vibrate(rodzaj === 'tak' ? [15, 40, 15] : 20);
+    if (rodzaj === 'tak') serduszka();
+  }
+  U.odk.cofnij = [zapis, ...U.odk.cofnij].slice(0, 10);
+  utrwalUstawienia();
+  renderWidok();
+  dociagnijOpisy();
+  if (U.odk.kolejka.length < 3) zbierzPropozycje();
+}
+
+function cofnijOdkrywaj() {
+  const z = U.odk.cofnij.shift();
+  if (!z) return;
+  const kl = kluczKsiazki(z.x.tytul, z.x.autor);
+  Z.ustawienia.odkrywaj.nie = Z.ustawienia.odkrywaj.nie.filter(v => v !== kl);
+  Z.ustawienia.odkrywaj.tak = Z.ustawienia.odkrywaj.tak.filter(v => v !== kl);
+  if (z.id) { Z.ksiazki = Z.ksiazki.filter(k => k.id !== z.id); Baza.usun(z.id).catch(() => {}); }
+  U.odk.kolejka.unshift(z.x);
+  utrwalUstawienia(); renderWidok();
+}
+
+/** Serduszka lecące w górę po polubieniu. */
+function serduszka() {
+  if (bezRuchu()) return;
+  const kont = document.createElement('div');
+  kont.className = 'serduszka';
+  kont.innerHTML = Array.from({ length: 9 }, (_, i) => `<span style="--x:${(Math.random() * 160 - 80).toFixed(0)}px;--d:${(i * 60)}ms;--s:${(.7 + Math.random() * .8).toFixed(2)}">♥</span>`).join('');
+  document.body.append(kont);
+  setTimeout(() => kont.remove(), 1600);
+}
+
+/** Przesuwanie karty palcem albo myszą. */
+document.addEventListener('pointerdown', e => {
+  const karta = e.target.closest('[data-odk-karta]');
+  if (!karta || e.button > 0) return;
+  const x0 = e.clientX, y0 = e.clientY;
+  let dx = 0, ruch = false;
+  karta.setPointerCapture(e.pointerId);
+  karta.style.transition = 'none';
+  const tak = $('.odk-tak', karta), nie = $('.odk-nie', karta);
+  const move = ev => {
+    dx = ev.clientX - x0;
+    if (!ruch && Math.abs(dx) < 6) return;
+    if (!ruch && Math.abs(ev.clientY - y0) > Math.abs(dx)) return;
+    ruch = true;
+    karta.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    tak.style.opacity = Math.max(0, Math.min(1, dx / 90));
+    nie.style.opacity = Math.max(0, Math.min(1, -dx / 90));
+  };
+  const up = () => {
+    karta.removeEventListener('pointermove', move);
+    karta.removeEventListener('pointerup', up);
+    karta.removeEventListener('pointercancel', up);
+    karta.style.transition = '';
+    if (Math.abs(dx) > 100) {
+      karta.classList.add(dx > 0 ? 'odlot-prawo' : 'odlot-lewo');
+      setTimeout(() => decyzjaOdkrywaj(dx > 0 ? 'tak' : 'nie'), 220);
+    } else { karta.style.transform = ''; tak.style.opacity = 0; nie.style.opacity = 0; }
+  };
+  karta.addEventListener('pointermove', move);
+  karta.addEventListener('pointerup', up);
+  karta.addEventListener('pointercancel', up);
+});
+
+document.addEventListener('click', e => {
+  const t = e.target;
+  const tr = t.closest('[data-los-tryb]');
+  if (tr) { U.losTryb = tr.dataset.losTryb; lsSet('zakladka-los-tryb', U.losTryb); renderWidok(); return; }
+  if (t.closest('[data-odk-odswiez]')) { U.odk.kolejka = []; U.podobne = {}; zbierzPropozycje({ odNowa: true }); return; }
+  const o = t.closest('[data-odk]');
+  if (o) {
+    const r = o.dataset.odk;
+    if (r === 'cofnij') { cofnijOdkrywaj(); return; }
+    const karta = $('[data-odk-karta]');
+    if (karta && !bezRuchu()) { karta.classList.add(r === 'nie' ? 'odlot-lewo' : r === 'tak' ? 'odlot-prawo' : 'odlot-gora'); setTimeout(() => decyzjaOdkrywaj(r), 220); }
+    else decyzjaOdkrywaj(r);
+    return;
+  }
+  const sp = t.closest('[data-odkryj-spoiler]');
+  if (sp) { sp.closest('[data-spoiler]').classList.remove('spoiler'); sp.remove(); return; }
+  const dn = t.closest('[data-dodaj-nastepna]');
+  if (dn) {
+    const k = znajdz(dn.dataset.dodajNastepna), tyt = k.fakty.nastepna[0];
+    const n = nowaKsiazka({ tytul: tyt, autor: k.autor, strony: Z.ustawienia.srednia, seria: k.seria || (k.fakty.cykl || [''])[0], tom: k.tom != null ? k.tom + 1 : null });
+    naListeZyczen(n); utrwal(n); odswiez();
+    toast(`„${tyt}” na liście życzeń.`, { akcja: 'Pokaż', onAkcja: () => arkuszKsiazki(n.id) });
+    uzupelnijOpis(n, { cicho: true }); sprawdzCeny(n, { cicho: true });
+  }
+});
+document.addEventListener('keydown', e => {
+  if (U.widok !== 'losuj' || U.losTryb !== 'odkrywaj' || otwarte.length || /input|textarea|select/i.test(e.target.tagName)) return;
+  if (e.key === 'ArrowRight') decyzjaOdkrywaj('tak');
+  if (e.key === 'ArrowLeft') decyzjaOdkrywaj('nie');
+});
+
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -3932,6 +4191,8 @@ const AKCJE = {
     } catch (e) { if (el) { el.classList.remove('ladowanie'); el.textContent = e.message; } }
   },
   'opis-pobierz': d => uzupelnijOpis(znajdz(d.id)),
+  'sprawdz-ceny': d => sprawdzCeny(znajdz(d.id)),
+  'sprawdz-ceny-wszystkie': () => sprawdzCenyListy({ wymus: true }),
   'opis-edytuj': d => arkuszOpisu(d.id),
   podobne: d => zaladujPodobne(d.id),
   tydzien: d => arkuszTygodnia(d.pn || poczatekTygodnia()),
@@ -3945,7 +4206,7 @@ const AKCJE = {
   passa: () => arkuszSerii(),
   'na-pozniej': d => { const k = znajdz(d.id), przed = { status: k.status, bazowa: k.bazowa, odlozono: k.odlozono }; utrwal(odlozNaPozniej(k)); odswiez(); toast(`„${k.tytul}” odłożona na później.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, przed); utrwal(k); odswiez(); } }); },
   'do-kolejki': d => { const k = znajdz(d.id); utrwal(doKolejki(k, !!d.poczatek)); odswiez(); toast(`„${k.tytul}” wraca do kolejki${d.poczatek ? ' na początek' : ''}.`); },
-  zyczenia: d => { const k = znajdz(d.id); utrwal(naListeZyczen(k)); odswiez(); toast(`„${k.tytul}” na liście życzeń.`); },
+  zyczenia: d => { const k = znajdz(d.id); utrwal(naListeZyczen(k)); odswiez(); toast(`„${k.tytul}” na liście życzeń. Sprawdzam ceny…`); sprawdzCeny(k, { cicho: true }); },
   'mam-ja': d => arkuszZakupu(d.id),
   'powiadomienia-zgoda': async () => {
     try {
@@ -4041,6 +4302,7 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('change', e => {
+  if (e.target.matches && e.target.matches('[data-ceny-auto]')) { Z.ustawienia.cenyAuto = e.target.checked; utrwalUstawienia(); toast(e.target.checked ? 'Będę sprawdzać ceny raz dziennie.' : 'Automatyczne sprawdzanie cen wyłączone.'); return; }
   const pz = e.target.dataset && e.target.dataset.poleZycz;
   if (pz) {
     const k = znajdz(e.target.dataset.id);
@@ -4139,6 +4401,7 @@ async function start() {
   sprawdzPrzypomnienie();
   zarejestrujSprawdzanieWTle();
   setInterval(sprawdzPrzypomnienie, 60 * 1000);
+  setTimeout(() => sprawdzCenyListy(), 6000);
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));

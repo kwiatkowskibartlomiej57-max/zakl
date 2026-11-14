@@ -488,6 +488,126 @@ const Wyszukiwarka = (() => {
     return { cena: c.amount, waluta: c.currencyCode, link: z.buyLink || null };
   }
 
+  /* ----- opis „pro” (2.12): pełny wstęp i fabuła z Wikipedii + fakty z Wikidata ----- */
+  const WIKIDATA_POLA = {
+    P136: 'gatunek', P577: 'wydanie', P123: 'wydawca', P166: 'nagrody', P1476: 'tytulOryginalny', P655: 'tlumacz',
+    P407: 'jezyk', P179: 'cykl', P495: 'kraj', P840: 'miejsceAkcji', P155: 'poprzednia', P156: 'nastepna', P921: 'temat'
+  };
+  async function znajdzStroneWiki({ tytul, autor }) {
+    const q = `${tytul} ${autor ? autor.split(',')[0] : ''}`.trim();
+    const r = await zTimeoutem(`https://pl.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&srlimit=6&format=json&origin=*`);
+    if (!r.ok) return null;
+    const j = await r.json();
+    const tn = bezOgonkow(tytul).split(/[:.(]/)[0].trim();
+    const kand = (j.query && j.query.search || []).filter(x => { const t = bezOgonkow(x.title).replace(/\s*\(.*\)$/, ''); return t === tn || t.startsWith(tn) || (tn.startsWith(t) && t.length > 3); });
+    // „Bieguni (powieść)” przed „Bieguni (zespół)”
+    kand.sort((a, b) => (/powie|ksiazk|zbior|tom|cykl/.test(bezOgonkow(b.title)) - /powie|ksiazk|zbior|tom|cykl/.test(bezOgonkow(a.title))));
+    return kand[0] ? kand[0].title : null;
+  }
+  function sekcjeWiki(tekst) {
+    const czesci = tekst.split(/\n(?==+ ?[^=\n]+? ?=+\n)/);
+    const wstep = czesci.shift().trim();
+    const sekcje = czesci.map(c => { const m = c.match(/^=+ ?(.+?) ?=+\n([\s\S]*)$/); return m ? { tytul: m[1].trim(), tekst: m[2].replace(/\n=+ ?[^=\n]+? ?=+\n/g, '\n').trim() } : null; }).filter(Boolean);
+    return { wstep, sekcje };
+  }
+  const przytnij = (t, max) => { t = t.replace(/\n{3,}/g, '\n\n').trim(); if (t.length <= max) return t; const c = t.slice(0, max); const k = Math.max(c.lastIndexOf('. '), c.lastIndexOf('.\n')); return (k > max * .6 ? c.slice(0, k + 1) : c + '…').trim(); };
+
+  async function faktyWikidata(q) {
+    const r = await zTimeoutem(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${q}&props=claims|sitelinks&format=json&origin=*`);
+    if (!r.ok) return {};
+    const e = Object.values((await r.json()).entities || {})[0];
+    if (!e || !e.claims) return {};
+    const surowe = {}, ids = new Set();
+    for (const [p, klucz] of Object.entries(WIKIDATA_POLA)) {
+      const w = (e.claims[p] || []).map(c => c.mainsnak && c.mainsnak.datavalue && c.mainsnak.datavalue.value).filter(Boolean).slice(0, 5);
+      if (!w.length) continue;
+      surowe[klucz] = w;
+      w.forEach(v => { if (v && v.id) ids.add(v.id); });
+    }
+    let etykiety = {};
+    if (ids.size) {
+      const l = await zTimeoutem(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${[...ids].slice(0, 50).join('|')}&props=labels&languages=pl|en&format=json&origin=*`);
+      if (l.ok) etykiety = Object.fromEntries(Object.entries((await l.json()).entities || {}).map(([id, v]) => [id, (v.labels && (v.labels.pl || v.labels.en) || {}).value || '']));
+    }
+    const fakty = {};
+    const PL = { novel: 'powieść', 'social fiction': 'powieść obyczajowa', 'fragmentary novel': 'powieść fragmentaryczna', 'science fiction': 'fantastyka naukowa', 'crime novel': 'kryminał', 'crime fiction': 'kryminał', 'detective fiction': 'kryminał', 'short story': 'opowiadanie', 'short story collection': 'zbiór opowiadań', essay: 'esej', 'historical novel': 'powieść historyczna', 'young adult fiction': 'literatura młodzieżowa', "children's literature": 'literatura dziecięca', 'horror fiction': 'horror', thriller: 'thriller', 'romance novel': 'romans', biography: 'biografia', autobiography: 'autobiografia', memoir: 'wspomnienia', 'non-fiction': 'literatura faktu', reportage: 'reportaż', poetry: 'poezja', drama: 'dramat', 'dystopian novel': 'powieść dystopijna', satire: 'satyra', 'magic realism': 'realizm magiczny', 'philosophical novel': 'powieść filozoficzna', 'adventure novel': 'powieść przygodowa', 'psychological novel': 'powieść psychologiczna', 'speculative fiction': 'fantastyka', 'high fantasy': 'fantasy', 'dark fantasy': 'dark fantasy', 'epic fantasy': 'fantasy' };
+    for (const id of Object.keys(etykiety)) { const t = etykiety[id].toLowerCase(); if (PL[t]) etykiety[id] = PL[t]; }
+    for (const [k, w] of Object.entries(surowe)) {
+      const v = w.map(x => x.id ? etykiety[x.id] : x.time ? String(x.time).slice(1, 5) : x.text ? x.text : '').filter(Boolean);
+      if (v.length) fakty[k] = [...new Set(v)];
+    }
+    // oryginalny tytuł pokazujemy tylko, gdy książka nie jest polska
+    if (fakty.tytulOryginalny && (fakty.jezyk || []).some(j => /polski/i.test(j))) delete fakty.tytulOryginalny;
+    if (fakty.wydanie) fakty.wydanie = [fakty.wydanie.sort()[0]];
+    return fakty;
+  }
+
+  async function opisPro(k) {
+    const w = { opis: '', fabula: '', fakty: {}, zrodla: [], zrodlo: '' };
+    try {
+      const strona = await znajdzStroneWiki(k);
+      if (strona) {
+        const r = await zTimeoutem(`https://pl.wikipedia.org/w/api.php?action=query&prop=extracts|pageprops&explaintext=1&exsectionformat=wiki&redirects=1&titles=${encodeURIComponent(strona)}&format=json&origin=*`);
+        if (r.ok) {
+          const p = Object.values((await r.json()).query.pages || {})[0] || {};
+          const { wstep, sekcje } = sekcjeWiki(p.extract || '');
+          const naz = k.autor ? bezOgonkow(k.autor.split(',')[0]).split(' ').pop() : '';
+          const oKsiazce = /powieść|książk|zbiór|opowiada|reportaż|tom |cykl|esej|poradnik|wydan|autorstwa|literat|dramat|poemat|fantasy|kryminał/i.test(wstep) || (naz && bezOgonkow(wstep).includes(naz));
+          if (oKsiazce && wstep.length > 60) {
+            w.opis = przytnij(wstep, 1800);
+            const tlo = sekcje.find(s => /^(tło|geneza|okoliczności powstania|historia powstania)/i.test(s.tytul));
+            const fab = sekcje.find(s => /^(fabuła|treść|opis fabuły|zarys fabuły|streszczenie|akcja|fabuła i bohaterowie|zawartość|tematyka)/i.test(s.tytul));
+            if (tlo && tlo.tekst.length > 80) w.opis += `\n\n${przytnij(tlo.tekst, 900)}`;
+            if (fab && fab.tekst.length > 80) w.fabula = przytnij(fab.tekst, 2500);
+            w.zrodlo = 'Wikipedia';
+            w.zrodla.push({ nazwa: 'Wikipedia', link: `https://pl.wikipedia.org/wiki/${encodeURIComponent(strona.replace(/ /g, '_'))}` });
+            const q = p.pageprops && p.pageprops.wikibase_item;
+            if (q) {
+              try { w.fakty = await faktyWikidata(q); } catch { /* bez faktów */ }
+              w.zrodla.push({ nazwa: 'Wikidata', link: `https://www.wikidata.org/wiki/${q}` });
+            }
+          }
+        }
+      }
+    } catch { /* Wikipedia nie odpowiada */ }
+    if (!w.opis) {
+      for (const f of [opisGoogle, opisOpenLibrary]) {
+        try { const o = await f(k); if (o && o.tekst) { w.opis = przytnij(o.tekst, 2500); w.zrodlo = o.zrodlo; if (o.tematy && !w.fakty.gatunek) w.fakty.temat = o.tematy.slice(0, 4); break; } } catch { /* następne */ }
+      }
+    }
+    const fraza = encodeURIComponent(`${k.tytul} ${k.autor ? k.autor.split(',')[0] : ''}`.trim());
+    w.zrodla.push({ nazwa: 'Lubimyczytać', link: `https://lubimyczytac.pl/szukaj/ksiazki?phrase=${fraza}` });
+    w.zrodla.push({ nazwa: 'Open Library', link: k.isbn ? `https://openlibrary.org/isbn/${k.isbn}` : `https://openlibrary.org/search?q=${fraza}` });
+    return w.opis || Object.keys(w.fakty).length ? w : null;
+  }
+
+  /* ----- ceny z Ceneo przez pośrednika (2.12) ----- */
+  async function ceny(k) {
+    const fraza = `${k.tytul.split(/[:(]/)[0].trim()} ${k.autor ? k.autor.split(',')[0].split(' ').pop() : ''}`.trim();
+    const adresy = adresyBN({ ceny: fraza });
+    if (!adresy.length) throw new Error('Brak pośrednika.');
+    let j = null, blad = null;
+    for (const url of adresy) {
+      try {
+        const r = await zTimeoutem(url.replace(/[?&]limit=\d+/, ''), 20000);
+        const x = await r.json();
+        if (x && Array.isArray(x.wyniki)) { j = x; break; }
+        if (x && x.blad && /Podaj isbnIssn/.test(x.blad)) blad = new Error('Twój worker ma starą wersję. Wklej nowy kod z pliku proxy/cloudflare-worker.js (instrukcja w README).');
+      } catch (e) { blad = blad || e; }
+    }
+    if (!j) throw blad || new Error('Nie udało się sprawdzić cen.');
+    const tyt = bezOgonkow(k.tytul).split(/[:.(]/)[0].trim();
+    const pasujace = j.wyniki.map(w => {
+      const n = bezOgonkow(w.nazwa);
+      const format = /e-?book|e-beletr|e-liter|epub|mobi/.test(n + ' ' + bezOgonkow(w.kategoria)) ? 'ebook' : /audiobook|mp3|cd/.test(n) ? 'audio' : 'papier';
+      return { ...w, format, o: podobienstwo(k.tytul.split(/[:(]/)[0], { tytul: w.nazwa, autor: '' }) };
+    }).filter(w => w.o >= .8 && bezOgonkow(w.nazwa).includes(tyt)
+      && !/2w1|pakiet|komplet|zestaw|w j\. |ukrain|english|edition|naklejk|plakat|kubek|gra |puzzle/.test(bezOgonkow(w.nazwa))
+      && !/\b(the|of|and|volume|vol|book)\b/.test(bezOgonkow(w.nazwa).replace(tyt, ''))); // bez wydań obcojęzycznych
+    const naj = f => pasujace.filter(w => w.format === f).sort((a, b) => a.cena - b.cena)[0] || null;
+    return { papier: naj('papier'), ebook: naj('ebook'), audio: naj('audio'), wszystkie: pasujace.sort((a, b) => a.cena - b.cena).slice(0, 8), data: new Date().toISOString().slice(0, 10) };
+  }
+
   /** Sprawdza, które źródła działają (do Ustawień). */
   async function test() {
     const probny = '9788308039861';
@@ -499,7 +619,7 @@ const Wyszukiwarka = (() => {
     };
   }
 
-  return { szukaj, szukajMadrze, podpowiedzi, opis, podobne, cenaEbooka, podobienstwo, czyIsbn, test, stan, isbn10na13 };
+  return { szukaj, szukajMadrze, podpowiedzi, opis, opisPro, ceny, podobne, cenaEbooka, podobienstwo, bezOgonkow, czyIsbn, test, stan, isbn10na13 };
 })();
 
 /* ---------- skaner kodów kreskowych ----------

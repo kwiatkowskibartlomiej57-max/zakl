@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.11.0';
+const WERSJA = '2.12.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0 };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -108,6 +108,10 @@ function normalizujKsiazke(k = {}) {
       .map(h => ({ kto: String(h.kto).slice(0, 60), od: h.od, do: poprawnaData(h.do) ? h.do : null, kierunek: h.kierunek === 'od' ? 'od' : 'komus', typ: h.typ === 'biblioteka' ? 'biblioteka' : 'osoba', poTerminie: !!h.poTerminie })),
     opis: String(k.opis || '').slice(0, 4000),
     opisZrodlo: String(k.opisZrodlo || '').slice(0, 40),
+    fabula: String(k.fabula || '').slice(0, 4000),
+    fakty: k.fakty && typeof k.fakty === 'object' ? Object.fromEntries(Object.entries(k.fakty).filter(([, v]) => Array.isArray(v)).map(([n, v]) => [String(n).slice(0, 30), v.map(x => String(x).slice(0, 80)).slice(0, 6)])) : {},
+    opisLinki: (Array.isArray(k.opisLinki) ? k.opisLinki : []).filter(l => l && /^https:\/\//.test(l.link)).slice(0, 6).map(l => ({ nazwa: String(l.nazwa).slice(0, 30), link: String(l.link).slice(0, 300) })),
+    cenyCeneo: k.cenyCeneo && poprawnaData(k.cenyCeneo.data) ? Object.fromEntries(['papier', 'ebook', 'audio'].map(f => [f, k.cenyCeneo[f] && +k.cenyCeneo[f].cena > 0 ? { cena: +k.cenyCeneo[f].cena, link: /^https:\/\//.test(k.cenyCeneo[f].link) ? k.cenyCeneo[f].link : '', nazwa: String(k.cenyCeneo[f].nazwa || '').slice(0, 120) } : null]).concat([['data', k.cenyCeneo.data]])) : null,
     cenaDocelowa: +k.cenaDocelowa > 0 ? Math.round(+k.cenaDocelowa * 100) / 100 : null,
     ceny: (Array.isArray(k.ceny) ? k.ceny : []).filter(c => c && +c.cena > 0 && poprawnaData(c.data)).slice(-20).map(c => ({ data: c.data, cena: Math.round(+c.cena * 100) / 100, sklep: String(c.sklep || '').slice(0, 40) })),
     okazja: String(k.okazja || '').slice(0, 40),
@@ -158,6 +162,9 @@ function normalizujUstawienia(u = {}) {
   w.planujWCzasie = !!u.planujWCzasie;
   w.losIle = ogranicz(Math.round(+u.losIle) || 3, 1, 8);
   w.budzet = +u.budzet > 0 ? Math.round(+u.budzet) : 0;
+  w.cenyAuto = u.cenyAuto !== false;
+  const od = u.odkrywaj || {};
+  w.odkrywaj = { tak: (Array.isArray(od.tak) ? od.tak : []).map(String).slice(-500), nie: (Array.isArray(od.nie) ? od.nie : []).map(String).slice(-1000) };
   w.losowania = {};
   for (const [pn, v] of Object.entries(u.losowania || {})) {
     if (!poprawnaData(pn) || !v || !Array.isArray(v.ids)) continue;
@@ -1183,4 +1190,32 @@ function zapiszCene(k, cena, sklep = '') {
   if (!ost || ost.cena !== cena || ost.sklep !== sklep) k.ceny = [...k.ceny, { data: dzisISO(), cena, sklep }].slice(-20);
   k.cena = cena;
   return [k];
+}
+
+/* ---------- odkrywaj (wersja 2.12) ---------- */
+const kluczKsiazki = (tytul, autor = '') => `${tytul}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').split(/[:.(]/)[0].replace(/[^a-z0-9]+/g, ' ').trim() + '|' + String(autor).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').split(/[ ,]/).filter(Boolean).pop();
+/** Książki, na których opieramy propozycje: najwyżej ocenione, potem przeczytane i czytane. */
+function zrodlaGustu(ile = 6) {
+  const oc = Z.ksiazki.filter(k => k.ocena >= 4).sort((a, b) => b.ocena - a.ocena || (b.koniec || '').localeCompare(a.koniec || ''));
+  const reszta = Z.ksiazki.filter(k => !oc.includes(k) && ['przeczytana', 'czytam', 'zyczenia'].includes(k.status) && k.autor)
+    .sort((a, b) => (b.koniec || b.start || b.dodano || '').localeCompare(a.koniec || a.start || a.dodano || ''));
+  return [...oc, ...reszta].filter(k => k.rodzaj !== 'techniczna').slice(0, ile);
+}
+
+/** Następna książka do zaczęcia: najpierw z planu tygodnia (najbliższy dzień), potem z losowania, z planu miesiąca, na końcu pierwsza w kolejce. */
+function nastepnaKsiazka() {
+  const dzis = dzisISO(), czeka = k => k && !['czytam', 'przeczytana', 'porzucona'].includes(k.status) && !k.bazowa;
+  for (const pn of [poczatekTygodnia(), dodajDni(poczatekTygodnia(), 7)]) {
+    const dni = planTygodniaPelny(pn).filter(e => e.dzien && e.dzien >= dzis && czeka(e.k)).sort((a, b) => a.dzien.localeCompare(b.dzien));
+    if (dni[0]) return { k: dni[0].k, powod: dni[0].dzien === dzis ? 'w planie na dziś' : `w planie na ${['poniedziałek', 'wtorek', 'środę', 'czwartek', 'piątek', 'sobotę', 'niedzielę'][dzienTygodnia(dni[0].dzien)]}` };
+    const tyd = planTygodnia(pn).filter(e => !e.dzien && !e.ukryty && czeka(e.k));
+    if (tyd[0]) return { k: tyd[0].k, powod: pn === poczatekTygodnia() ? 'w planie tego tygodnia' : 'w planie na przyszły tydzień' };
+    const los = (Z.ustawienia.losowania[pn] || {}).ids || [];
+    const l = los.map(znajdz).find(czeka);
+    if (l) return { k: l, powod: 'wylosowana na ten tydzień' };
+  }
+  const mies = Z.ksiazki.filter(k => k.planMiesiac === dzis.slice(0, 7) && czeka(k)).sort((a, b) => a.kolejnosc - b.kolejnosc)[0];
+  if (mies) return { k: mies, powod: 'w planie miesiąca' };
+  const k = kolejka().find(x => !czyTechniczna(x));
+  return k ? { k, powod: 'pierwsza w kolejce' } : null;
 }

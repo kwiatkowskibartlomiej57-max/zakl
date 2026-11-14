@@ -81,6 +81,13 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.12: opisy pro, ceny z Ceneo, Odkrywaj
+
+- **Opisy pro:** pełny wstęp i tło z polskiej Wikipedii, osobna **fabuła** zasłonięta przed spoilerami (dotknij, żeby odsłonić) i **fakty z Wikidata**: gatunek, pierwsze wydanie, wydawca, cykl, poprzednia i następna część, kraj, język, miejsce akcji, nagrody, tłumacz. Do tego linki do źródeł. Gatunek trafia do tagów, a cykl do serii. Przy przeczytanej książce jest przycisk „Następna część → na listę życzeń”.
+- **Ceny książek (lista życzeń):** aplikacja sama sprawdza najniższe ceny w porównywarce Ceneo (wiele sklepów, m.in. Empik), osobno dla papieru, e-booka i audiobooka. Robi to raz dziennie, po dodaniu książki na listę i na przycisk „Sprawdź ceny wszystkich”. Zapisuje historię cen i powiadamia, gdy coś stanieje albo pojawi się okazja. **Wymaga zaktualizowania workera:** wklej nowy kod z `proxy/cloudflare-worker.js` w Cloudflare (Edit code → Deploy). Adres zostaje ten sam. `bn.php` też to obsługuje.
+- **Odkrywaj ♥** (zakładka Losuj, przełącznik u góry): karty z propozycjami na podstawie książek ocenionych na 4–5 ★, z polskim opisem. Przesuń w prawo albo kliknij ♥, żeby dodać na listę życzeń (ceny i opis uzupełnią się same). W lewo, żeby pominąć. „Mam ją” dodaje do kolejki i puli losowania. Jest też „Cofnij” i lista polubionych.
+- **„Następna do czytania”** na ekranie Dziś to teraz książka faktycznie zaplanowana jako następna: najpierw z planu tygodnia (najbliższy dzień), potem z losowania, z planu miesiąca, a dopiero na końcu pierwsza w kolejce. Pod tytułem widać, skąd pochodzi.
+
 ## Wersja 2.11: mądrzejsza wyszukiwarka, opisy, podobne, pożyczki i lista życzeń 2.0, animacje
 
 **Wyszukiwarka**
