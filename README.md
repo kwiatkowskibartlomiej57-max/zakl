@@ -81,6 +81,23 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.6: plan tygodnia, przypomnienia, dodawanie wielu książek, losowanie
+
+- **Plan tygodnia.** Otwierasz go z karty „Plan na dziś” na ekranie Dziś, przyciskiem „Plan tygodnia” albo skrótem na ikonie aplikacji (Android). Strzałkami przechodzisz między tygodniami.
+  - **Do przeczytania w tym tygodniu:** wybierasz książki z listy do przeczytania i z czytanych. Jest też przycisk „Wylosuj coś z kolejki”.
+  - **Rozłóż strony na dni:** aplikacja dzieli pozostałe strony wybranych książek równo na dni do niedzieli.
+  - **Dzień po dniu:** każdy dzień ma swoje książki z liczbą stron. Plusem dodasz coś na konkretny dzień. Zrobione wpisy dostają ptaszek, a pominięte w minionych dniach są wyróżnione.
+  - **Plan na dziś** na ekranie Dziś pokazuje dzisiejsze wpisy z postępem („50/100 str.”).
+  - Z książki możesz ją dodać przyciskiem „Na ten tydzień”.
+- **Przypomnienia** (Ustawienia → Przypomnienia): godzina i dni tygodnia. Przypomnienie przychodzi tylko wtedy, gdy dzienny cel nie jest jeszcze zrobiony, i pokazuje plan na dziś.
+  - **Kalendarz telefonu (najpewniejsze):** przycisk tworzy plik `.ics` z powtarzającym się wydarzeniem z alarmem. Działa na iPhonie i Androidzie, nawet gdy aplikacja jest zamknięta. Plan tygodnia też da się wyeksportować do kalendarza, jako osobne wydarzenie na każdy dzień.
+  - **Powiadomienia aplikacji:** przychodzą, gdy aplikacja jest otwarta albo działa w tle. Na Androidzie zainstalowana aplikacja może też sprawdzać w tle co kilka godzin (Periodic Background Sync). Na iPhonie powiadomienia działają tylko po dodaniu aplikacji do ekranu początkowego (iOS 16.4+).
+- **Dodawanie wielu książek** (Biblioteka → „Wiele” albo link w formularzu dodawania):
+  - **Wklej listę:** jedna książka w linii, jako tytuł i autor albo ISBN. Aplikacja wyszukuje wszystkie naraz, wybiera wydanie z liczbą stron i okładką, oznacza książki, które już masz, i pozwala zmienić wydanie.
+  - **Skanuj po kolei:** aparat zostaje włączony, a każdy kolejny kod trafia na listę. Gotowe? Dodajesz wszystko jednym przyciskiem, do „Do przeczytania” albo jako „Już przeczytane”.
+- **Nowe losowanie:** filtry skąd (cała lista, plan tygodnia, następne tomy cykli), długość, tag i format. Animacja przewijania okładek. Książki, które długo czekają, i następne tomy mają większą szansę. „Nie to, losuj dalej” pomija odrzucone. Wylosowaną książkę możesz zacząć, dodać do planu tygodnia albo przesunąć na początek kolejki.
+- Wyszukiwanie w Bibliotece Narodowej rozumie teraz zapytania typu „Empuzjon Tokarczuk” i „Lem Solaris”: dzieli je na tytuł i autora.
+
 ## Wersja 2.5: cykle, pożyczki i grafiki
 
 - **Biblioteka Narodowa działa od razu.** Domyślny pośrednik (Cloudflare Worker) jest wpisany w aplikację (`POSREDNIK_BN` w `js/core.js`), więc wyszukiwanie polskich książek działa także na GitHub Pages. W Ustawieniach można podać inny adres.

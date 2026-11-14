@@ -166,7 +166,8 @@ const Wyszukiwarka = (() => {
       seria, tom: seria ? tom : null,
       tytul,
       autor: autorzy.join(', '),
-      strony: liczby.length ? Math.max(...liczby.filter(n => n < 5000)) || null : null,
+      // poniżej 40 stron to zwykle broszura, fragment albo opis nośnika (audiobook), a nie liczba stron książki
+      strony: (n => n >= 40 ? n : null)(liczby.length ? Math.max(0, ...liczby.filter(n => n < 5000)) : 0),
       okladka: null,
       isbn: isbny.find(x => x.length === 13) || isbny[0] || '',
       isbny,
@@ -180,9 +181,17 @@ const Wyszukiwarka = (() => {
     const isbn = czyIsbn(q);
     if (!isbn) {
       // tekst może być tytułem albo nazwiskiem autora: pytamy o oba naraz
-      const [t, a] = await Promise.allSettled([bnZapytanie({ title: q }), bnZapytanie({ author: q })]);
-      if (t.status === 'rejected' && a.status === 'rejected') throw t.reason;
-      return [...(t.value || []), ...(a.value || [])];
+      // „Empuzjon Tokarczuk” / „Tokarczuk Empuzjon”: dzielimy też na tytuł + nazwisko (pierwsze albo ostatnie słowo)
+      const slowa = q.split(/\s+/).filter(Boolean);
+      const zapytania = [{ title: q }, { author: q }];
+      if (slowa.length >= 2) {
+        zapytania.push({ title: slowa.slice(0, -1).join(' '), author: slowa[slowa.length - 1] });
+        zapytania.push({ title: slowa.slice(1).join(' '), author: slowa[0] });
+      }
+      const wyn = await Promise.allSettled(zapytania.map(p => bnZapytanie(p)));
+      if (wyn.every(r => r.status === 'rejected')) throw wyn[0].reason;
+      // najpierw trafienia „tytuł + autor” (najdokładniejsze), potem reszta
+      return [...wyn.slice(2), ...wyn.slice(0, 2)].flatMap(r => r.value || []);
     }
     return bnZapytanie({ isbnIssn: isbn }, isbn);
   }

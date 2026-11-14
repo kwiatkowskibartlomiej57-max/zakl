@@ -53,6 +53,7 @@ const I = {
   wstecz: svg('<path d="M15 5l-7 7 7 7"/>'),
   dalej: svg('<path d="M9 5l7 7-7 7"/>'),
   reka: svg('<path d="M3 13h3l4 2h4a1.5 1.5 0 0 1 0 3h-4M14 18l5-3a1.6 1.6 0 0 1 2 2.4L15 21H8l-5-2"/><rect x="11" y="3" width="8" height="9" rx="1"/>'),
+  dzwonek: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
   rok: svg('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/>')
 };
 const LOGO = '<svg class="logo" viewBox="100 120 312 340" aria-hidden="true"><path d="M118 380c56-7 104 0 138 24 34-24 82-31 138-24v16c-56-7-104 0-138 24-34-24-82-31-138-24z" fill="var(--zloto)"/><path d="M256 170c-34-23-82-31-138-25v235c56-7 104 0 138 24z" fill="var(--strona-l)"/><path d="M256 170c34-23 82-31 138-25v235c-56-7-104 0-138 24z" fill="var(--strona-p)"/><path d="M318 132h34v318l-17-21-17 21z" fill="var(--wstazka)"/></svg>';
@@ -369,6 +370,7 @@ function widokDzis() {
     </div>
   </section>
   ${baz ? blokBazowej(baz) : blokBezBazowej()}
+  ${blokPlanuDnia()}
   <section class="sekcja">
     <div class="sekcja-gora"><h2>Czytam też</h2>${pob.length ? `<span class="licznik">${pob.length}</span>` : ''}</div>
     ${pob.length ? `<ul class="lista">${pob.map(wierszCzytanej).join('')}</ul>`
@@ -436,7 +438,7 @@ function widokBiblioteka() {
   const tagi = [...new Set(Z.ksiazki.filter(k => k.status === U.polka).flatMap(k => k.tagi))].sort((a, b) => a.localeCompare(b, 'pl'));
   if (U.tag && !tagi.includes(U.tag)) U.tag = null;
   return `<section class="naglowek-widoku"><h1>Biblioteka</h1>
-    <button type="button" class="btn btn-glowny" data-akcja="dodaj">${I.plus}Dodaj</button></section>
+    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="dodaj-wiele">${I.skaner}Wiele</button><button type="button" class="btn btn-glowny" data-akcja="dodaj">${I.plus}Dodaj</button></span></section>
   <div class="polki" role="tablist" aria-label="Półki">${POLKI.map(([s, n]) =>
     `<button type="button" role="tab" aria-selected="${!U.pozyczone && U.polka === s}" data-akcja="polka" data-polka="${s}">${n}<span class="polki-liczba">${liczby[s]}</span></button>`).join('')}</div>
   <div class="filtry">
@@ -663,6 +665,7 @@ function widokUstawienia() {
     <label>Imię do powitania<input name="imie" value="${esc(u.imie)}" autocomplete="given-name" maxlength="40"></label>
     <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz ustawienia</button></div>
   </form>
+  ${htmlPrzypomnien()}
   <form id="f-wyszukiwanie" class="formularz grupa" novalidate>
     <h2>Wyszukiwanie książek</h2>
     <p class="cichy">Aplikacja szuka w Google Books, Open Library i w katalogu Biblioteki Narodowej, który ma prawie każdą polską książkę.</p>
@@ -821,7 +824,8 @@ function htmlKsiazki(k) {
   <div class="przyciski kd-akcje">${akcje}</div>
   ${k.status === 'czytam' || k.status === 'doPrzeczytania' ? `<p class="kd-plan">${I.kalendarz}${k.planMiesiac
     ? `<span>W planie na <button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${k.planMiesiac}">${nazwaMiesiaca(k.planMiesiac)}</button></span><button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zmień</button>`
-    : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}</p>` : ''}
+    : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}
+    ${planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
   ${k.status === 'przeczytana' || k.recenzja ? `<label class="kd-recenzja">Twoje wrażenia<textarea name="recenzja" rows="3" placeholder="Co zostanie ci z tej książki?">${esc(k.recenzja)}</textarea></label>` : ''}
   ${htmlPozyczki(k)}
   ${htmlSerii(k)}
@@ -881,7 +885,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
           <button type="button" class="btn" data-szukaj>${I.szukaj}<span class="sr">Szukaj</span></button>
           ${U.skaner ? `<button type="button" class="btn" data-skanuj aria-label="Skanuj kod kreskowy">${I.skaner}</button>` : ''}</div>
         <div class="wyniki" aria-live="polite"></div>
-        <p class="podpowiedz">Albo wpisz dane ręcznie poniżej.</p>
+        <p class="podpowiedz">Albo wpisz dane ręcznie poniżej. Masz kilka książek? <button type="button" class="btn-tekst" data-wiele>Dodaj wiele naraz</button></p>
       </div>`}
       <div class="f-okladka"><div class="f-okl-podglad"></div>
         <div class="f-okl-akcje"><label class="btn">${I.aparat}Zdjęcie okładki<input type="file" accept="image/*" data-plik class="sr"></label>
@@ -956,6 +960,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
 
   f.addEventListener('click', async e => {
     if (e.target.closest('[data-szukaj]')) szukaj();
+    if (e.target.closest('[data-wiele]')) { a.zamknij(); arkuszWielu(); return; }
     if (e.target.closest('[data-skanuj]')) arkuszSkanera(kod => { $('#f-q', f).value = kod; el('isbn').value = kod; szukaj(); });
     if (e.target.closest('[data-bez-okladki]')) { okl = null; podglad(); }
     if (e.target.closest('[data-do-ustawien]')) {
@@ -1319,8 +1324,9 @@ function arkuszCytatu(id, cid = null) {
 }
 
 /* ================= skaner ================= */
-function arkuszSkanera(poOdczycie) {
+function arkuszSkanera(poOdczycie, { seria = false } = {}) {
   let stop = null;
+  const odczytane = new Set();
   const naZywo = Skaner.maAparat();
   const a = arkusz({
     tytul: 'Skanuj kod kreskowy', klasa: 'arkusz-maly', onZamknij: () => stop && stop(),
@@ -1329,8 +1335,9 @@ function arkuszSkanera(poOdczycie) {
       <p class="cichy skaner-status" aria-live="polite">${naZywo
         ? 'Nakieruj aparat na kod kreskowy z tyłu książki, tak żeby wypełnił ramkę. Numer ISBN zaczyna się od 978 albo 979.'
         : 'Zrób zdjęcie kodu kreskowego z tyłu książki. Numer ISBN zaczyna się od 978 albo 979.'}</p>
+      ${seria ? '<p class="skaner-licznik" aria-live="polite"></p>' : ''}
       <div class="przyciski przyciski-koniec">
-        <button type="button" class="btn" data-zamknij>Anuluj</button>
+        <button type="button" class="btn${seria ? ' btn-glowny' : ''}" data-zamknij>${seria ? 'Gotowe' : 'Anuluj'}</button>
         <label class="btn${naZywo ? '' : ' btn-glowny'}">Zrób zdjęcie kodu<input type="file" accept="image/*" capture="environment" data-zdjecie-kodu hidden></label>
       </div>`
   });
@@ -1342,6 +1349,18 @@ function arkuszSkanera(poOdczycie) {
   };
   const gotowe = kod => {
     if (a.zamkniety) return;
+    if (seria) {
+      // tryb seryjny: zapisz kod i skanuj dalej, bez zamykania okna
+      if (!odczytane.has(kod)) {
+        odczytane.add(kod);
+        if (navigator.vibrate) navigator.vibrate(40);
+        poOdczycie(kod);
+        const l = $('.skaner-licznik', a.tresc);
+        if (l) l.textContent = `Zeskanowane: ${odczytane.size}. Ostatni: ${kod}. Skieruj aparat na następną książkę.`;
+      }
+      if (naZywo) setTimeout(uruchom, 1100);
+      return;
+    }
     if (navigator.vibrate) navigator.vibrate(40);
     a.zamknij();
     poOdczycie(kod);
@@ -1362,6 +1381,8 @@ function arkuszSkanera(poOdczycie) {
   });
 
   if (!naZywo) return;
+  function uruchom() {
+  if (a.zamkniety || !$('video', a.tresc)) return;
   Skaner.start($('video', a.tresc), gotowe, { naStatus: t => status(t) })
     .then(s => {
       stop = s.stop;
@@ -1381,6 +1402,8 @@ function arkuszSkanera(poOdczycie) {
         ? 'Brak dostępu do aparatu. Zezwól na niego w ustawieniach przeglądarki albo zrób zdjęcie kodu.'
         : 'Nie udało się uruchomić aparatu. Zrób zdjęcie kodu.', true);
     });
+  }
+  uruchom();
 }
 
 /* ================= ukończenie ================= */
@@ -1487,41 +1510,6 @@ function arkuszWpisu(id, data) {
     zastosuj(strony, nowaData, strony ? 'Poprawiono wpis.' : 'Usunięto wpis.');
   });
   $('[data-usun-wpis]', f).addEventListener('click', () => zastosuj(0, data, 'Usunięto wpis.'));
-}
-
-/* ================= arkusz: losowanie z kolejki ================= */
-function arkuszLosowania() {
-  let dlugosc = 'dowolna', wybrana = null;
-  const pula = () => kolejka().filter(k => dlugosc === 'krotka' ? k.strony < 250 : dlugosc === 'dluga' ? k.strony >= 400 : true);
-  const losuj = () => {
-    const p = pula();
-    const bez = p.length > 1 && wybrana ? p.filter(k => k !== wybrana) : p;
-    wybrana = bez.length ? bez[Math.floor(Math.random() * bez.length)] : null;
-  };
-  losuj();
-  const a = arkusz({
-    tytul: 'Co czytać dalej?', klasa: 'arkusz-maly',
-    render: () => `<fieldset class="segment"><legend class="sr">Długość</legend>${radio('dlugosc', 'dowolna', 'Dowolna', dlugosc === 'dowolna')}${radio('dlugosc', 'krotka', 'Krótka, do 250 s.', dlugosc === 'krotka')}${radio('dlugosc', 'dluga', 'Długa, od 400 s.', dlugosc === 'dluga')}</fieldset>
-      ${wybrana ? `<div class="los">
-        <div class="los-okl">${okladka(wybrana, 'l')}</div>
-        <p class="los-tytul">${esc(wybrana.tytul)}</p>
-        <p class="cichy">${esc([wybrana.autor, ile(wybrana.strony, FORMY_STRON), `nr ${kolejka().indexOf(wybrana) + 1} w kolejce`].filter(Boolean).join(', '))}</p>
-      </div>
-      <div class="przyciski przyciski-srodek"><button type="button" class="btn" data-jeszcze>${I.kostka}Losuj jeszcze raz</button>
-        <button type="button" class="btn btn-glowny" data-start>Zacznij czytać</button></div>`
-      : '<p class="pusto">W kolejce nie ma książek tej długości.</p>'}`
-  });
-  a.tresc.addEventListener('change', e => { if (e.target.name === 'dlugosc') { dlugosc = e.target.value; wybrana = null; losuj(); a.rysuj(); } });
-  a.tresc.addEventListener('click', e => {
-    if (e.target.closest('[data-jeszcze]')) { losuj(); a.rysuj(); $('.los', a.tresc)?.classList.add('animuj-los'); }
-    if (e.target.closest('[data-start]') && wybrana) {
-      const k = wybrana;
-      utrwal(zacznijCzytac(k));
-      a.zamknij();
-      odswiez();
-      toast(`Zaczynasz „${k.tytul}”.`);
-    }
-  });
 }
 
 /* ================= arkusz: podsumowanie roku ================= */
@@ -1703,7 +1691,7 @@ function blokOkresow(m) {
   const ym = miesiacTeraz(), mc = danyMiesiac(ym, m);
   const dniT = dniMiedzy(dzis, t.do) + 1, dniM = dniMiedzy(dzis, mc.do) + 1;
   return `<section class="sekcja okresy">
-    <div class="sekcja-gora"><h2>Tydzień i miesiąc</h2><span class="sekcja-akcje"><button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${ym}">${I.kalendarz}${nazwaMiesiaca(ym, false)}</button></span></div>
+    <div class="sekcja-gora"><h2>Tydzień i miesiąc</h2><span class="sekcja-akcje"><button type="button" class="btn-tekst" data-akcja="tydzien">Plan tygodnia</button><button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${ym}">${I.kalendarz}${nazwaMiesiaca(ym, false)}</button></span></div>
     <div class="okresy-siatka">
       <div class="okres"><h3>Ten tydzień <small>${dataKrotka(t.od)} – ${dataKrotka(t.do)}</small></h3>
         ${wierszCelu({ etykieta: 'Strony', wart: t.strony, cel: t.cel.strony, czesc: t.czesc, formy: FORMY_STRON, formyD: FORMY_STRON_D, dniZostalo: dniT })}
@@ -2146,6 +2134,402 @@ async function udostepnijPolke(dane, nazwa) {
   } catch (e) { console.warn(e); toast('Nie udało się utworzyć obrazka.', { typ: 'blad' }); }
 }
 
+/* ================= plan tygodnia (2.6) ================= */
+const zakresTyg = pn => `${dataKrotka(pn)} – ${dataKrotka(dodajDni(pn, 6))}`;
+
+function arkuszTygodnia(start = poczatekTygodnia()) {
+  let pn = start;
+  const a = arkusz({
+    tytul: 'Plan tygodnia', klasa: 'arkusz-tydzien', odswiezalny: true,
+    render: () => {
+      const dzis = dzisISO(), teraz = poczatekTygodnia();
+      const wpisy = planTygodnia(pn).map(e => ({ ...e, ...stanWpisu(e, pn) }));
+      const m = mapaDni(), t = postepTygodnia(m, pn);
+      const naTydzien = wpisy.filter(e => !e.dzien);
+      const zaplStron = wpisy.filter(e => e.dzien).reduce((s, e) => s + e.strony, 0);
+      const dni = Array.from({ length: 7 }, (_, i) => dodajDni(pn, i));
+      return `<div class="mies-nawigacja">
+        <button type="button" class="btn-ikona" data-tyg="-1" aria-label="Poprzedni tydzień">${I.wstecz}</button>
+        <h3 class="mies-tytul tyg-tytul">${zakresTyg(pn)}${pn === teraz ? '<small>ten tydzień</small>' : ''}</h3>
+        <button type="button" class="btn-ikona" data-tyg="1" aria-label="Następny tydzień">${I.dalej}</button>
+      </div>
+      ${pn !== teraz ? `<p class="mies-wroc"><button type="button" class="btn-tekst" data-tyg-teraz>Wróć do tego tygodnia</button></p>` : ''}
+      <div class="tyg-podsumowanie">
+        <span><strong>${liczba(t.strony)}</strong> z ${liczba(t.cel.strony)} str. przeczytane</span>
+        <span>${zaplStron ? `zaplanowane ${liczba(zaplStron)} str.` : 'nic nie rozplanowane'}</span>
+      </div>
+      <section class="kd-sekcja">
+        <div class="sekcja-gora"><h3>Do przeczytania w tym tygodniu</h3><button type="button" class="btn btn-maly" data-akcja="tydzien-dodaj" data-pn="${pn}">${I.plus}Wybierz</button></div>
+        ${naTydzien.length ? `<ul class="lista">${naTydzien.map(e => `<li class="wiersz${e.zrobione ? ' plan-zrobiona' : ''}">
+          <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${e.k.id}">${okladka(e.k, 's')}
+            <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(e.k.tytul)}</span>
+            <span class="wiersz-autor">${e.zrobione ? 'zrobione' : `${e.przecz ? `w tym tygodniu +${e.przecz} str., ` : ''}zostało ${ile(zostaloStron(e.k), FORMY_STRON)}`}</span></span></button>
+          ${e.zrobione ? `<span class="plan-check">${I.check}</span>` : `<button type="button" class="btn-ikona" data-usun-wpis="${e.i}" aria-label="Usuń z planu">${I.zamknij}</button>`}
+        </li>`).join('')}</ul>
+        ${pn >= teraz ? `<div class="przyciski"><button type="button" class="btn btn-glowny btn-maly" data-rozloz>${I.kalendarz}Rozłóż strony na dni</button></div>
+          <p class="podpowiedz">Podzielę pozostałe strony tych książek równo na dni do niedzieli${pn === teraz ? ', od dziś' : ''}.</p>` : ''}`
+        : '<p class="cichy">Wybierz z listy do przeczytania (albo z czytanych) to, co chcesz przeczytać w tym tygodniu.</p>'}
+      </section>
+      <section class="kd-sekcja"><h3>Dzień po dniu</h3>
+        <ol class="tyg-dni">${dni.map((d, i) => {
+          const dz = wpisy.filter(e => e.dzien === d), przecz = m.get(d) || 0;
+          const cel = dz.reduce((s, e) => s + e.strony, 0);
+          return `<li class="tyg-dzien${d === dzis ? ' dzis' : ''}${d < dzis ? ' minal' : ''}">
+            <div class="tyg-dzien-gora"><button type="button" class="tyg-dzien-nazwa" data-akcja="dzien" data-data="${d}"><strong>${DNI_PELNE[i]}</strong> <span>${dataKrotka(d)}</span></button>
+              <span class="tyg-dzien-liczby">${przecz ? `<span class="${cel && przecz >= cel ? 'ok' : ''}">${przecz}${cel ? `/${cel}` : ''} str.</span>` : cel ? `${cel} str.` : ''}</span>
+              <button type="button" class="btn-ikona maly" data-akcja="tydzien-dodaj" data-pn="${pn}" data-dzien="${d}" aria-label="Zaplanuj na ${DNI_PELNE[i]}">${I.plus}</button></div>
+            ${dz.length ? `<ul class="tyg-wpisy">${dz.map(e => `<li class="${e.zrobione ? 'zrobione' : e.minal ? 'pominiete' : ''}">
+              <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
+              <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${d === dzis && e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${esc(e.k.tytul)}</button>
+              <span class="tyg-str">${e.strony ? `${e.przecz ? `${e.przecz}/` : ''}${e.strony} str.` : e.przecz ? `+${e.przecz}` : ''}</span>
+              <button type="button" class="btn-ikona maly" data-usun-wpis="${e.i}" aria-label="Usuń">${I.zamknij}</button></li>`).join('')}</ul>` : ''}
+          </li>`;
+        }).join('')}</ol>
+      </section>
+      <div class="przyciski przyciski-srodek">
+        ${wpisy.some(e => e.dzien && e.dzien >= dzis) ? `<button type="button" class="btn" data-ics-tydzien>${I.dzwonek}Dodaj do kalendarza telefonu</button>` : ''}
+        <button type="button" class="btn-tekst" data-akcja="idz" data-widok="ustawienia" data-zamknij>Ustaw przypomnienia</button>
+      </div>`;
+    }
+  });
+  a.tresc.addEventListener('click', async e => {
+    const n = e.target.closest('[data-tyg]');
+    if (n) { pn = dodajDni(pn, 7 * +n.dataset.tyg); a.rysuj(); a.el.scrollTop = 0; return; }
+    if (e.target.closest('[data-tyg-teraz]')) { pn = poczatekTygodnia(); a.rysuj(); return; }
+    const u = e.target.closest('[data-usun-wpis]');
+    if (u) {
+      const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni[pn] || []));
+      usunZPlanu(pn, +u.dataset.usunWpis);
+      utrwalUstawienia(); odswiez();
+      toast('Usunięto z planu.', { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni[pn] = przed; utrwalUstawienia(); odswiez(); } });
+      return;
+    }
+    if (e.target.closest('[data-rozloz]')) {
+      const ids = [...new Set(planTygodnia(pn).filter(x => !x.dzien && !stanWpisu(x, pn).zrobione).map(x => x.id))];
+      if (!ids.length) { toast('Wszystko z planu jest już zrobione.'); return; }
+      const dni = rozlozPlan(pn, ids);
+      utrwalUstawienia(); odswiez();
+      toast(dni ? `Rozłożono na ${ile(dni, FORMY_DNI)}.` : 'Ten tydzień już minął.');
+      return;
+    }
+    if (e.target.closest('[data-ics-tydzien]')) {
+      const ok = await zapiszPlik(`zakladka-plan-${pn}.ics`, icsPlanuTygodnia(pn), 'text/calendar');
+      if (ok) toast('Otwórz plik, żeby dodać plan do kalendarza z przypomnieniami.', { czas: 6000 });
+    }
+  });
+}
+
+function arkuszDodajDoTygodnia(pn, dzien = null) {
+  const kandydaci = [...czytane(), ...kolejka()];
+  const w = new Set(planTygodnia(pn).filter(e => (e.dzien || null) === dzien).map(e => e.id));
+  const a = arkusz({
+    tytul: dzien ? `Plan: ${DNI_PELNE[dzienTygodnia(dzien)]}, ${dataKrotka(dzien)}` : 'Co czytasz w tym tygodniu?', klasa: 'arkusz-maly',
+    render: () => kandydaci.length ? `<p class="cichy">${dzien ? 'Zaznacz książki na ten dzień i wpisz, ile stron chcesz przeczytać.' : 'Zaznacz książki, które chcesz przeczytać albo ruszyć w tym tygodniu.'}</p>
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-losuj-tydz>${I.kostka}Wylosuj coś z kolejki</button></div>
+      <ul class="plan-lista">${kandydaci.map(k => `<li><label class="plan-wybor${w.has(k.id) ? ' wybrana' : ''}"><input type="checkbox" data-wybor="${k.id}"${w.has(k.id) ? ' checked' : ''}>
+        ${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span>
+        <span class="wiersz-autor">${k.status === 'czytam' ? `czytasz, zostało ${ile(zostaloStron(k), FORMY_STRON)}` : ile(k.strony, FORMY_STRON)}</span></span>
+        ${dzien ? `<input type="number" class="plan-strony" inputmode="numeric" min="0" data-strony="${k.id}" value="${(planTygodnia(pn).find(e => e.id === k.id && e.dzien === dzien) || {}).strony || ''}" placeholder="str." aria-label="Stron">` : ''}</label></li>`).join('')}</ul>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="button" class="btn btn-glowny" data-zapisz-tydz>Zapisz plan</button></div>`
+      : '<p class="pusto">Dodaj książki do listy „Do przeczytania”, żeby je zaplanować.</p>'
+  });
+  a.tresc.addEventListener('change', e => {
+    if (e.target.dataset.wybor) e.target.closest('.plan-wybor').classList.toggle('wybrana', e.target.checked);
+    if (e.target.dataset.strony && +e.target.value > 0) { const cb = $(`[data-wybor="${e.target.dataset.strony}"]`, a.tresc); cb.checked = true; cb.closest('.plan-wybor').classList.add('wybrana'); }
+  });
+  a.tresc.addEventListener('click', e => {
+    if (e.target.closest('[data-losuj-tydz]')) {
+      const wolne = kolejka().filter(k => !$(`[data-wybor="${k.id}"]`, a.tresc)?.checked);
+      const k = losujWazone(wolne, x => wagaLosowania(x));
+      if (!k) { toast('Nie ma już czego losować.'); return; }
+      const cb = $(`[data-wybor="${k.id}"]`, a.tresc);
+      cb.checked = true; cb.closest('.plan-wybor').classList.add('wybrana');
+      cb.closest('li').scrollIntoView({ block: 'center', behavior: 'smooth' });
+      toast(`Wylosowano: „${k.tytul}”.`);
+    }
+    if (e.target.closest('[data-zapisz-tydz]')) {
+      const lista = planTygodnia(pn).filter(x => (x.dzien || null) !== dzien);
+      for (const cb of $$('[data-wybor]', a.tresc)) if (cb.checked) {
+        const s = dzien ? Math.max(0, Math.round(+$(`[data-strony="${cb.dataset.wybor}"]`, a.tresc).value) || 0) : 0;
+        lista.push({ id: cb.dataset.wybor, dzien, strony: s });
+      }
+      zapiszPlanTygodnia(pn, lista);
+      utrwalUstawienia();
+      a.zamknij(); odswiez();
+      toast('Zapisano plan tygodnia.');
+    }
+  });
+}
+
+function blokPlanuDnia() {
+  const dzis = dzisISO(), wpisy = planDnia(dzis);
+  const tydz = planTygodnia().filter(e => !e.dzien);
+  if (!wpisy.length && !tydz.length) {
+    return `<section class="sekcja plan-dnia pusty"><div class="sekcja-gora"><h2>Plan tygodnia</h2><button type="button" class="btn btn-maly" data-akcja="tydzien">${I.kalendarz}Zaplanuj</button></div>
+      <p class="cichy">Wybierz, co chcesz przeczytać w tym tygodniu, a rozłożę strony na dni i przypomnę o nich.</p></section>`;
+  }
+  const zrobione = wpisy.filter(e => e.zrobione).length;
+  return `<section class="sekcja plan-dnia">
+    <div class="sekcja-gora"><h2>Plan na dziś</h2><button type="button" class="btn-tekst" data-akcja="tydzien">${I.kalendarz}Cały tydzień</button></div>
+    ${wpisy.length ? `<ul class="plan-dnia-lista">${wpisy.map(e => `<li class="${e.zrobione ? 'zrobione' : ''}">
+      <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
+      <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${esc(e.k.tytul)}</button>
+      <span class="tyg-str">${e.strony ? `${e.przecz}/${e.strony} str.` : e.przecz ? `+${e.przecz} str.` : ''}</span>
+      ${!e.zrobione && e.k.status !== 'czytam' ? `<button type="button" class="btn btn-maly" data-akcja="zacznij" data-id="${e.k.id}">Zacznij</button>` : ''}</li>`).join('')}</ul>
+      <p class="cichy">${zrobione === wpisy.length ? 'Plan na dziś zrobiony.' : `Zrobione ${zrobione} z ${wpisy.length}.`}</p>`
+      : `<p class="cichy">Na dziś nic nie rozplanowane. W tym tygodniu: ${tydz.map(e => `„${esc(e.k.tytul)}”`).join(', ')}.</p>`}
+  </section>`;
+}
+
+/* ================= przypomnienia (2.6) ================= */
+function htmlPrzypomnien() {
+  const p = Z.ustawienia.przypomnienie;
+  const wsparcie = 'Notification' in window && 'serviceWorker' in navigator;
+  const zgoda = wsparcie ? Notification.permission : 'brak';
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  return `<form id="f-przypomnienia" class="formularz grupa" novalidate>
+    <h2>Przypomnienia</h2>
+    <label class="przelacznik"><input type="checkbox" name="wlaczone"${p.wlaczone ? ' checked' : ''}><span>Przypominaj o czytaniu</span></label>
+    <div class="f-rzad"><label>Godzina<input name="godzina" type="time" value="${p.godzina}"></label><span></span></div>
+    <fieldset class="segment segment-dni"><legend>W które dni</legend>${DNI_KR.map((d, i) => `<label class="seg"><input type="checkbox" name="dni" value="${i}"${p.dni.includes(i) ? ' checked' : ''}><span>${d}</span></label>`).join('')}</fieldset>
+    <p class="podpowiedz">Przypomnienie przyjdzie tylko w dni, w które nie zrobiłeś jeszcze dziennego celu. Pokaże też plan na dziś.</p>
+    <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz</button>
+      ${wsparcie && zgoda !== 'granted' ? `<button type="button" class="btn" data-akcja="powiadomienia-zgoda">${I.dzwonek}Zezwól na powiadomienia</button>` : ''}
+      ${wsparcie && zgoda === 'granted' ? `<button type="button" class="btn" data-akcja="powiadomienie-test">${I.dzwonek}Wyślij próbne</button>` : ''}</div>
+    <p class="cichy stan-powiadomien">${!wsparcie ? (ios && !standalone ? 'Na iPhonie powiadomienia działają po dodaniu Zakładki do ekranu początkowego (Udostępnij → Do ekranu początkowego).' : 'Ta przeglądarka nie obsługuje powiadomień.')
+      : zgoda === 'granted' ? 'Powiadomienia są włączone.' : zgoda === 'denied' ? 'Powiadomienia są zablokowane. Włącz je w ustawieniach przeglądarki dla tej strony.' : 'Powiadomienia nie są jeszcze włączone.'}</p>
+    <div class="rada-zrodla"><p><strong>Najpewniejszy sposób:</strong> przypomnienie w kalendarzu telefonu. Działa zawsze, nawet gdy aplikacja jest zamknięta.</p>
+      <button type="button" class="btn btn-maly" data-akcja="ics-przypomnienie">${I.kalendarz}Dodaj do kalendarza telefonu</button></div>
+    <p class="podpowiedz">Powiadomienia z aplikacji przychodzą, gdy jest otwarta albo działa w tle. Na Androidzie zainstalowana aplikacja może też sprawdzać w tle co kilka godzin.</p>
+  </form>`;
+}
+
+async function zarejestrujSprawdzanieWTle() {
+  try {
+    const reg = await navigator.serviceWorker?.ready;
+    if (!reg || !('periodicSync' in reg)) return;
+    const st = await navigator.permissions.query({ name: 'periodic-background-sync' }).catch(() => null);
+    if (st && st.state !== 'granted') return;
+    if (Z.ustawienia.przypomnienie.wlaczone) await reg.periodicSync.register('zakladka-przypomnienie', { minInterval: 60 * 60 * 1000 });
+    else await reg.periodicSync.unregister('zakladka-przypomnienie');
+  } catch { /* nieobsługiwane */ }
+}
+
+function trescPrzypomnienia() {
+  const m = mapaDni(), dzis = dzisISO(), cel = dziennyCel(m), juz = m.get(dzis) || 0;
+  const plan = planDnia(dzis).filter(e => !e.zrobione);
+  const seria = seriaAktualna(m);
+  const linie = [];
+  linie.push(juz ? `Dziś ${juz} z ${cel} stron. Brakuje ${cel - juz}.` : `Dzienny cel: ${cel} stron.${seria ? ` Seria: ${seria} dni. Nie przerywaj jej!` : ''}`);
+  if (plan.length) linie.push('Plan: ' + plan.map(e => `${e.k.tytul}${e.strony ? ` (${e.strony} str.)` : ''}`).join(', '));
+  return linie.join('\n');
+}
+
+async function pokazPowiadomienie(tytul, tresc, { test = false } = {}) {
+  const reg = await navigator.serviceWorker?.getRegistration();
+  const opcje = { body: tresc, icon: 'icons/icon-192.png', badge: 'icons/favicon-48.png', tag: test ? 'zakladka-test' : 'zakladka-przypomnienie', data: { url: './?akcja=postep' } };
+  if (reg) await reg.showNotification(tytul, opcje);
+  else new Notification(tytul, opcje);
+}
+
+async function sprawdzPrzypomnienie() {
+  const p = Z.ustawienia.przypomnienie;
+  if (!p.wlaczone || !('Notification' in window) || Notification.permission !== 'granted' || !Z.ksiazki.length) return;
+  const teraz = new Date(), dzis = dzisISO();
+  const [h, mm] = p.godzina.split(':').map(Number);
+  if (teraz.getHours() * 60 + teraz.getMinutes() < h * 60 + mm || !p.dni.includes(dzienTygodnia(dzis))) return;
+  const m = mapaDni();
+  if ((m.get(dzis) || 0) >= dziennyCel(m)) return;
+  let ost = null;
+  try { ost = await Baza.wartosc('przypomnienie-ostatnie'); } catch { /* brak bazy */ }
+  if (ost === dzis) return;
+  try { await Baza.zapiszWartosc('przypomnienie-ostatnie', dzis); } catch { /* brak bazy */ }
+  try { await pokazPowiadomienie('📖 Czas na czytanie', trescPrzypomnienia()); } catch (e) { console.warn(e); }
+}
+
+/* ================= dodawanie wielu książek (2.6) ================= */
+function arkuszWielu() {
+  const wiersze = []; // { zap, stan: 'szukam'|'ok'|'brak'|'blad'|'duplikat', w, wyniki, wybrane }
+  let tryb = 'lista';
+  const istnieje = w => Z.ksiazki.find(k => (w.isbn && k.isbn === w.isbn) || (`${k.tytul}|${k.autor}`.toLowerCase() === `${w.tytul}|${w.autor}`.toLowerCase()));
+  const a = arkusz({
+    tytul: 'Dodaj wiele książek', klasa: 'arkusz-wiele',
+    render: () => `<fieldset class="segment"><legend class="sr">Sposób</legend>${radio('tryb', 'lista', 'Wklej listę', tryb === 'lista')}${radio('tryb', 'skan', 'Skanuj po kolei', tryb === 'skan')}</fieldset>
+      ${tryb === 'lista' ? `<label class="wiele-pole">Jedna książka w linii: tytuł i autor albo numer ISBN
+        <textarea name="lista" rows="6" placeholder="Lalka Prus&#10;9788308049396&#10;Solaris Lem"></textarea></label>
+        <div class="przyciski"><button type="button" class="btn btn-glowny" data-szukaj-liste>${I.szukaj}Znajdź wszystkie</button></div>`
+      : `<p class="cichy">Skanuj kody kreskowe jeden po drugim. Aparat zostaje włączony, a każda książka trafia na listę poniżej.</p>
+        <div class="przyciski"><button type="button" class="btn btn-glowny" data-skanuj-serie>${I.skaner}Zacznij skanować</button></div>`}
+      <div class="wiele-wyniki"></div>`
+  });
+  const rysujWyniki = () => {
+    const box = $('.wiele-wyniki', a.tresc);
+    if (!box) return;
+    const doDodania = wiersze.filter(w => w.wybrane && w.w);
+    box.innerHTML = wiersze.length ? `<ul class="wiele-lista">${wiersze.map((r, i) => `<li class="wiele-wiersz st-${r.stan}">
+        ${r.w ? `<label class="wiele-wybor"><input type="checkbox" data-wiersz="${i}"${r.wybrane ? ' checked' : ''}${r.stan === 'szukam' ? ' disabled' : ''}>
+          ${okladka({ tytul: r.w.tytul, autor: r.w.autor, okladka: r.w.okladka }, 's')}
+          <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(r.w.tytul)}</span>
+          <span class="wiersz-autor">${esc([r.w.autor, r.w.strony ? ile(r.w.strony, FORMY_STRON) : 'brak liczby stron', r.w.seria ? `${r.w.seria}${r.w.tom != null ? ' ' + r.w.tom : ''}` : ''].filter(Boolean).join(', '))}</span>
+          ${r.stan === 'duplikat' ? '<span class="znacznik-wiele">już masz</span>' : ''}</span></label>
+          ${r.wyniki && r.wyniki.length > 1 ? `<button type="button" class="btn-tekst wiele-inne" data-inne="${i}">Inne wydanie (${r.wyniki.length - 1})</button>` : ''}`
+        : `<span class="wiele-szukam">${r.stan === 'szukam' ? `<span class="ladowanie">Szukam: ${esc(r.zap)}</span>` : `${I.zamknij}Nie znalazłem: <strong>${esc(r.zap)}</strong>`}</span>
+          ${r.stan !== 'szukam' ? `<button type="button" class="btn-tekst" data-recznie="${i}">Dodaj ręcznie</button>` : ''}`}
+      </li>`).join('')}</ul>
+      <fieldset class="segment"><legend>Gdzie odłożyć</legend>${radio('gdzie-wiele', 'doPrzeczytania', 'Do przeczytania', true)}${radio('gdzie-wiele', 'przeczytana', 'Już przeczytane', false)}</fieldset>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Zamknij</button>
+        <button type="button" class="btn btn-glowny" data-dodaj-wiele${doDodania.length ? '' : ' disabled'}>Dodaj ${doDodania.length ? ile(doDodania.length, FORMY_KSIAZEK_B) : ''}</button></div>` : '';
+  };
+  async function szukajWiersza(r) {
+    try {
+      const wyn = await Wyszukiwarka.szukaj(r.zap);
+      r.wyniki = wyn;
+      // spośród najtrafniejszych wybierz wydanie z liczbą stron; okładkę dobierz z innego wydania tego samego tytułu
+      const rdzen = t => t.toLowerCase().split(/[:.(]/)[0].trim();
+      const top = wyn.slice(0, 4).filter(x => wyn[0] && rdzen(x.tytul) === rdzen(wyn[0].tytul));
+      const best = top.find(x => x.strony && x.okladka) || top.find(x => x.strony) || wyn[0];
+      r.w = best ? { ...best, okladka: best.okladka || (top.find(x => x.okladka) || {}).okladka || null } : null;
+      r.stan = !r.w ? 'brak' : istnieje(r.w) ? 'duplikat' : 'ok';
+      r.wybrane = r.stan === 'ok';
+    } catch { r.stan = 'blad'; }
+    rysujWyniki();
+  }
+  async function kolejkaSzukania(nowe) {
+    const pula = [...nowe];
+    const pracownik = async () => { while (pula.length) await szukajWiersza(pula.shift()); };
+    await Promise.all([pracownik(), pracownik()]);
+  }
+  const dodajZapytania = lista => {
+    const nowe = lista.map(z => z.trim()).filter(Boolean).filter(z => !wiersze.some(r => r.zap === z)).map(zap => ({ zap, stan: 'szukam', w: null, wyniki: [], wybrane: false }));
+    wiersze.push(...nowe);
+    rysujWyniki();
+    return kolejkaSzukania(nowe);
+  };
+  a.tresc.addEventListener('change', e => {
+    if (e.target.name === 'tryb') { const t = $('[name="lista"]', a.tresc)?.value; tryb = e.target.value; a.rysuj(); if (t && $('[name="lista"]', a.tresc)) $('[name="lista"]', a.tresc).value = t; rysujWyniki(); }
+    if (e.target.dataset.wiersz) { wiersze[+e.target.dataset.wiersz].wybrane = e.target.checked; rysujWyniki(); }
+  });
+  a.tresc.addEventListener('click', async e => {
+    if (e.target.closest('[data-szukaj-liste]')) {
+      if (!navigator.onLine) { toast('Jesteś offline.', { typ: 'blad' }); return; }
+      const pole = $('[name="lista"]', a.tresc);
+      const linie = pole.value.split(/\n|;/).map(l => l.trim()).filter(Boolean).slice(0, 50);
+      if (!linie.length) { pole.focus(); return; }
+      pole.value = '';
+      dodajZapytania(linie);
+    }
+    if (e.target.closest('[data-skanuj-serie]')) {
+      arkuszSkanera(kod => { dodajZapytania([kod]); toast(`Zeskanowano ${kod}. Skanuj następną.`, { czas: 1800 }); }, { seria: true });
+    }
+    const inne = e.target.closest('[data-inne]');
+    if (inne) {
+      const r = wiersze[+inne.dataset.inne];
+      const i = r.wyniki.indexOf(r.w);
+      r.w = r.wyniki[(i + 1) % r.wyniki.length];
+      r.stan = istnieje(r.w) ? 'duplikat' : 'ok';
+      rysujWyniki();
+    }
+    const rec = e.target.closest('[data-recznie]');
+    if (rec) {
+      const r = wiersze[+rec.dataset.recznie];
+      a.zamknij();
+      arkuszFormularza();
+      setTimeout(() => { const q = $('#f-q'); if (q) { q.value = r.zap; } const t = document.querySelector('.arkusz form [name="tytul"]'); if (t && !Wyszukiwarka.czyIsbn(r.zap)) t.value = r.zap; }, 50);
+    }
+    if (e.target.closest('[data-dodaj-wiele]')) {
+      const gdzie = $('[name="gdzie-wiele"]:checked', a.tresc)?.value || 'doPrzeczytania';
+      const wybrane = wiersze.filter(r => r.wybrane && r.w);
+      const dodane = [];
+      for (const r of wybrane) {
+        const w = r.w;
+        let okl = w.okladka;
+        if (okl) okl = await urlNaOkladke(okl);
+        const k = nowaKsiazka({ tytul: w.tytul, autor: w.autor, strony: w.strony || Z.ustawienia.srednia, isbn: w.isbn, okladka: okl, tagi: w.tagi || [], seria: w.seria || '', tom: w.tom });
+        if (gdzie === 'przeczytana') oznaczPrzeczytana(k, dzisISO(), false);
+        dodane.push(k);
+      }
+      utrwal(dodane);
+      a.zamknij(); odswiez();
+      const bezStron = wybrane.filter(r => !r.w.strony).length;
+      toast(`Dodano ${ile(dodane.length, FORMY_KSIAZEK_B)}.${bezStron ? ` ${bezStron} bez liczby stron: wpisałem ${Z.ustawienia.srednia}, popraw w edycji.` : ''}`, { czas: 6000 });
+    }
+  });
+}
+
+/* ================= losowanie (2.6) ================= */
+function arkuszLosowania() {
+  const f = { dlugosc: 'dowolna', tag: '', format: '', zrodlo: 'kolejka', waga: true };
+  const odrzucone = new Set();
+  let wybrana = null, kreci = false;
+  const pula = () => {
+    let l = f.zrodlo === 'tydzien' ? planTygodnia().map(e => e.k).filter((k, i, t) => t.indexOf(k) === i && k.status !== 'przeczytana')
+      : f.zrodlo === 'cykle' ? kolejka().filter(k => k.seria && (nastepnyTom(k) === k || ksiazkiSerii(k.seria).filter(x => x.tom != null && k.tom != null && x.tom < k.tom).every(x => x.status === 'przeczytana')))
+      : kolejka();
+    l = l.filter(k => (f.dlugosc === 'krotka' ? k.strony < 250 : f.dlugosc === 'srednia' ? k.strony >= 250 && k.strony < 450 : f.dlugosc === 'dluga' ? k.strony >= 450 : true)
+      && (!f.tag || k.tagi.includes(f.tag)) && (!f.format || k.format === f.format));
+    const bez = l.filter(k => !odrzucone.has(k.id));
+    return bez.length ? bez : l;
+  };
+  const tagi = [...new Set(kolejka().flatMap(k => k.tagi))].sort((x, y) => x.localeCompare(y, 'pl'));
+  const a = arkusz({
+    tytul: 'Losowanie', klasa: 'arkusz-maly arkusz-los',
+    render: () => {
+      const p = pula();
+      return `<div class="los-filtry">
+        <label>Skąd<select name="zrodlo"><option value="kolejka"${f.zrodlo === 'kolejka' ? ' selected' : ''}>Cała lista do przeczytania</option><option value="tydzien"${f.zrodlo === 'tydzien' ? ' selected' : ''}>Plan tego tygodnia</option><option value="cykle"${f.zrodlo === 'cykle' ? ' selected' : ''}>Następne tomy cykli</option></select></label>
+        <label>Długość<select name="dlugosc">${[['dowolna', 'Dowolna'], ['krotka', 'Krótka, do 250 s.'], ['srednia', 'Średnia, 250–450 s.'], ['dluga', 'Długa, od 450 s.']].map(([v, n]) => `<option value="${v}"${f.dlugosc === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${tagi.length ? `<label>Tag<select name="tag"><option value="">Dowolny</option>${tagi.map(t => `<option${f.tag === t ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select></label>` : ''}
+        <label>Format<select name="format"><option value="">Dowolny</option>${Object.entries(FORMATY).map(([v, n]) => `<option value="${v}"${f.format === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+      </div>
+      <label class="przelacznik maly"><input type="checkbox" name="waga"${f.waga ? ' checked' : ''}><span>Większa szansa dla książek, które długo czekają, i następnych tomów</span></label>
+      <div class="los-scena">${wybrana ? `<div class="los"><div class="los-okl">${okladka(wybrana, 'l')}</div>
+        <p class="los-tytul">${esc(wybrana.tytul)}</p>
+        <p class="cichy">${esc([wybrana.autor, ile(wybrana.strony, FORMY_STRON), wybrana.seria ? `${wybrana.seria}${wybrana.tom != null ? ', tom ' + wybrana.tom : ''}` : '', kolejka().includes(wybrana) ? `czeka od ${dataDluga(wybrana.dodano, false)}` : ''].filter(Boolean).join(' · '))}</p></div>`
+        : `<p class="pusto">${p.length ? `W puli: ${ile(p.length, FORMY_KSIAZEK)}. Kliknij „Losuj”.` : 'Brak książek pasujących do filtrów.'}</p>`}</div>
+      <div class="przyciski przyciski-srodek">
+        <button type="button" class="btn${wybrana ? '' : ' btn-glowny'}" data-krec${p.length ? '' : ' disabled'}>${I.kostka}${wybrana ? 'Nie to, losuj dalej' : 'Losuj'}</button>
+        ${wybrana ? `<button type="button" class="btn btn-glowny" data-start>Zacznij czytać</button>` : ''}</div>
+      ${wybrana ? `<div class="przyciski przyciski-srodek los-dodatkowe"><button type="button" class="btn-tekst" data-do-tygodnia>Dodaj do planu tygodnia</button>
+        <button type="button" class="btn-tekst" data-na-poczatek>Na początek kolejki</button></div>` : ''}
+      ${odrzucone.size ? `<p class="cichy los-odrzucone">Pominięte w tym losowaniu: ${odrzucone.size}</p>` : ''}`;
+    }
+  });
+  const krec = () => {
+    const p = pula();
+    if (!p.length || kreci) return;
+    if (wybrana) odrzucone.add(wybrana.id);
+    const pp = pula();
+    const cel = f.waga ? losujWazone(pp, k => wagaLosowania(k)) : pp[Math.floor(Math.random() * pp.length)];
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches || pp.length < 2) { wybrana = cel; a.rysuj(); return; }
+    kreci = true;
+    // „bęben”: szybko przewijane okładki, coraz wolniej, aż zatrzymają się na wylosowanej
+    let krok = 0;
+    const kroki = 14;
+    const tick = () => {
+      krok++;
+      wybrana = krok >= kroki ? cel : pp[Math.floor(Math.random() * pp.length)];
+      a.rysuj();
+      $('.los', a.tresc)?.classList.add(krok >= kroki ? 'animuj-los' : 'los-beben');
+      if (krok < kroki) setTimeout(tick, 40 + krok * krok * 2.2);
+      else { kreci = false; if (navigator.vibrate) navigator.vibrate(30); }
+    };
+    tick();
+  };
+  a.tresc.addEventListener('change', e => {
+    const n = e.target.name;
+    if (n in f) { f[n] = e.target.type === 'checkbox' ? e.target.checked : e.target.value; wybrana = null; odrzucone.clear(); a.rysuj(); }
+  });
+  a.tresc.addEventListener('click', e => {
+    if (e.target.closest('[data-krec]')) krec();
+    if (!wybrana || kreci) return;
+    const k = wybrana;
+    if (e.target.closest('[data-start]')) { utrwal(zacznijCzytac(k)); a.zamknij(); odswiez(); toast(`Zaczynasz „${k.tytul}”.`); }
+    if (e.target.closest('[data-do-tygodnia]')) { dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); }
+    if (e.target.closest('[data-na-poczatek]')) { utrwal(naPoczatekKolejki(k)); odswiez(); toast('Przeniesiono na początek kolejki.'); }
+  });
+}
+
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -2274,6 +2658,25 @@ const AKCJE = {
   wpis: d => arkuszWpisu(d.id, d.data),
   losuj: () => arkuszLosowania(),
   rok: () => arkuszRoku(),
+  tydzien: d => arkuszTygodnia(d.pn || poczatekTygodnia()),
+  'tydzien-dodaj': d => arkuszDodajDoTygodnia(d.pn || poczatekTygodnia(), d.dzien || null),
+  'do-tygodnia': d => { const k = znajdz(d.id); dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
+  'dodaj-wiele': () => arkuszWielu(),
+  'powiadomienia-zgoda': async () => {
+    try {
+      const w = await Notification.requestPermission();
+      if (w === 'granted') {
+        if (!Z.ustawienia.przypomnienie.wlaczone) { Z.ustawienia.przypomnienie.wlaczone = true; utrwalUstawienia(); }
+        zarejestrujSprawdzanieWTle();
+        toast('Powiadomienia włączone.');
+      } else toast('Nie zezwolono na powiadomienia. Możesz użyć kalendarza telefonu.', { czas: 5000 });
+    } catch { toast('Ta przeglądarka nie pozwala na powiadomienia.', { typ: 'blad' }); }
+    renderWidok();
+  },
+  'powiadomienie-test': async () => { try { await pokazPowiadomienie('📖 Zakładka', trescPrzypomnienia(), { test: true }); } catch { toast('Nie udało się wysłać powiadomienia.', { typ: 'blad' }); } },
+  'ics-przypomnienie': async () => {
+    if (await zapiszPlik('zakladka-przypomnienie.ics', icsPrzypomnienia(), 'text/calendar')) toast('Otwórz plik i dodaj wydarzenie do kalendarza. Przypomnienie będzie się powtarzać.', { czas: 6000 });
+  },
   'test-zrodel': async (d, btn) => {
     const el = $('#stan-zrodel');
     if (!el) return;
@@ -2362,6 +2765,21 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('submit', e => {
+  if (e.target.id !== 'f-przypomnienia') return;
+  e.preventDefault();
+  const f = e.target;
+  Z.ustawienia = normalizujUstawienia({ ...Z.ustawienia, przypomnienie: {
+    wlaczone: f.elements.wlaczone.checked, godzina: f.elements.godzina.value,
+    dni: $$('[name="dni"]:checked', f).map(x => +x.value)
+  } });
+  utrwalUstawienia();
+  zarejestrujSprawdzanieWTle();
+  const p = Z.ustawienia.przypomnienie;
+  toast(p.wlaczone ? `Przypomnienie o ${p.godzina}.${'Notification' in window && Notification.permission !== 'granted' ? ' Zezwól jeszcze na powiadomienia albo dodaj je do kalendarza.' : ''}` : 'Przypomnienia wyłączone.', { czas: 5000 });
+  renderWidok();
+});
+
+document.addEventListener('submit', e => {
   if (e.target.id !== 'f-wyszukiwanie') return;
   e.preventDefault();
   const f = e.target, v = n => f.elements.namedItem(n).value.trim();
@@ -2395,6 +2813,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) return;
   if (U.dzien !== dzisISO()) { U.dzien = dzisISO(); odswiez(); }
   else renderPigulka();
+  sprawdzPrzypomnienie();
 });
 
 /* ================= start ================= */
@@ -2418,6 +2837,9 @@ async function start() {
   renderPigulka();
   sprawdzOdznaki();
   sprawdzCele();
+  sprawdzPrzypomnienie();
+  zarejestrujSprawdzanieWTle();
+  setInterval(sprawdzPrzypomnienie, 60 * 1000);
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));
@@ -2427,6 +2849,8 @@ async function start() {
   if (akcja) {
     history.replaceState(null, '', location.pathname);
     if (akcja === 'dodaj') arkuszFormularza();
+    if (akcja === 'tydzien') arkuszTygodnia();
+    if (akcja === 'wiele') arkuszWielu();
     if (akcja === 'postep') { const b = bazowa() || czytane()[0]; if (b) arkuszPostepu(b.id); }
   }
 

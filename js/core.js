@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.5.0';
+const WERSJA = '2.6.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '' };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -112,6 +112,21 @@ function normalizujUstawienia(u = {}) {
   for (const n of ['tydzienStrony', 'tydzienKsiazki', 'miesiacStrony', 'miesiacKsiazki']) if (+u[n] >= 0) w[n] = Math.round(+u[n]);
   if (typeof u.googleKlucz === 'string') w.googleKlucz = u.googleKlucz.trim().slice(0, 100);
   if (typeof u.posrednik === 'string' && (/^https:\/\//.test(u.posrednik.trim()) || !u.posrednik.trim())) w.posrednik = u.posrednik.trim().slice(0, 300);
+  w.planyTygodni = {};
+  if (u.planyTygodni && typeof u.planyTygodni === 'object') {
+    const granica = dodajDni(dzisISO(), -7 * 52);
+    for (const [pn, lista] of Object.entries(u.planyTygodni)) {
+      if (!poprawnaData(pn) || pn < granica || !Array.isArray(lista)) continue;
+      const x = lista.filter(e => e && e.id).map(e => ({ id: String(e.id), dzien: poprawnaData(e.dzien) ? e.dzien : null, strony: Math.max(0, Math.round(+e.strony) || 0) }));
+      if (x.length) w.planyTygodni[pn] = x;
+    }
+  }
+  const pr = u.przypomnienie || {};
+  w.przypomnienie = {
+    wlaczone: !!pr.wlaczone,
+    godzina: /^([01]\d|2[0-3]):[0-5]\d$/.test(pr.godzina) ? pr.godzina : '20:00',
+    dni: Array.isArray(pr.dni) ? [...new Set(pr.dni.map(Number).filter(d => d >= 0 && d <= 6))].sort() : [0, 1, 2, 3, 4, 5, 6]
+  };
   w.celeMiesiecy = {};
   if (u.celeMiesiecy && typeof u.celeMiesiecy === 'object') {
     for (const [ym, c] of Object.entries(u.celeMiesiecy)) {
@@ -641,4 +656,141 @@ function celWCzasie() {
   }
   const tempo = doDzis ? n / doDzis : 0; // książek dziennie od startu
   return { dni, doDzis, narast, cel: u.cel, przeczytane: n, prognoza: Math.round(n + tempo * (dni - doDzis)) };
+}
+
+/* ---------- plan tygodnia (wersja 2.6) ---------- */
+const DNI_PELNE = ['poniedziałek', 'wtorek', 'środa', 'czwartek', 'piątek', 'sobota', 'niedziela'];
+const zostaloStron = k => Math.max(0, k.strony - (k.status === 'czytam' ? k.strona : 0));
+
+/** Wpisy planu tygodnia z książkami; wpis bez dnia = „przeczytać w tym tygodniu”. */
+function planTygodnia(pn = poczatekTygodnia()) {
+  return (Z.ustawienia.planyTygodni[pn] || []).map((e, i) => ({ ...e, i, k: znajdz(e.id) })).filter(e => e.k);
+}
+function zapiszPlanTygodnia(pn, wpisy) {
+  const czyste = wpisy.map(({ id, dzien, strony }) => ({ id, dzien: dzien || null, strony: strony || 0 }));
+  if (czyste.length) Z.ustawienia.planyTygodni[pn] = czyste;
+  else delete Z.ustawienia.planyTygodni[pn];
+}
+function dodajDoPlanu(pn, id, dzien = null, strony = 0) {
+  const lista = planTygodnia(pn);
+  const juz = lista.find(e => e.id === id && (e.dzien || null) === (dzien || null));
+  if (juz) juz.strony = strony || juz.strony;
+  else lista.push({ id, dzien, strony });
+  zapiszPlanTygodnia(pn, lista);
+}
+function usunZPlanu(pn, i) {
+  zapiszPlanTygodnia(pn, planTygodnia(pn).filter(e => e.i !== i));
+}
+
+/** Stan jednego wpisu: ile przeczytano i czy zrobione. */
+function stanWpisu(e, pn) {
+  const nd = dodajDni(pn, 6);
+  if (e.dzien) {
+    const przecz = stronyKsiazkiDnia(e.k, e.dzien);
+    return { przecz, zrobione: e.strony ? przecz >= e.strony : przecz > 0, minal: e.dzien < dzisISO() };
+  }
+  const przecz = e.k.log.reduce((s, w) => s + (w.data >= pn && w.data <= nd ? w.strony : 0), 0);
+  const skonczona = ukonczenia(pn, nd).some(x => x.k === e.k);
+  return { przecz, zrobione: skonczona || (e.strony > 0 && przecz >= e.strony), minal: nd < dzisISO() };
+}
+
+/** Rozkłada pozostałe strony wybranych książek równo na dni od `od` do niedzieli. */
+function rozlozPlan(pn, ids, od = dzisISO()) {
+  const nd = dodajDni(pn, 6);
+  const start = od < pn ? pn : od;
+  if (start > nd) return 0;
+  const dni = [];
+  for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
+  // wolne dni czytania z ustawień przypomnień traktujemy jak dni czytania; tu bierzemy wszystkie
+  let lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start));
+  for (const id of ids) {
+    const k = znajdz(id);
+    if (!k) continue;
+    const reszta = zostaloStron(k);
+    if (!reszta) continue;
+    const naDzien = Math.ceil(reszta / dni.length);
+    let zostalo = reszta;
+    for (const d of dni) {
+      if (zostalo <= 0) break;
+      const s = Math.min(naDzien, zostalo);
+      lista.push({ id, dzien: d, strony: s });
+      zostalo -= s;
+    }
+    if (!lista.some(e => e.id === id && !e.dzien)) lista.push({ id, dzien: null, strony: 0 });
+  }
+  zapiszPlanTygodnia(pn, lista);
+  return dni.length;
+}
+
+function planDnia(iso = dzisISO()) {
+  const pn = poczatekTygodnia(iso);
+  return planTygodnia(pn).filter(e => e.dzien === iso).map(e => ({ ...e, ...stanWpisu(e, pn) }));
+}
+
+/* ---------- przypomnienia i plik kalendarza (.ics) ---------- */
+const ICS_DNI = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+const icsTekst = t => String(t).replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+const icsData = (iso, hhmm) => `${iso.replace(/-/g, '')}T${hhmm.replace(':', '')}00`;
+function icsZwin(linia) { // linie max 75 znaków
+  const out = [];
+  for (let i = 0; i < linia.length; i += 73) out.push((i ? ' ' : '') + linia.slice(i, i + 73));
+  return out.join('\r\n');
+}
+function icsKalendarz(wydarzenia) {
+  const teraz = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z';
+  const l = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Zakladka//PL', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  for (const w of wydarzenia) {
+    l.push('BEGIN:VEVENT', `UID:${w.uid}@zakladka`, `DTSTAMP:${teraz}`, `DTSTART:${w.start}`, `DURATION:PT${w.minuty || 30}M`,
+      `SUMMARY:${icsTekst(w.tytul)}`);
+    if (w.opis) l.push(`DESCRIPTION:${icsTekst(w.opis)}`);
+    if (w.rrule) l.push(`RRULE:${w.rrule}`);
+    l.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsTekst(w.tytul)}`, 'TRIGGER:PT0M', 'END:VALARM', 'END:VEVENT');
+  }
+  l.push('END:VCALENDAR');
+  return l.map(icsZwin).join('\r\n') + '\r\n';
+}
+/** Codzienne przypomnienie jako powtarzające się wydarzenie w kalendarzu telefonu. */
+function icsPrzypomnienia() {
+  const p = Z.ustawienia.przypomnienie;
+  const dni = p.dni.length ? p.dni : [0, 1, 2, 3, 4, 5, 6];
+  let start = dzisISO();
+  while (!dni.includes(dzienTygodnia(start))) start = dodajDni(start, 1);
+  return icsKalendarz([{
+    uid: 'przypomnienie-codzienne', start: icsData(start, p.godzina), minuty: 30,
+    tytul: '📖 Czas na czytanie', opis: `Dzienny cel: ${dziennyCel()} stron. Otwórz Zakładkę i zapisz postęp.`,
+    rrule: `FREQ=WEEKLY;BYDAY=${dni.map(d => ICS_DNI[d]).join(',')}`
+  }]);
+}
+/** Plan tygodnia jako wydarzenia: jedno na każdy dzień z zaplanowanym czytaniem. */
+function icsPlanuTygodnia(pn) {
+  const godz = Z.ustawienia.przypomnienie.godzina;
+  const wydarzenia = [];
+  for (let i = 0; i < 7; i++) {
+    const d = dodajDni(pn, i);
+    if (d < dzisISO()) continue;
+    const wpisy = planTygodnia(pn).filter(e => e.dzien === d);
+    if (!wpisy.length) continue;
+    const suma = wpisy.reduce((s, e) => s + e.strony, 0);
+    wydarzenia.push({
+      uid: `plan-${d}`, start: icsData(d, godz), minuty: 45,
+      tytul: `📖 Czytanie${suma ? `: ${suma} str.` : ''}`,
+      opis: wpisy.map(e => `${e.k.tytul}${e.strony ? ` — ${e.strony} str.` : ''}`).join('\n')
+    });
+  }
+  return icsKalendarz(wydarzenia);
+}
+
+/* ---------- losowanie: waga książek ---------- */
+function wagaLosowania(k, { dlugoCzeka = true } = {}) {
+  let w = 1;
+  if (dlugoCzeka) w += Math.min(3, Math.max(0, dniMiedzy(k.dodano, dzisISO())) / 120); // czeka 4 miesiące = 2x szansy
+  const poprz = k.seria ? ksiazkiSerii(k.seria).filter(x => x.tom != null && k.tom != null && x.tom < k.tom) : [];
+  if (poprz.length && poprz.every(x => x.status === 'przeczytana')) w += 1.5; // następny tom cyklu
+  return w;
+}
+function losujWazone(lista, waga) {
+  const wagi = lista.map(waga), suma = wagi.reduce((s, v) => s + v, 0);
+  let r = Math.random() * suma;
+  for (let i = 0; i < lista.length; i++) { r -= wagi[i]; if (r <= 0) return lista[i]; }
+  return lista[lista.length - 1] || null;
 }

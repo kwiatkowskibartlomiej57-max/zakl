@@ -19,6 +19,7 @@
   ],
   "shortcuts": [
     { "name": "Zapisz postęp", "short_name": "Postęp", "url": "./?akcja=postep", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Dodaj książkę", "short_name": "Dodaj", "url": "./?akcja=dodaj", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Dodaj książkę", "short_name": "Dodaj", "url": "./?akcja=dodaj", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Plan tygodnia", "short_name": "Tydzień", "url": "./?akcja=tydzien", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

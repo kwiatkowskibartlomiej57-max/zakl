@@ -47,6 +47,9 @@ const Baza = (() => {
       return null;
     }),
     ustawienia: () => tx('ustawienia', 'readonly', s => s.get('glowne')),
-    zapiszUstawienia: u => tx('ustawienia', 'readwrite', s => s.put(u, 'glowne'))
+    zapiszUstawienia: u => tx('ustawienia', 'readwrite', s => s.put(u, 'glowne')),
+    // drobne wartości współdzielone z service workerem (np. kiedy ostatnio przypomniano)
+    wartosc: k => tx('ustawienia', 'readonly', s => s.get(k)),
+    zapiszWartosc: (k, v) => tx('ustawienia', 'readwrite', s => s.put(v, k))
   };
 })();

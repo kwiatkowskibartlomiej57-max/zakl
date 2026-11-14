@@ -832,3 +832,60 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 :root[data-theme="dark"] .linia-postepu { stroke: var(--hm4); }
 :root[data-theme="dark"] .obszar-postepu { fill: var(--hm4); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .linia-postepu { stroke: var(--hm4); } :root:not([data-theme="light"]) .obszar-postepu { fill: var(--hm4); } }
+
+/* ================= wersja 2.6: plan tygodnia, przypomnienia, wiele książek, losowanie ================= */
+.tyg-tytul { text-transform: none; font-size: 21px; display: flex; flex-direction: column; align-items: center; }
+.tyg-tytul small { font-family: var(--font-ui); font-size: 12.5px; font-weight: 600; color: var(--wstazka); }
+.tyg-podsumowanie { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 8px 0 4px; padding: 10px 14px; border-radius: 12px; background: var(--powierzchnia); border: 1px solid var(--linia); font-size: 14px; color: var(--cichy); }
+.tyg-podsumowanie strong { color: var(--tusz); font-family: var(--font-ksiazka); font-size: 17px; }
+.tyg-dni { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.tyg-dzien { padding: 8px 10px 8px 12px; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); }
+.tyg-dzien.dzis { border-color: var(--wstazka); box-shadow: inset 3px 0 0 var(--wstazka); }
+.tyg-dzien.minal { opacity: .78; }
+.tyg-dzien-gora { display: flex; align-items: center; gap: 8px; }
+.tyg-dzien-nazwa { flex: 1; background: none; border: 0; padding: 4px 0; text-align: left; color: var(--tusz); cursor: pointer; font-size: 15px; }
+.tyg-dzien-nazwa strong { text-transform: capitalize; }
+.tyg-dzien-nazwa span { color: var(--cichy); font-size: 13px; margin-left: 4px; }
+.tyg-dzien-liczby { font-size: 13.5px; color: var(--cichy); font-variant-numeric: tabular-nums; }
+.tyg-wpisy, .plan-dnia-lista { list-style: none; margin: 4px 0 2px; padding: 0; }
+.tyg-wpisy li, .plan-dnia-lista li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px dashed var(--linia); font-size: 14.5px; }
+.plan-dnia-lista li { padding: 8px 0; }
+.tyg-znak { width: 20px; height: 20px; flex: none; border-radius: 50%; border: 1.5px solid var(--linia); display: inline-flex; align-items: center; justify-content: center; }
+.zrobione .tyg-znak { background: var(--ok); border-color: var(--ok); color: #fff; }
+.tyg-znak svg { width: 13px; height: 13px; }
+.tyg-ksiazka { flex: 1; text-align: left; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zrobione .tyg-ksiazka { text-decoration: line-through; text-decoration-color: var(--zloto); }
+.pominiete .tyg-ksiazka { color: var(--zle); }
+.tyg-str { font-size: 13px; color: var(--cichy); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.btn-ikona.maly svg { width: 16px; height: 16px; }
+.plan-strony { width: 68px; flex: none; margin-left: auto; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; font-size: 14px; }
+.plan-dnia.pusty .cichy { font-size: 14.5px; }
+.kd-plan-tydz { font-size: 13.5px; color: var(--ok); }
+.przelacznik { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.przelacznik input { width: 22px; height: 22px; accent-color: var(--plotno); flex: none; }
+.przelacznik.maly { font-weight: 500; font-size: 14px; color: var(--cichy); margin: 10px 0 4px; }
+.segment-dni { gap: 5px; }
+.segment-dni .seg span { min-width: 42px; justify-content: center; padding: 7px 8px; }
+.stan-powiadomien { font-size: 14px; }
+.skaner-licznik { font-weight: 600; color: var(--ok); min-height: 1.2em; }
+/* wiele książek */
+.wiele-pole textarea { width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; resize: vertical; }
+.wiele-lista { list-style: none; margin: 14px 0 10px; padding: 0; }
+.wiele-wiersz { padding: 8px 0; border-bottom: 1px solid var(--linia); }
+.wiele-wybor { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.wiele-wybor input { width: 22px; height: 22px; flex: none; accent-color: var(--plotno); }
+.wiele-inne { font-size: 13px; margin-left: 34px; }
+.wiele-szukam { display: flex; align-items: center; gap: 6px; font-size: 14.5px; color: var(--cichy); }
+.wiele-szukam svg { width: 16px; height: 16px; color: var(--zle); }
+.st-duplikat .wiersz-tytul { color: var(--cichy); }
+.znacznik-wiele { display: inline-block; margin-top: 2px; padding: 1px 8px; border-radius: 999px; background: var(--powierzchnia); border: 1px solid var(--linia); font-size: 12px; font-weight: 600; color: var(--zle); }
+/* losowanie */
+.los-filtry { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.los-filtry label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; font-weight: 600; color: var(--cichy); }
+.los-filtry select { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; font-size: 14.5px; }
+.los-scena { min-height: 300px; display: flex; align-items: center; justify-content: center; }
+.los-beben .los-okl { animation: beben .12s linear; }
+@keyframes beben { from { transform: translateY(-14px); opacity: .5; } }
+.los-dodatkowe { margin-top: 4px; }
+.los-odrzucone { text-align: center; font-size: 13px; margin-top: 6px; }
+@media (max-width: 380px) { .los-filtry { grid-template-columns: 1fr; } }
