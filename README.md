@@ -81,6 +81,20 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.5: cykle, pożyczki i grafiki
+
+- **Biblioteka Narodowa działa od razu.** Domyślny pośrednik (Cloudflare Worker) jest wpisany w aplikację (`POSREDNIK_BN` w `js/core.js`), więc wyszukiwanie polskich książek działa także na GitHub Pages. W Ustawieniach można podać inny adres.
+- **Wyszukiwanie po autorze w BN.** Wpisany tekst jest sprawdzany i jako tytuł, i jako nazwisko autora.
+- **Cykle książek.** Książka ma pole „Cykl” i „Tom”, np. Wiedźmin, tom 2. Po zeskanowaniu kodu cykl i tom uzupełniają się same z danych Biblioteki Narodowej. Dla znanego cyklu aplikacja podpowiada numer kolejnego tomu.
+  - Szczegóły książki pokazują wszystkie tomy cyklu z postępem.
+  - Po skończeniu tomu pojawia się przycisk „Zacznij następny tom”.
+  - W Bibliotece cykl jest widoczny pod autorem i można go wyszukiwać.
+- **Pożyczone książki.** Zapisujesz, komu pożyczyłeś książkę albo od kogo ją masz, i od kiedy.
+  - W Bibliotece jest filtr „Pożyczone”, a na okładce plakietka z imieniem.
+  - Po 30 dniach ekran Dziś przypomina o książce. „Wróciła” albo „Oddana” zamyka pożyczkę, z opcją „Cofnij”.
+- **Grafika z okładkami.** W oknie miesiąca i w podsumowaniu roku jest przycisk „Obrazek”. Tworzy grafikę 1080×1350 z okładkami przeczytanych książek, liczbą książek i stron, gotową do udostępnienia.
+- **Cel roczny w czasie.** Nowy wykres w Statystykach pokazuje przeczytane książki narastająco, równy plan i przerywaną prognozę przy obecnym tempie.
+
 ## Wersja 2.4: polskie książki po kodzie kreskowym
 
 **Dlaczego wcześniej nie działało.** Google Books bez klucza dzieli jeden limit zapytań z całym internetem i zwykle odpowiada „limit wyczerpany” (błąd 429). Aplikacja przechodziła wtedy na Open Library, która ma niewiele polskich wydań.

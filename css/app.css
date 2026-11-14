@@ -795,3 +795,40 @@ body.arkusz-otwarty .toasty { bottom: auto; top: calc(env(safe-area-inset-top) +
 .rada-zrodla { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--powierzchnia); border-left: 3px solid var(--zloto); font-size: 13.5px; }
 .rada-zrodla p + p { margin-top: 4px; }
 .rada-zrodla .btn-tekst { margin-top: 6px; font-size: 14px; }
+
+/* ================= wersja 2.5: cykle, pożyczki, wykres celu ================= */
+.kd-cykl { margin-top: 2px; font-size: 14.5px; color: var(--zloto); font-weight: 600; }
+.f-rzad-seria { grid-template-columns: 1fr 96px; }
+.seria-lista { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.seria-wiersz { width: 100%; display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 10px; padding: 9px 4px; background: none; border: 0; border-bottom: 1px solid var(--linia); color: var(--tusz); text-align: left; cursor: pointer; }
+.seria-tom { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--linia); font-family: var(--font-ksiazka); font-weight: 600; font-size: 14px; }
+.st-przeczytana .seria-tom { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); }
+.st-czytam .seria-tom { border-color: var(--wstazka); color: var(--wstazka); border-width: 2px; }
+.seria-lista .ta .seria-wiersz { background: var(--powierzchnia); font-weight: 600; }
+.seria-stan { font-size: 13px; color: var(--cichy); }
+.seria-stan svg { width: 18px; height: 18px; color: var(--ok); }
+.kd-seria .przyciski { margin-top: 12px; }
+.kafel-seria { display: block; font-size: 12px; color: var(--zloto); font-weight: 600; margin-top: 1px; }
+.kd-pozyczka { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; font-size: 14.5px; color: var(--cichy); }
+.kd-pozyczka svg { width: 19px; height: 19px; flex: none; }
+.kd-pozyczka.aktywna { padding: 10px 12px; border-radius: 12px; background: var(--powierzchnia); border: 1px solid var(--linia); color: var(--tusz); }
+.kd-pozyczka.dawno { border-color: var(--zle); }
+.kd-pozyczka.aktywna > span { flex: 1 1 200px; }
+.kafel-pozyczka { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 999px; background: var(--zloto-jasne); color: #2b210d; font-size: 11.5px; font-weight: 700; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; z-index: 1; }
+.kafel-pozyczka svg { width: 12px; height: 12px; flex: none; }
+.tag-pozyczone svg { width: 15px; height: 15px; margin-right: 4px; }
+.pozyczone-info { font-size: 14px; margin: -4px 0 10px; }
+.baner-pozyczka p { display: flex; gap: 8px; align-items: flex-start; }
+.baner-pozyczka p svg { width: 20px; height: 20px; flex: none; margin-top: 2px; color: var(--zloto); }
+.baner-pozyczka .przyciski { margin-top: 10px; align-items: center; }
+.brawo-nastepny { margin-top: 14px; }
+svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4; }
+.linia-planu { stroke: var(--cichy); stroke-width: 1.5; opacity: .6; }
+.linia-postepu { fill: none; stroke: var(--plotno); stroke-width: 2.5; stroke-linejoin: round; }
+.obszar-postepu { fill: var(--plotno); opacity: .12; }
+.linia-prognozy { stroke-width: 2; stroke-dasharray: 5 4; }
+.linia-prognozy.ok { stroke: var(--ok); } .linia-prognozy.zle { stroke: var(--zle); }
+.punkt-teraz { fill: var(--wstazka); stroke: var(--powierzchnia); stroke-width: 2; }
+:root[data-theme="dark"] .linia-postepu { stroke: var(--hm4); }
+:root[data-theme="dark"] .obszar-postepu { fill: var(--hm4); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .linia-postepu { stroke: var(--hm4); } :root:not([data-theme="light"]) .obszar-postepu { fill: var(--hm4); } }

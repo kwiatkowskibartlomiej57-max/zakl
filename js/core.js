@@ -1,7 +1,8 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.4.0';
+const WERSJA = '2.5.0';
+const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '' };
 const STATUSY = ['czytam', 'doPrzeczytania', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
@@ -84,7 +85,12 @@ function normalizujKsiazke(k = {}) {
     dodano: poprawnaData(k.dodano) ? k.dodano : dzisISO(),
     porzucono: poprawnaData(k.porzucono) ? k.porzucono : null,
     bazowaWynik: ['wTerminie', 'po'].includes(k.bazowaWynik) ? k.bazowaWynik : null,
-    planMiesiac: poprawnyMiesiac(k.planMiesiac) ? k.planMiesiac : null
+    planMiesiac: poprawnyMiesiac(k.planMiesiac) ? k.planMiesiac : null,
+    seria: String(k.seria || '').trim().slice(0, 80),
+    tom: +k.tom > 0 ? Math.round(+k.tom * 10) / 10 : null,
+    pozyczona: k.pozyczona && String(k.pozyczona.kto || '').trim()
+      ? { kto: String(k.pozyczona.kto).trim().slice(0, 60), data: poprawnaData(k.pozyczona.data) ? k.pozyczona.data : dzisISO(), kierunek: k.pozyczona.kierunek === 'od' ? 'od' : 'komus' }
+      : null
   };
   if (n.status === 'przeczytana') n.strona = n.strony;
   if (n.bazowa && !n.celData) n.celData = dodajDni(dzisISO(), 61);
@@ -592,3 +598,47 @@ function miesiaceZDanymi() {
 }
 
 function zaplanujNaMiesiac(k, ym) { k.planMiesiac = poprawnyMiesiac(ym) ? ym : null; return [k]; }
+
+/* ---------- cykle i pożyczki (wersja 2.5) ---------- */
+const nazwaSerii = s => s.trim().toLowerCase();
+function ksiazkiSerii(seria) {
+  if (!seria) return [];
+  const n = nazwaSerii(seria);
+  return Z.ksiazki.filter(k => k.seria && nazwaSerii(k.seria) === n)
+    .sort((a, b) => (a.tom ?? 999) - (b.tom ?? 999) || a.tytul.localeCompare(b.tytul, 'pl'));
+}
+/** Następny nieprzeczytany tom po książce k (najpierw o wyższym numerze). */
+function nastepnyTom(k) {
+  const lista = ksiazkiSerii(k.seria).filter(x => x !== k && x.status !== 'przeczytana');
+  if (!lista.length) return null;
+  return lista.find(x => k.tom != null && x.tom != null && x.tom > k.tom) || lista[0];
+}
+function serie() {
+  const m = new Map();
+  for (const k of Z.ksiazki) if (k.seria) {
+    const n = nazwaSerii(k.seria);
+    const x = m.get(n) || { nazwa: k.seria, ksiazki: 0, przeczytane: 0 };
+    x.ksiazki++;
+    if (k.status === 'przeczytana') x.przeczytane++;
+    m.set(n, x);
+  }
+  return [...m.values()].sort((a, b) => a.nazwa.localeCompare(b.nazwa, 'pl'));
+}
+const pozyczoneKsiazki = () => Z.ksiazki.filter(k => k.pozyczona).sort((a, b) => a.pozyczona.data.localeCompare(b.pozyczona.data));
+
+/** Cel roczny w czasie: ile książek przeczytane narastająco w każdym dniu okresu. */
+function celWCzasie() {
+  const u = Z.ustawienia, dzis = dzisISO();
+  const ukon = ukonczenia(u.start, u.koniec);
+  const dni = dniMiedzy(u.start, u.koniec) + 1;
+  const doDzis = ogranicz(dniMiedzy(u.start, dzis) + 1, 0, dni);
+  const narast = [];
+  let i = 0, n = 0;
+  for (let d = 0; d < doDzis; d++) {
+    const iso = dodajDni(u.start, d);
+    while (i < ukon.length && ukon[i].koniec <= iso) { n++; i++; }
+    narast.push(n);
+  }
+  const tempo = doDzis ? n / doDzis : 0; // książek dziennie od startu
+  return { dni, doDzis, narast, cel: u.cel, przeczytane: n, prognoza: Math.round(n + tempo * (dni - doDzis)) };
+}

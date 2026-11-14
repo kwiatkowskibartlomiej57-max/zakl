@@ -119,7 +119,7 @@ const Wyszukiwarka = (() => {
   const BN_API = 'https://data.bn.org.pl/api/institutions/bibs.json';
   function adresyBN(parametry) {
     const qs = new URLSearchParams({ ...parametry, limit: '15' }).toString();
-    const wlasny = (ustawienia().posrednik || '').trim().replace(/\/+$/, '');
+    const wlasny = (ustawienia().posrednik || (typeof POSREDNIK_BN !== 'undefined' ? POSREDNIK_BN : '')).trim().replace(/\/+$/, '');
     const lista = [];
     if (wlasny) lista.push(wlasny.includes('{url}') ? wlasny.replace('{url}', encodeURIComponent(`${BN_API}?${qs}`)) : `${wlasny}?${qs}`);
     if (stan.bnLokalny !== false && location.protocol.startsWith('http')) lista.push(`bn.php?${qs}`);
@@ -149,7 +149,21 @@ const Wyszukiwarka = (() => {
     // „451, [7] s.” → 451; liczby w nawiasach to strony nienumerowane
     const liczby = (opis.replace(/\[[^\]]*\]/g, '').match(/\d+/g) || []).map(Number);
     const isbny = pole(marc, '020').map(f => (podpole(f, 'a')[0] || '').replace(/[^\dX]/gi, '')).filter(Boolean);
+    // cykl: pole 490 albo 830, np. „Wiedźmin ; t. 2” → seria „Wiedźmin”, tom 2
+    // 800 $t = cykl autora („Wiedźmin”, t. 2). 490 bierzemy tylko, gdy wskazuje autora („Saga o wiedźminie / Andrzej Sapkowski”);
+    // serie wydawnicze bez autora („Fantasy”, „Seria z Żurawiem”) pomijamy.
+    let seria = '', tom = null;
+    const f800 = pole(marc, '800').find(f => podpole(f, 't')[0]);
+    const f490 = pole(marc, '490').find(f => / \/ /.test(podpole(f, 'a')[0] || ''));
+    const zrodloSerii = f800 ? { nazwa: podpole(f800, 't')[0], v: podpole(f800, 'v')[0] } : f490 ? { nazwa: podpole(f490, 'a')[0].split(' / ')[0], v: podpole(f490, 'v')[0] } : null;
+    if (zrodloSerii) {
+      seria = czysc(zrodloSerii.nazwa).replace(/\s*\(.*?\)\s*$/, '');
+      const v = String(zrodloSerii.v || '').match(/(\d+)/);
+      tom = v ? +v[1] : null;
+      if (seria.length > 60 || /^\d+$/.test(seria)) seria = '';
+    }
     return {
+      seria, tom: seria ? tom : null,
       tytul,
       autor: autorzy.join(', '),
       strony: liczby.length ? Math.max(...liczby.filter(n => n < 5000)) || null : null,
@@ -164,7 +178,16 @@ const Wyszukiwarka = (() => {
   }
   async function bibliotekaNarodowa(q) {
     const isbn = czyIsbn(q);
-    const adresy = adresyBN(isbn ? { isbnIssn: isbn } : { title: q });
+    if (!isbn) {
+      // tekst może być tytułem albo nazwiskiem autora: pytamy o oba naraz
+      const [t, a] = await Promise.allSettled([bnZapytanie({ title: q }), bnZapytanie({ author: q })]);
+      if (t.status === 'rejected' && a.status === 'rejected') throw t.reason;
+      return [...(t.value || []), ...(a.value || [])];
+    }
+    return bnZapytanie({ isbnIssn: isbn }, isbn);
+  }
+  async function bnZapytanie(parametry, isbn = null) {
+    const adresy = adresyBN(parametry);
     if (!adresy.length) return [];
     let blad = null;
     for (const url of adresy) {
@@ -181,7 +204,7 @@ const Wyszukiwarka = (() => {
         if (isbn && !lista.length && isbn.length === 13) {
           // BN czasem trzyma ISBN z myślnikami albo jako 10 cyfr
           const alt = isbn13na10(isbn);
-          if (alt) return bibliotekaNarodowa(alt);
+          if (alt) return bnZapytanie({ isbnIssn: alt }, alt);
         }
         return lista;
       } catch (e) {
@@ -211,6 +234,8 @@ const Wyszukiwarka = (() => {
         autor: glowny.autor || (pasujace.find(w => w.autor) || {}).autor || '',
         strony: glowny.strony || (pasujace.find(w => w.strony) || {}).strony || null,
         okladka: (pasujace.find(w => w.okladka) || {}).okladka || null,
+        seria: glowny.seria || (pasujace.find(w => w.seria) || {}).seria || '',
+        tom: glowny.tom ?? (pasujace.find(w => w.tom != null) || {}).tom ?? null,
         zrodlo: [...new Set(pasujace.map(w => w.zrodlo))].join(' + ')
       };
       return [scalony];
