@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.8.0';
+const WERSJA = '2.9.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {} };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3 };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -89,6 +89,11 @@ function normalizujKsiazke(k = {}) {
     seria: String(k.seria || '').trim().slice(0, 80),
     tom: +k.tom > 0 ? Math.round(+k.tom * 10) / 10 : null,
     odlozono: poprawnaData(k.odlozono) ? k.odlozono : null,
+    pula: !!k.pula,
+    rodzaj: k.rodzaj === 'techniczna' ? 'techniczna' : 'zwykla',
+    celRozdzialow: ogranicz(Math.round(+k.celRozdzialow) || 0, 0, 30),
+    rozdzialy: (Array.isArray(k.rozdzialy) ? k.rozdzialy : []).filter(r => r && String(r.tytul || '').trim()).slice(0, 200)
+      .map(r => ({ id: String(r.id || noweId()), tytul: String(r.tytul).trim().slice(0, 140), od: +r.od >= 1 ? Math.round(+r.od) : null, zrobiony: !!r.zrobiony, data: poprawnaData(r.data) ? r.data : null })),
     cena: +k.cena > 0 ? Math.round(+k.cena * 100) / 100 : null,
     link: /^https?:\/\//.test(String(k.link || '')) ? String(k.link).slice(0, 500) : '',
     priorytet: ogranicz(Math.round(+k.priorytet) || 0, 0, 3),
@@ -138,6 +143,12 @@ function normalizujUstawienia(u = {}) {
     .filter(r => r.dni.length);
   if (['kolejno', 'rownolegle'].includes(u.trybRozkladu)) w.trybRozkladu = u.trybRozkladu;
   w.planujWCzasie = !!u.planujWCzasie;
+  w.losIle = ogranicz(Math.round(+u.losIle) || 3, 1, 8);
+  w.losowania = {};
+  for (const [pn, v] of Object.entries(u.losowania || {})) {
+    if (!poprawnaData(pn) || !v || !Array.isArray(v.ids)) continue;
+    w.losowania[pn] = { ids: v.ids.map(String).slice(0, 12), data: poprawnaData(v.data) ? v.data : pn, zatwierdzone: !!v.zatwierdzone };
+  }
   w.tempoReczne = +u.tempoReczne >= 5 ? ogranicz(Math.round(+u.tempoReczne), 5, 300) : 0;
   // czas i cel książek ustawione dla konkretnego tygodnia (klucz: poniedziałek)
   w.czasTygodni = {}; w.celeTygodni = {};
@@ -1002,8 +1013,91 @@ function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu, c
  * krotsze: z kolejki bierze najpierw krótsze, żeby łatwiej dobić do celu liczby książek.
  */
 function dobierzKsiazki(ile, { krotsze = false, pomin = [] } = {}) {
-  const czyt = czytane().filter(k => !pomin.includes(k.id) && zostaloStron(k) > 0).sort((a, b) => zostaloStron(a) - zostaloStron(b));
-  let kol = kolejka().filter(k => !pomin.includes(k.id));
+  const czyt = czytane().filter(k => !pomin.includes(k.id) && zostaloStron(k) > 0 && !czyTechniczna(k)).sort((a, b) => zostaloStron(a) - zostaloStron(b));
+  let kol = kolejka().filter(k => !pomin.includes(k.id) && !czyTechniczna(k));
   if (krotsze) kol = [...kol].sort((a, b) => a.strony - b.strony);
   return [...czyt, ...kol].slice(0, ile);
 }
+
+/* ---------- losowanie na tydzień z puli moich książek (wersja 2.9) ---------- */
+/** Pula: książki, które masz i chcesz losować (bez przeczytanych i porzuconych). */
+const pulaLosowania = () => Z.ksiazki.filter(k => k.pula && !['przeczytana', 'porzucona'].includes(k.status))
+  .sort((a, b) => (b.dodano || '').localeCompare(a.dodano || '') || a.tytul.localeCompare(b.tytul, 'pl'));
+/** Od piątku losujemy już na przyszły tydzień. */
+const tydzienDoLosowania = () => dzienTygodnia(dzisISO()) >= 4 ? dodajDni(poczatekTygodnia(), 7) : poczatekTygodnia();
+
+/**
+ * Losuje `ile` różnych książek z puli. Opcje: dlugosc ('dowolna'|'krotka'|'srednia'|'dluga'),
+ * pomin (id), swieze (pomija książki wylosowane w ostatnich 2 tygodniach, jeśli to możliwe).
+ */
+function losujNaTydzien(ile, { dlugosc = 'dowolna', pomin = [], swieze = true, pn = tydzienDoLosowania() } = {}) {
+  let pula = pulaLosowania().filter(k => !pomin.includes(k.id) && k.status !== 'czytam' && !czyTechniczna(k))
+    .filter(k => dlugosc === 'krotka' ? k.strony < 250 : dlugosc === 'srednia' ? k.strony >= 250 && k.strony < 450 : dlugosc === 'dluga' ? k.strony >= 450 : true);
+  if (swieze) {
+    const ostatnie = new Set([dodajDni(pn, -7), dodajDni(pn, -14)].flatMap(t => (Z.ustawienia.losowania[t] || {}).ids || []));
+    const bez = pula.filter(k => !ostatnie.has(k.id));
+    if (bez.length >= ile) pula = bez;
+  }
+  const wynik = [];
+  while (wynik.length < ile && pula.length) {
+    const k = losujWazone(pula, x => wagaLosowania(x));
+    wynik.push(k);
+    pula = pula.filter(x => x !== k);
+  }
+  return wynik;
+}
+
+/* ---------- książki techniczne: czytane po kawałku, rozdziałami (wersja 2.9) ---------- */
+const czyTechniczna = k => k && k.rodzaj === 'techniczna';
+/** Rozdziały w kolejności stron (bez numeru strony zostają na swoim miejscu). */
+function rozdzialyK(k) {
+  return k.rozdzialy.map((r, i) => ({ ...r, i })).sort((a, b) => (a.od ?? 1e9) - (b.od ?? 1e9) || a.i - b.i);
+}
+function nastepnyRozdzial(k) { return rozdzialyK(k).find(r => !r.zrobiony) || null; }
+
+/** Odhacza rozdział. Bieżąca strona przesuwa się na koniec rozdziału, a strony trafiają do dziennika. */
+function odhaczRozdzial(k, rid, zrobiony = true, data = dzisISO()) {
+  const r = k.rozdzialy.find(x => x.id === rid);
+  if (!r) return [];
+  r.zrobiony = zrobiony;
+  r.data = zrobiony ? data : null;
+  if (zrobiony) {
+    const lista = rozdzialyK(k), i = lista.findIndex(x => x.id === rid);
+    const nast = lista.slice(i + 1).find(x => x.od);
+    const koniec = nast ? nast.od - 1 : (lista.slice(i + 1).length ? null : k.strony);
+    if (koniec && koniec > k.strona) {
+      if (k.status !== 'czytam') zacznijCzytac(k, data);
+      ustawStrone(k, Math.min(koniec, k.strony), data);
+    }
+  }
+  return [k];
+}
+
+/** „1. Wstęp ........ 15” → { tytul: '1. Wstęp', od: 15 } */
+function parsujSpis(tekst) {
+  return String(tekst || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean).map(l => {
+    const m = l.match(/^(.*?)[\s.…·_–-]*\s(\d{1,4})\s*$/);
+    return m && m[1].trim() ? { tytul: m[1].trim().slice(0, 140), od: +m[2] } : { tytul: l.slice(0, 140), od: null };
+  });
+}
+/** Dzieli książkę na n równych części, gdy nie chce się przepisywać spisu treści. */
+function podzielNaCzesci(k, n) {
+  n = ogranicz(Math.round(n) || 1, 1, 100);
+  const krok = k.strony / n;
+  return Array.from({ length: n }, (_, i) => ({ id: noweId(), tytul: `Część ${i + 1}`, od: Math.floor(i * krok) + 1, zrobiony: Math.floor((i + 1) * krok) <= k.strona, data: null }));
+}
+
+function rozdzialyWTygodniu(k, pn = poczatekTygodnia()) {
+  const nd = dodajDni(pn, 6);
+  return k.rozdzialy.filter(r => r.zrobiony && r.data && r.data >= pn && r.data <= nd).length;
+}
+/** Tempo w rozdziałach na tydzień i prognoza końca (techniczne czyta się nieregularnie, więc liczymy od startu). */
+function prognozaTechnicznej(k) {
+  const zrobione = k.rozdzialy.filter(r => r.zrobiony && r.data).length;
+  const zostalo = k.rozdzialy.filter(r => !r.zrobiony).length;
+  if (!k.start || !zrobione || !zostalo) return { naTydzien: null, koniec: null, zostalo };
+  const tyg = Math.max(1, dniMiedzy(k.start, dzisISO()) + 1) / 7;
+  const naTydzien = zrobione / Math.max(1, tyg);
+  return { naTydzien, koniec: dodajDni(dzisISO(), Math.ceil(zostalo / naTydzien * 7)), zostalo };
+}
+const dniBezCzytania = k => dniMiedzy(ostatniaAktywnosc(k), dzisISO());

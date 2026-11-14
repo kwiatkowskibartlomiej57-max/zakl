@@ -81,6 +81,31 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.9: zakładka Losuj i książki techniczne
+
+**Zakładka „Losuj” w dolnym pasku.** Ustawienia przeniosłem do ikony suwaków w nagłówku.
+- **Moje książki do losowania (pula):** wpisujesz książki, które masz, np. „Lalka Prus” albo numer ISBN, a aplikacja sama uzupełnia okładkę, autora i liczbę stron. Są też przyciski:
+  - **Skanuj kody:** skanujesz po kolei, aparat zostaje włączony;
+  - **Wklej listę:** wiele tytułów naraz;
+  - **Z biblioteki:** zaznaczasz książki, które już są w aplikacji, także całą kolejkę jednym przyciskiem.
+
+  Książka wypada z puli sama, gdy ją przeczytasz. Możesz ją też wyjąć ręcznie.
+- **Losowanie na tydzień:** wybierasz tydzień (ten albo następny), liczbę książek (1–6) i długość, a potem klikasz „Losuj”. Okładki przewijają się, a okienka zatrzymują po kolei.
+  - Od piątku aplikacja sama proponuje następny tydzień.
+  - W sobotę i niedzielę ekran Dziś przypomina, żeby wylosować książki na przyszły tydzień.
+- **Zamień** losuje inną książkę na miejsce jednej z wylosowanych.
+- **„Biorę! Zaplanuj tydzień”** dodaje wylosowane książki do planu tygodnia i otwiera kreator, w którym rozkładasz je na dni.
+- Losowanie pomija książki wylosowane w dwóch poprzednich tygodniach, jeśli w puli jest z czego wybierać. Książki, które długo czekają, mają większą szansę.
+- **Historia losowań** pokazuje, ile z wylosowanych książek przeczytałeś.
+
+**Książki techniczne i do nauki**, czytane po kawałku, nie codziennie:
+- W formularzu książki zaznaczasz „Książka techniczna / do nauki”.
+- **Rozdziały:** wklejasz spis treści (np. „3. Funkcje ..... 31”), a numery stron rozpoznają się same. Bez spisu możesz podzielić książkę na równe części.
+- **Odhaczasz rozdziały:** bieżąca strona przesuwa się na koniec rozdziału, a strony trafiają do dziennika i statystyk. Każde odhaczenie możesz cofnąć.
+- **Cel: rozdziałów na tydzień**, tempo w rozdziałach na tydzień i prognoza końca.
+- Na ekranie Dziś książki techniczne mają osobną sekcję „Do nauki”: następny rozdział, postęp tygodnia, przycisk ✓ do odhaczenia i ostrzeżenie „nieruszana od 9 dni”.
+- Książki techniczne nie trafiają do „Czytam też”, do doboru w kreatorze tygodnia ani do losowania.
+
 ## Wersja 2.8: kreator tygodnia
 
 Planowanie tygodnia odbywa się teraz w jednym oknie. Otwierasz je przyciskiem **„Zaplanuj tydzień”**, który jest w planie tygodnia i na ekranie Dziś. Podgląd odświeża się przy każdej zmianie.
