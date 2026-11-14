@@ -1,10 +1,10 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.6.0';
+const WERSJA = '2.7.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] } };
-const STATUSY = ['czytam', 'doPrzeczytania', 'przeczytana', 'porzucona'];
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno' };
+const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
 const FORMY_STRON = ['strona', 'strony', 'stron'];
@@ -88,6 +88,10 @@ function normalizujKsiazke(k = {}) {
     planMiesiac: poprawnyMiesiac(k.planMiesiac) ? k.planMiesiac : null,
     seria: String(k.seria || '').trim().slice(0, 80),
     tom: +k.tom > 0 ? Math.round(+k.tom * 10) / 10 : null,
+    odlozono: poprawnaData(k.odlozono) ? k.odlozono : null,
+    cena: +k.cena > 0 ? Math.round(+k.cena * 100) / 100 : null,
+    link: /^https?:\/\//.test(String(k.link || '')) ? String(k.link).slice(0, 500) : '',
+    priorytet: ogranicz(Math.round(+k.priorytet) || 0, 0, 3),
     pozyczona: k.pozyczona && String(k.pozyczona.kto || '').trim()
       ? { kto: String(k.pozyczona.kto).trim().slice(0, 60), data: poprawnaData(k.pozyczona.data) ? k.pozyczona.data : dzisISO(), kierunek: k.pozyczona.kierunek === 'od' ? 'od' : 'komus' }
       : null
@@ -117,10 +121,22 @@ function normalizujUstawienia(u = {}) {
     const granica = dodajDni(dzisISO(), -7 * 52);
     for (const [pn, lista] of Object.entries(u.planyTygodni)) {
       if (!poprawnaData(pn) || pn < granica || !Array.isArray(lista)) continue;
-      const x = lista.filter(e => e && e.id).map(e => ({ id: String(e.id), dzien: poprawnaData(e.dzien) ? e.dzien : null, strony: Math.max(0, Math.round(+e.strony) || 0) }));
+      const x = lista.filter(e => e && e.id).map(e => ({ id: String(e.id), dzien: poprawnaData(e.dzien) ? e.dzien : null, strony: Math.max(0, Math.round(+e.strony) || 0), minuty: Math.max(0, Math.round(+e.minuty) || 0), ...(e.ukryty ? { ukryty: String(e.ukryty) } : {}) }));
       if (x.length) w.planyTygodni[pn] = x;
     }
   }
+  const se = u.seria || {};
+  w.seria = {
+    prog: ogranicz(Math.round(+se.prog) || 1, 1, 500),
+    dniWolne: Array.isArray(se.dniWolne) ? [...new Set(se.dniWolne.map(Number).filter(d => d >= 0 && d <= 6))].sort() : [],
+    zamrozenia: ogranicz(Math.round(+se.zamrozenia) || 0, 0, 10),
+    cel: ogranicz(Math.round(+se.cel) || 0, 0, 3650)
+  };
+  if (Array.isArray(u.czasDni) && u.czasDni.length === 7) w.czasDni = u.czasDni.map(v => ogranicz(Math.round(+v) || 0, 0, 600));
+  w.stalePlany = (Array.isArray(u.stalePlany) ? u.stalePlany : []).filter(r => r && r.id)
+    .map(r => ({ rid: String(r.rid || noweId()), id: String(r.id), dni: [...new Set((r.dni || []).map(Number).filter(d => d >= 0 && d <= 6))].sort(), strony: Math.max(0, Math.round(+r.strony) || 0), minuty: Math.max(0, Math.round(+r.minuty) || 0) }))
+    .filter(r => r.dni.length);
+  if (['kolejno', 'rownolegle'].includes(u.trybRozkladu)) w.trybRozkladu = u.trybRozkladu;
   const pr = u.przypomnienie || {};
   w.przypomnienie = {
     wlaczone: !!pr.wlaczone,
@@ -147,7 +163,8 @@ function nowaKsiazka(dane) {
 }
 
 function zacznijCzytac(k, data = dzisISO()) {
-  if (k.status === 'doPrzeczytania' || k.status === 'porzucona') k.status = 'czytam';
+  if (['doPrzeczytania', 'porzucona', 'pozniej', 'zyczenia'].includes(k.status)) k.status = 'czytam';
+  k.odlozono = null;
   k.start = k.start || data;
   k.porzucono = null;
   return [k];
@@ -262,21 +279,56 @@ function mapaDni() {
 
 const stronyKsiazkiDnia = (k, iso) => k.log.reduce((s, w) => s + (w.data === iso ? w.strony : 0), 0);
 
-function seriaAktualna(m) {
-  let d = dzisISO();
-  if (!m.get(d)) d = dodajDni(d, -1);
-  let n = 0;
-  while (m.get(d) > 0 && n < 10000) { n++; d = dodajDni(d, -1); }
-  return n;
+/* ---------- passa (seria) z ustawieniami: próg stron, dni wolne, zamrożenia ---------- */
+const ustSerii = () => (Z.ustawienia && Z.ustawienia.seria) || { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 };
+/** 'czytal' | 'wolny' | 'brak' */
+function rodzajDnia(d, m, u = ustSerii()) {
+  if ((m.get(d) || 0) >= u.prog) return 'czytal';
+  if (u.dniWolne.includes(dzienTygodnia(d))) return 'wolny';
+  return 'brak';
 }
+/** Szczegóły obecnej passy: liczba dni czytania w ciągu, zużyte zamrożenia i dni pokryte zamrożeniem. */
+function seriaSzczegoly(m, u = ustSerii()) {
+  const dzis = dzisISO();
+  let d = dzis;
+  if (rodzajDnia(d, m, u) !== 'czytal') d = dodajDni(d, -1); // dzisiejszy dzień jeszcze trwa
+  const zuzyte = {}, zamrozone = [], wolne = [];
+  const pierwszy = m.size ? [...m.keys()].reduce((a, b) => (a < b ? a : b)) : dzis;
+  let n = 0, start = null, i = 0;
+  while (i++ < 4000) {
+    const r = rodzajDnia(d, m, u);
+    if (r === 'czytal') { n++; start = d; }
+    else if (r === 'wolny') wolne.push(d);
+    else {
+      const mies = d.slice(0, 7);
+      if ((zuzyte[mies] || 0) < u.zamrozenia && n > 0) { zuzyte[mies] = (zuzyte[mies] || 0) + 1; zamrozone.push(d); }
+      else break;
+    }
+    d = dodajDni(d, -1);
+    if (d < pierwszy) break;
+  }
+  const tenMies = dzis.slice(0, 7);
+  return {
+    dni: n, start, zamrozone: zamrozone.filter(x => !start || x > start), wolne: wolne.filter(x => !start || x > start),
+    zamrozeniaZostalo: Math.max(0, u.zamrozenia - (zuzyte[tenMies] || 0)), dzisZrobione: rodzajDnia(dzis, m, u) === 'czytal',
+    dzisWolny: rodzajDnia(dzis, m, u) === 'wolny', cel: u.cel, prog: u.prog
+  };
+}
+function seriaAktualna(m) { return seriaSzczegoly(m).dni; }
 
-function najdluzszaSeria(m) {
-  const dni = [...m.keys()].filter(d => m.get(d) > 0).sort();
-  let naj = 0, teraz = 0, poprz = null;
-  for (const d of dni) {
-    teraz = poprz && dniMiedzy(poprz, d) === 1 ? teraz + 1 : 1;
-    naj = Math.max(naj, teraz);
-    poprz = d;
+function najdluzszaSeria(m, u = ustSerii()) {
+  const klucze = [...m.keys()].filter(d => (m.get(d) || 0) > 0).sort();
+  if (!klucze.length) return 0;
+  let naj = 0, teraz = 0;
+  const zuzyte = {};
+  for (let d = klucze[0], i = 0; d <= klucze[klucze.length - 1] && i < 4000; d = dodajDni(d, 1), i++) {
+    const r = rodzajDnia(d, m, u);
+    if (r === 'czytal') { teraz++; naj = Math.max(naj, teraz); }
+    else if (r === 'brak') {
+      const mies = d.slice(0, 7);
+      if (teraz > 0 && (zuzyte[mies] || 0) < u.zamrozenia) zuzyte[mies] = (zuzyte[mies] || 0) + 1;
+      else teraz = 0;
+    }
   }
   return naj;
 }
@@ -667,7 +719,7 @@ function planTygodnia(pn = poczatekTygodnia()) {
   return (Z.ustawienia.planyTygodni[pn] || []).map((e, i) => ({ ...e, i, k: znajdz(e.id) })).filter(e => e.k);
 }
 function zapiszPlanTygodnia(pn, wpisy) {
-  const czyste = wpisy.map(({ id, dzien, strony }) => ({ id, dzien: dzien || null, strony: strony || 0 }));
+  const czyste = wpisy.map(({ id, dzien, strony, minuty, ukryty }) => ({ id, dzien: dzien || null, strony: strony || 0, minuty: minuty || 0, ...(ukryty ? { ukryty } : {}) }));
   if (czyste.length) Z.ustawienia.planyTygodni[pn] = czyste;
   else delete Z.ustawienia.planyTygodni[pn];
 }
@@ -694,37 +746,9 @@ function stanWpisu(e, pn) {
   return { przecz, zrobione: skonczona || (e.strony > 0 && przecz >= e.strony), minal: nd < dzisISO() };
 }
 
-/** Rozkłada pozostałe strony wybranych książek równo na dni od `od` do niedzieli. */
-function rozlozPlan(pn, ids, od = dzisISO()) {
-  const nd = dodajDni(pn, 6);
-  const start = od < pn ? pn : od;
-  if (start > nd) return 0;
-  const dni = [];
-  for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
-  // wolne dni czytania z ustawień przypomnień traktujemy jak dni czytania; tu bierzemy wszystkie
-  let lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start));
-  for (const id of ids) {
-    const k = znajdz(id);
-    if (!k) continue;
-    const reszta = zostaloStron(k);
-    if (!reszta) continue;
-    const naDzien = Math.ceil(reszta / dni.length);
-    let zostalo = reszta;
-    for (const d of dni) {
-      if (zostalo <= 0) break;
-      const s = Math.min(naDzien, zostalo);
-      lista.push({ id, dzien: d, strony: s });
-      zostalo -= s;
-    }
-    if (!lista.some(e => e.id === id && !e.dzien)) lista.push({ id, dzien: null, strony: 0 });
-  }
-  zapiszPlanTygodnia(pn, lista);
-  return dni.length;
-}
-
 function planDnia(iso = dzisISO()) {
   const pn = poczatekTygodnia(iso);
-  return planTygodnia(pn).filter(e => e.dzien === iso).map(e => ({ ...e, ...stanWpisu(e, pn) }));
+  return planTygodniaPelny(pn).filter(e => e.dzien === iso);
 }
 
 /* ---------- przypomnienia i plik kalendarza (.ics) ---------- */
@@ -768,7 +792,7 @@ function icsPlanuTygodnia(pn) {
   for (let i = 0; i < 7; i++) {
     const d = dodajDni(pn, i);
     if (d < dzisISO()) continue;
-    const wpisy = planTygodnia(pn).filter(e => e.dzien === d);
+    const wpisy = planTygodniaPelny(pn).filter(e => e.dzien === d);
     if (!wpisy.length) continue;
     const suma = wpisy.reduce((s, e) => s + e.strony, 0);
     wydarzenia.push({
@@ -793,4 +817,142 @@ function losujWazone(lista, waga) {
   let r = Math.random() * suma;
   for (let i = 0; i < lista.length; i++) { r -= wagi[i]; if (r <= 0) return lista[i]; }
   return lista[lista.length - 1] || null;
+}
+
+/* ---------- półki: na później i lista życzeń (wersja 2.7) ---------- */
+function odlozNaPozniej(k) {
+  k.status = 'pozniej';
+  k.bazowa = false;
+  k.odlozono = dzisISO();
+  return [k];
+}
+function doKolejki(k, naPoczatek = false) {
+  const lista = kolejka();
+  k.status = 'doPrzeczytania';
+  k.odlozono = null;
+  k.kolejnosc = naPoczatek ? (lista.length ? Math.min(...lista.map(x => x.kolejnosc)) - 1 : 0) : (lista.length ? Math.max(...lista.map(x => x.kolejnosc)) + 1 : 0);
+  return [k];
+}
+function naListeZyczen(k) {
+  k.status = 'zyczenia';
+  k.bazowa = false;
+  return [k];
+}
+const listaZyczen = () => Z.ksiazki.filter(k => k.status === 'zyczenia')
+  .sort((a, b) => b.priorytet - a.priorytet || (a.cena ?? 1e9) - (b.cena ?? 1e9) || a.tytul.localeCompare(b.tytul, 'pl'));
+const naPozniej = () => Z.ksiazki.filter(k => k.status === 'pozniej').sort((a, b) => (b.odlozono || '').localeCompare(a.odlozono || ''));
+
+/* ---------- zaawansowany plan: czas na czytanie, stałe plany, przenoszenie (2.7) ---------- */
+const tempoPlanu = () => tempoOgolne() || 30; // stron na godzinę; bez sesji zakładamy 30
+const stronZMinut = min => Math.round(min * tempoPlanu() / 60);
+const minutZeStron = str => Math.round(str * 60 / tempoPlanu());
+const czasDnia = iso => (Z.ustawienia.czasDni || [])[dzienTygodnia(iso)] ?? 30;
+
+/** Wpisy wygenerowane ze stałych planów (np. „Lalka: pn–pt po 30 stron”). */
+function wpisyStale(pn) {
+  const wyj = [], ukryte = new Set((Z.ustawienia.planyTygodni[pn] || []).filter(e => e.ukryty).map(e => `${e.ukryty}|${e.dzien}`));
+  for (const r of Z.ustawienia.stalePlany) {
+    const k = znajdz(r.id);
+    if (!k || k.status === 'przeczytana' || k.status === 'porzucona') continue;
+    for (const d of r.dni) {
+      const dzien = dodajDni(pn, d);
+      if (ukryte.has(`${r.rid}|${dzien}`)) continue;
+      if (k.status === 'przeczytana' && k.koniec && k.koniec < dzien) continue;
+      wyj.push({ id: r.id, dzien, strony: r.strony, minuty: r.minuty, staly: r.rid, k, i: -1 });
+    }
+  }
+  return wyj;
+}
+
+function stanWpisuPelny(e, pn) {
+  const st = stanWpisu(e, pn);
+  if (e.dzien && e.minuty) {
+    const min = e.k.sesje.filter(x => x.data === e.dzien).reduce((a, x) => a + x.minuty, 0);
+    st.minPrzecz = min;
+    if (!e.strony) st.zrobione = min >= e.minuty;
+    else st.zrobione = st.zrobione || min >= e.minuty;
+  }
+  return st;
+}
+
+/** Plan tygodnia razem ze stałymi planami i stanem każdego wpisu. */
+function planTygodniaPelny(pn = poczatekTygodnia()) {
+  return [...planTygodnia(pn).filter(e => !e.ukryty), ...wpisyStale(pn)].map(e => ({ ...e, ...stanWpisuPelny(e, pn) }));
+}
+
+function przeniesWpis(pnZ, i, nowaData, { kopiuj = false } = {}) {
+  const lista = planTygodnia(pnZ);
+  const e = lista.find(x => x.i === i);
+  if (!e) return;
+  const pnNa = poczatekTygodnia(nowaData);
+  if (!kopiuj) zapiszPlanTygodnia(pnZ, lista.filter(x => x.i !== i));
+  const cel = planTygodnia(pnNa);
+  const juz = cel.find(x => x.id === e.id && x.dzien === nowaData && !x.ukryty);
+  if (juz) { juz.strony += e.strony; juz.minuty = (juz.minuty || 0) + (e.minuty || 0); }
+  else cel.push({ id: e.id, dzien: nowaData, strony: e.strony, minuty: e.minuty || 0 });
+  zapiszPlanTygodnia(pnNa, cel);
+}
+
+/** Niezrobione wpisy z minionych dni tego tygodnia → na dziś (z pomniejszeniem o to, co już przeczytano). */
+function przeniesNiezrobione(pn = poczatekTygodnia()) {
+  const dzis = dzisISO();
+  const zalegle = planTygodnia(pn).filter(e => e.dzien && e.dzien < dzis && !e.ukryty).map(e => ({ ...e, ...stanWpisuPelny(e, pn) })).filter(e => !e.zrobione);
+  let n = 0;
+  for (const e of zalegle.sort((a, b) => b.i - a.i)) {
+    const reszta = e.strony ? Math.max(1, e.strony - e.przecz) : 0;
+    const lista = planTygodnia(pn).filter(x => x.i !== e.i);
+    zapiszPlanTygodnia(pn, lista);
+    const pnD = poczatekTygodnia(dzis), cel = planTygodnia(pnD);
+    const juz = cel.find(x => x.id === e.id && x.dzien === dzis && !x.ukryty);
+    if (juz) juz.strony += reszta; else cel.push({ id: e.id, dzien: dzis, strony: reszta, minuty: e.minuty || 0 });
+    zapiszPlanTygodnia(pnD, cel);
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Rozkłada pozostałe strony książek na dni od `od` do niedzieli, proporcjonalnie do czasu na czytanie w danym dniu.
+ * tryb 'kolejno': najpierw kończy pierwszą książkę, potem następną; 'rownolegle': każda po trochu codziennie.
+ */
+function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu) {
+  const nd = dodajDni(pn, 6), start = od < pn ? pn : od;
+  if (start > nd) return { dni: 0 };
+  const dni = [];
+  for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
+  let wagi = dni.map(czasDnia);
+  if (!wagi.some(v => v > 0)) wagi = dni.map(() => 1);
+  const sumaW = wagi.reduce((a, b) => a + b, 0);
+  const ksiazki = ids.map(znajdz).filter(k => k && zostaloStron(k) > 0);
+  const razem = ksiazki.reduce((s, k) => s + zostaloStron(k), 0);
+  // ile stron przypada na każdy dzień (zaokrąglenia narastająco, żeby suma się zgadzała)
+  const naDzien = [];
+  let nar = 0;
+  wagi.forEach((w, i) => { const przed = Math.round(razem * nar / sumaW); nar += w; naDzien[i] = Math.round(razem * nar / sumaW) - przed; });
+  let lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start));
+  if (tryb === 'rownolegle') {
+    for (const k of ksiazki) {
+      const udzial = zostaloStron(k) / razem;
+      let zostalo = zostaloStron(k);
+      dni.forEach((d, i) => {
+        const s = i === dni.length - 1 ? zostalo : Math.min(zostalo, Math.round(naDzien[i] * udzial));
+        if (s > 0) { lista.push({ id: k.id, dzien: d, strony: s, minuty: 0 }); zostalo -= s; }
+      });
+    }
+  } else {
+    let ki = 0, resztaK = ksiazki[0] ? zostaloStron(ksiazki[0]) : 0;
+    dni.forEach((d, i) => {
+      let budzet = naDzien[i];
+      while (budzet > 0 && ki < ksiazki.length) {
+        const s = Math.min(budzet, resztaK);
+        if (s > 0) lista.push({ id: ksiazki[ki].id, dzien: d, strony: s, minuty: 0 });
+        budzet -= s; resztaK -= s;
+        if (resztaK <= 0) { ki++; resztaK = ksiazki[ki] ? zostaloStron(ksiazki[ki]) : 0; }
+      }
+    });
+  }
+  for (const k of ksiazki) if (!lista.some(e => e.id === k.id && !e.dzien)) lista.push({ id: k.id, dzien: null, strony: 0, minuty: 0 });
+  zapiszPlanTygodnia(pn, lista);
+  const potrzebaMin = minutZeStron(razem), maszMin = dni.reduce((s, d) => s + czasDnia(d), 0);
+  return { dni: dni.length, strony: razem, potrzebaMin, maszMin, za_duzo: maszMin > 0 && potrzebaMin > maszMin * 1.1 };
 }

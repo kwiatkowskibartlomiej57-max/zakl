@@ -889,3 +889,63 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .los-dodatkowe { margin-top: 4px; }
 .los-odrzucone { text-align: center; font-size: 13px; margin-top: 6px; }
 @media (max-width: 380px) { .los-filtry { grid-template-columns: 1fr; } }
+
+/* ================= wersja 2.7: zaawansowany plan, półki, passa, okładki w kalendarzu ================= */
+.tyg-liczby { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0 6px; }
+.tyg-liczby div { padding: 8px 10px; border-radius: 12px; background: var(--powierzchnia); border: 1px solid var(--linia); }
+.tyg-liczby dt { font-size: 12px; color: var(--cichy); }
+.tyg-liczby dd { font-family: var(--font-ksiazka); font-size: 19px; font-weight: 600; }
+.tyg-liczby small { font-family: var(--font-ui); font-size: 12px; font-weight: 500; color: var(--cichy); }
+.tyg-ostrzezenie { font-size: 13.5px; margin: 4px 0; }
+.tyg-zalegle { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tyg-pojemnosc { height: 4px; border-radius: 2px; background: var(--linia); overflow: hidden; margin: 2px 0 2px; }
+.tyg-pojemnosc span { display: block; height: 100%; background: var(--plotno); border-radius: inherit; }
+.tyg-pojemnosc span.przeciazony { background: var(--zle); }
+.tyg-czas { font-size: 12px; color: var(--cichy); margin-bottom: 2px; }
+.tyg-dzien.wolny { background: var(--powierzchnia); border-style: dashed; }
+.tyg-wpis { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 2px 0; color: var(--tusz); text-align: left; cursor: pointer; font: inherit; }
+.tyg-mini-okl { flex: none; width: 22px; height: 33px; overflow: hidden; border-radius: 3px; display: inline-flex; }
+.tyg-mini-okl > * { transform: scale(.5); transform-origin: top left; }
+.tyg-staly { color: var(--zloto); font-weight: 700; margin-right: 4px; }
+.stale-lista { list-style: none; margin: 0; padding: 0; }
+.stale-wiersz { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 0 6px; padding: 10px 2px; background: none; border: 0; border-bottom: 1px solid var(--linia); color: var(--tusz); text-align: left; cursor: pointer; }
+.stale-tytul { font-weight: 600; }
+.stale-opis { grid-column: 2; font-size: 13px; color: var(--cichy); }
+.czas-dni { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.czas-dni li { display: grid; grid-template-columns: 1fr 90px auto; align-items: center; gap: 8px; }
+.czas-dni li > span:first-child { text-transform: capitalize; font-weight: 600; }
+.czas-dni input { padding: 8px 10px; border-radius: 10px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; }
+.klik-liczba { cursor: pointer; }
+.dzien-seria[data-akcja] { cursor: pointer; }
+/* passa */
+.passa-gora { text-align: center; }
+.passa-plomien svg { width: 44px; height: 44px; color: var(--wstazka); }
+.passa-liczba { font-family: var(--font-ksiazka); font-size: 56px; font-weight: 700; line-height: 1; }
+.passa-stan { text-align: center; margin: 8px 0 14px; font-size: 14.5px; }
+.passa-siatka { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 14px; }
+.passa-dzien { aspect-ratio: 1; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12.5px; font-weight: 600; background: var(--hm0); color: var(--cichy); }
+.passa-dzien.czytal { background: var(--wstazka); color: #fff; }
+.passa-dzien.wolny { background: transparent; border: 1.5px dashed var(--zloto); color: var(--zloto); }
+.passa-dzien.zamrozony { background: #7fb3d5; color: #0d2a3c; }
+.passa-dzien.brak { background: var(--hm0); color: var(--cichy); text-decoration: line-through; }
+.passa-dzien.przyszly { background: transparent; opacity: .4; }
+.passa-dzien.dzis { outline: 2px solid var(--tusz); outline-offset: 1px; }
+.passa-legenda { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 12.5px; margin-top: 10px; }
+.passa-legenda .passa-dzien { width: 20px; height: 20px; font-size: 10px; }
+.passa-ustawienia { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--linia); }
+.passa-ustawienia h3 { font-size: 17px; }
+/* półki */
+.polki { overflow-x: auto; scrollbar-width: none; }
+.polki::-webkit-scrollbar { display: none; }
+.polka-info { font-size: 14px; color: var(--cichy); margin: -2px 0 12px; }
+.kafel-zycz { display: block; margin-top: 3px; font-size: 13px; font-weight: 600; color: var(--zloto); }
+.kafel-prio { color: var(--wstazka); margin-right: 5px; letter-spacing: 1px; }
+.kd-zyczenia .przyciski { margin-top: 8px; }
+.kd-zyczenia input, .kd-zyczenia select { width: 100%; }
+/* kalendarz z okładkami */
+.kal-dzien { overflow: hidden; }
+.kal-okl { position: absolute; inset: 0; display: block; }
+.kal-okl img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: .9; }
+.kal-okl-gen { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: var(--kolor); color: rgba(241, 237, 224, .55); font-family: var(--font-ksiazka); font-size: 20px; font-weight: 700; }
+.kal-okl + .kal-nr, .kal-okl ~ .kal-v { position: relative; z-index: 1; padding: 1px 4px; border-radius: 5px; background: rgba(0, 0, 0, .55); color: #fff; }
+.passa-siatka { max-width: 330px; margin-left: auto; margin-right: auto; }

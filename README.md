@@ -81,6 +81,31 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.7: zaawansowane planowanie, nowe półki, passa
+
+**Planowanie tygodnia, dzień po dniu**
+- **Twój czas na czytanie:** ustawiasz, ile minut możesz czytać w każdy dzień tygodnia (0 = dzień bez czytania). Aplikacja przelicza to na strony według twojego tempa z sesji, a bez sesji zakłada 30 str./h.
+- **Rozłóż na dni:** strony rozkładają się proporcjonalnie do twojego czasu. Możesz czytać „jedna po drugiej” (kończysz pierwszą, potem następna) albo „wszystkie naraz, po trochu”. Możesz też wybrać dzień, od którego zacząć. Gdy plan przekracza twój czas, aplikacja ostrzega.
+- **Każdy dzień** ma pasek zapełnienia (zaplanowane strony względem twojego czasu), mini okładki i stan każdego wpisu.
+- **Edycja wpisu:** zmieniasz liczbę stron, cel „do strony X” albo cel w minutach i przenosisz wpis na inny dzień. Strzałka „›” przenosi wpis na następny dzień. „Powtórz do końca tygodnia” kopiuje wpis, a „Zrób z tego stały plan” zamienia go w stały plan.
+- **Stałe plany** powtarzają się co tydzień, np. „Lalka: pn–pt po 30 stron” albo „Audiobook: weekendy po 45 minut”. Pojedynczy dzień możesz pominąć albo przenieść.
+- **Zaległe wpisy:** niezrobione z minionych dni przeniesiesz na dziś jednym przyciskiem, z odjęciem tego, co już przeczytałeś.
+- Wpis z celem w minutach zalicza się po sesji ze stoperem.
+
+**Nowe półki**
+- **Na później:** książki odłożone „kiedyś”, które nie zajmują miejsca w kolejce. Przerwana lektura pamięta stronę („Wróć do czytania (s. 120)”). Książkę przenosisz z powrotem przyciskiem „Do kolejki” albo „Na początek kolejki”.
+- **Lista życzeń:** książki do kupienia albo dostania, z ceną, priorytetem (♥ do ♥♥♥), linkiem do sklepu i przyciskiem „Porównaj ceny”. Na górze półki jest suma cen. „Mam ją” przenosi książkę do kolejki.
+- Formularz dodawania i dodawanie wielu książek mają teraz opcje „Lista życzeń” i „Na później”.
+
+**Passa (seria) z własnymi zasadami.** Okno passy otwierasz, klikając płomyk na ekranie Dziś albo „Obecna passa” w Statystykach.
+- **Minimum stron dziennie**, żeby dzień się liczył.
+- **Dni wolne**, np. niedziela: nie przerywają passy.
+- **Zamrożenia na miesiąc:** ratują passę, gdy zapomnisz o jednym dniu.
+- **Cel passy** z paskiem postępu.
+- Kalendarz 5 tygodni pokazuje dni czytania, dni wolne, zamrożenia i przerwy.
+
+**Kalendarz miesiąca z okładkami:** na każdym dniu okładka książki, którą wtedy czytałeś najwięcej, tak jak w Bookmory. Przycisk przełącza między okładkami a kolorami.
+
 ## Wersja 2.6: plan tygodnia, przypomnienia, dodawanie wielu książek, losowanie
 
 - **Plan tygodnia.** Otwierasz go z karty „Plan na dziś” na ekranie Dziś, przyciskiem „Plan tygodnia” albo skrótem na ikonie aplikacji (Android). Strzałkami przechodzisz między tygodniami.

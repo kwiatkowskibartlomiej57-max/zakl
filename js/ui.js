@@ -100,6 +100,8 @@ function statusKsiazki(k) {
   if (k.status === 'czytam') return k.bazowa ? 'Książka bazowa' : 'Czytam';
   if (k.status === 'doPrzeczytania') return `Do przeczytania, nr ${kolejka().indexOf(k) + 1} w kolejce`;
   if (k.status === 'przeczytana') return k.koniec ? `Przeczytana ${dataDluga(k.koniec)}` : 'Przeczytana';
+  if (k.status === 'pozniej') return `Na później${k.odlozono ? ` od ${dataDluga(k.odlozono)}` : ''}${k.strona ? `, przerwana na s. ${k.strona}` : ''}`;
+  if (k.status === 'zyczenia') return `Lista życzeń${k.priorytet ? ', ' + ['', 'chcę', 'bardzo chcę', 'muszę mieć'][k.priorytet] : ''}${k.cena ? `, ${k.cena.toFixed(2).replace('.', ',')} zł` : ''}`;
   return k.porzucono ? `Porzucona ${dataDluga(k.porzucono)}` : 'Porzucona';
 }
 
@@ -352,7 +354,8 @@ function widokDzis() {
   const nast = kolejka()[0];
   const brak = cel - dzisStron;
   const doZapisu = baz || czytane()[0];
-  const zagrozona = !dzisStron && seria > 0 && new Date().getHours() >= 17
+  const ss = seriaSzczegoly(m);
+  const zagrozona = !ss.dzisZrobione && !ss.dzisWolny && seria > 0 && new Date().getHours() >= 17
     ? `<div class="baner baner-seria"><p>${I.plomien}<span>Twoja seria <strong>${ile(seria, FORMY_DNI)}</strong> skończy się o północy. Wystarczy jedna strona, żeby ją utrzymać.</span></p>
       ${doZapisu ? `<div class="przyciski"><button type="button" class="btn btn-glowny" data-akcja="postep" data-id="${doZapisu.id}">Zapisz postęp</button><button type="button" class="btn" data-akcja="sesja" data-id="${doZapisu.id}">${I.zegar}Sesja</button></div>` : ''}</div>` : '';
   return `${banery()}${zagrozona}${banerPozyczek()}
@@ -364,7 +367,7 @@ function widokDzis() {
     <div class="dzien-pierscien">${pierscien(dzisStron, cel)}
       <div class="dzien-liczba"><strong>${dzisStron}</strong><span>z ${ile(cel, FORMY_STRON_D)}</span></div></div>
     <div class="dzien-boki">
-      <p class="dzien-seria${seria ? ' aktywna' : ''}">${I.plomien}<span>${seria ? `<strong>${ile(seria, FORMY_DNI)}</strong> z rzędu` : 'Przeczytaj dziś choć stronę, żeby zacząć serię'}</span></p>
+      <p class="dzien-seria${seria ? ' aktywna' : ''}" data-akcja="passa" role="button" tabindex="0" title="Twoja passa">${I.plomien}<span>${seria ? `<strong>${ile(seria, FORMY_DNI)}</strong> z rzędu` : 'Przeczytaj dziś choć stronę, żeby zacząć serię'}</span></p>
       <p>W tym tygodniu <strong>${ile(tydzien, FORMY_STRON)}</strong></p>
       <p class="cichy">${brak <= 0 ? 'Dzienny cel zrobiony.' : `Do dziennego celu brakuje ${ile(brak, FORMY_STRON_D)}.`}</p>
     </div>
@@ -388,7 +391,7 @@ function widokDzis() {
 }
 
 /* ================= widok: Biblioteka ================= */
-const POLKI = [['czytam', 'Czytam'], ['doPrzeczytania', 'Do przeczytania'], ['przeczytana', 'Przeczytane'], ['porzucona', 'Porzucone']];
+const POLKI = [['czytam', 'Czytam'], ['doPrzeczytania', 'Do przeczytania'], ['pozniej', 'Na później'], ['zyczenia', 'Lista życzeń'], ['przeczytana', 'Przeczytane'], ['porzucona', 'Porzucone']];
 const SORTY = { domyslnie: 'Domyślnie', tytul: 'Tytuł', autor: 'Autor', strony: 'Liczba stron', ocena: 'Ocena', dodano: 'Ostatnio dodane' };
 
 function sortuj(lista) {
@@ -402,6 +405,8 @@ function sortuj(lista) {
     default:
       if (U.polka === 'doPrzeczytania') return lista.sort((a, b) => a.kolejnosc - b.kolejnosc);
       if (U.polka === 'przeczytana') return lista.sort((a, b) => (b.koniec || '').localeCompare(a.koniec || ''));
+      if (U.polka === 'zyczenia') return lista.sort((a, b) => b.priorytet - a.priorytet || (a.cena ?? 1e9) - (b.cena ?? 1e9));
+      if (U.polka === 'pozniej') return lista.sort((a, b) => (b.odlozono || '').localeCompare(a.odlozono || ''));
       if (U.polka === 'czytam') return lista.sort((a, b) => (b.bazowa - a.bazowa) || ostatniaAktywnosc(b).localeCompare(ostatniaAktywnosc(a)));
       return lista.sort((a, b) => (b.porzucono || '').localeCompare(a.porzucono || ''));
   }
@@ -419,7 +424,9 @@ function htmlSiatki() {
       czytam: 'Nie czytasz teraz nic. Zacznij książkę z listy do przeczytania albo dodaj nową.',
       doPrzeczytania: 'Lista do przeczytania jest pusta. Dodaj książki, po które chcesz sięgnąć.',
       przeczytana: 'Tu trafią książki, które skończysz.',
-      porzucona: 'Porzucone książki trafiają tutaj. Rzucenie nudnej książki to oszczędność czasu na lepszą.'
+      porzucona: 'Porzucone książki trafiają tutaj. Rzucenie nudnej książki to oszczędność czasu na lepszą.',
+      pozniej: 'Tu odkładasz książki, do których chcesz wrócić kiedyś, ale nie teraz. Nie zajmują miejsca w kolejce.',
+      zyczenia: 'Lista życzeń: książki, które chcesz kupić albo dostać. Zapisz cenę i link do sklepu.'
     };
     return `<div class="pusto-duze"><p>${puste[U.polka]}</p>${U.polka !== 'porzucona' && U.polka !== 'przeczytana' ? '<button type="button" class="btn btn-glowny" data-akcja="dodaj">Dodaj książkę</button>' : ''}</div>`;
   }
@@ -428,7 +435,8 @@ function htmlSiatki() {
       ${okladka(k, 'm')}${kolejkowa ? `<span class="kafel-nr" aria-label="Pozycja w kolejce">${i + 1}</span>` : ''}${k.bazowa ? '<span class="kafel-wstazka" aria-label="Książka bazowa"></span>' : ''}
       ${k.pozyczona ? `<span class="kafel-pozyczka" title="${k.pozyczona.kierunek === 'komus' ? 'Pożyczona: ' : 'Od: '}${esc(k.pozyczona.kto)}">${I.reka}${esc(k.pozyczona.kto)}</span>` : ''}
       <span class="kafel-tytul">${esc(k.tytul)}</span><span class="kafel-autor">${esc(k.autor)}${k.seria ? `<span class="kafel-seria">${esc(k.seria)}${k.tom != null ? ` ${String(k.tom).replace('.', ',')}` : ''}</span>` : ''}</span>
-      ${k.status === 'czytam' ? pasek(k.strona / k.strony * 100) : ''}
+      ${k.status === 'czytam' || (k.status === 'pozniej' && k.strona) ? pasek(k.strona / k.strony * 100) : ''}
+      ${k.status === 'zyczenia' && (k.cena || k.priorytet) ? `<span class="kafel-zycz">${k.priorytet ? `<span class="kafel-prio">${'♥'.repeat(k.priorytet)}</span>` : ''}${k.cena ? `${k.cena.toFixed(2).replace('.', ',')} zł` : ''}</span>` : ''}
       ${k.status === 'przeczytana' && k.ocena ? `<span class="kafel-ocena" aria-label="Ocena ${k.ocena} na 5">${'★'.repeat(k.ocena)}<span class="kafel-ocena-reszta">${'★'.repeat(5 - k.ocena)}</span></span>` : ''}
     </button></li>`).join('')}</ul>`;
 }
@@ -449,6 +457,7 @@ function widokBiblioteka() {
   ${pozyczoneKsiazki().length ? `<div class="tagi-filtr"><button type="button" class="tag tag-pozyczone${U.pozyczone ? ' wybrany' : ''}" data-akcja="pozyczone-filtr" aria-pressed="${!!U.pozyczone}">${I.reka}Pożyczone (${pozyczoneKsiazki().length})</button></div>` : ''}
   ${U.pozyczone ? '<p class="cichy pozyczone-info">Wszystkie pożyczone książki, z każdej półki. Najdłużej pożyczone są pierwsze.</p>' : ''}
   ${U.polka === 'doPrzeczytania' && liczby.doPrzeczytania > 1 ? `<button type="button" class="btn btn-maly losuj-btn" data-akcja="losuj">${I.kostka}Nie wiem, co czytać: losuj</button>` : ''}
+  ${naglowekPolki()}
   <div id="siatka-bib">${htmlSiatki()}</div>`;
 }
 
@@ -585,7 +594,7 @@ function widokStatystyki() {
     <div><dt>Strony w okresie celu</dt><dd>${liczba(stronOkres)}</dd></div>
     <div><dt>Średnio dziennie, 30 dni</dt><dd>${Math.round(sredniaDzienna(m, 30))}<small> str.</small></dd></div>
     <div><dt>Tempo z sesji</dt><dd>${tempo ? `${Math.round(tempo)}<small> str./h</small>` : '<small>brak sesji</small>'}</dd></div>
-    <div><dt>Obecna seria</dt><dd>${seriaAktualna(m)}<small> ${odmiana(seriaAktualna(m), FORMY_DNI)}</small></dd></div>
+    <div data-akcja="passa" class="klik-liczba"><dt>Obecna passa ›</dt><dd>${seriaAktualna(m)}<small> ${odmiana(seriaAktualna(m), FORMY_DNI)}</small></dd></div>
     <div><dt>Najdłuższa seria</dt><dd>${najdluzszaSeria(m)}<small> ${odmiana(najdluzszaSeria(m), FORMY_DNI)}</small></dd></div>
   </dl>
   <section class="sekcja"><h2>Strony dziennie</h2><p class="cichy">Ostatnie 30 dni. Przerywana linia to dzienny cel, pełne słupki to dni z celem. Kliknij dzień, żeby zobaczyć szczegóły.</p>${wykresDni(m, cel)}</section>
@@ -787,7 +796,16 @@ function htmlKsiazki(k) {
       ${k.bazowa ? `<button type="button" class="btn" data-akcja="bazowa" data-id="${k.id}">Zmień termin</button>
         <button type="button" class="btn-tekst" data-akcja="zdejmij-bazowa" data-id="${k.id}">Przestań traktować jako bazową</button>`
         : `<button type="button" class="btn" data-akcja="bazowa" data-id="${k.id}">Ustaw jako bazową</button>`}
+      <button type="button" class="btn-tekst" data-akcja="na-pozniej" data-id="${k.id}">Odłóż na później</button>
       <button type="button" class="btn-tekst" data-akcja="porzuc" data-id="${k.id}">Porzuć</button>`;
+  } else if (k.status === 'pozniej') {
+    akcje = `<button type="button" class="btn btn-glowny" data-akcja="${k.strona ? 'wznow' : 'zacznij'}" data-id="${k.id}">${k.strona ? `Wróć do czytania (s. ${k.strona})` : 'Zacznij czytać'}</button>
+      <button type="button" class="btn" data-akcja="do-kolejki" data-id="${k.id}">Do kolejki</button>
+      <button type="button" class="btn-tekst" data-akcja="do-kolejki" data-id="${k.id}" data-poczatek="1">Na początek kolejki</button>`;
+  } else if (k.status === 'zyczenia') {
+    akcje = `<button type="button" class="btn btn-glowny" data-akcja="mam-ja" data-id="${k.id}">${I.check}Mam ją: do przeczytania</button>
+      <button type="button" class="btn" data-akcja="zacznij" data-id="${k.id}">Zacznij czytać</button>
+      <button type="button" class="btn-tekst" data-akcja="na-pozniej" data-id="${k.id}">Na później</button>`;
   } else if (k.status === 'doPrzeczytania') {
     akcje = `<button type="button" class="btn btn-glowny" data-akcja="zacznij" data-id="${k.id}">Zacznij czytać</button>
       <button type="button" class="btn" data-akcja="bazowa" data-id="${k.id}">Zacznij jako bazową</button>
@@ -795,7 +813,9 @@ function htmlKsiazki(k) {
         <button type="button" class="btn-ikona" data-akcja="kolejka" data-id="${k.id}" data-kierunek="-1" aria-label="Wyżej w kolejce"${nr <= 0 ? ' disabled' : ''}>${I.gora}</button>
         <button type="button" class="btn-ikona" data-akcja="kolejka" data-id="${k.id}" data-kierunek="1" aria-label="Niżej w kolejce"${nr >= lista.length - 1 ? ' disabled' : ''}>${I.dol}</button>
         ${nr > 0 ? `<button type="button" class="btn-tekst" data-akcja="na-poczatek" data-id="${k.id}">Na początek</button>` : ''}
-      </span>`;
+      </span>
+      <button type="button" class="btn-tekst" data-akcja="na-pozniej" data-id="${k.id}">Na później</button>
+      <button type="button" class="btn-tekst" data-akcja="zyczenia" data-id="${k.id}">Na listę życzeń</button>`;
   } else if (k.status === 'przeczytana') {
     akcje = `<button type="button" class="btn" data-akcja="ponownie" data-id="${k.id}">Przeczytaj ponownie</button>`;
   } else {
@@ -822,7 +842,8 @@ function htmlKsiazki(k) {
     ].filter(Boolean).join(', ').replace(/^./, c => c.toUpperCase()) || 'Zapisuj postęp, a pokażę, kiedy skończysz.'}</p></div>` : ''}
   ${k.status === 'przeczytana' ? `<div class="kd-ocena"><p>Twoja ocena</p>${gwiazdki(k)}</div>` : ''}
   <div class="przyciski kd-akcje">${akcje}</div>
-  ${k.status === 'czytam' || k.status === 'doPrzeczytania' ? `<p class="kd-plan">${I.kalendarz}${k.planMiesiac
+  ${htmlZyczenia(k)}
+  ${['czytam', 'doPrzeczytania', 'pozniej'].includes(k.status) ? `<p class="kd-plan">${I.kalendarz}${k.planMiesiac
     ? `<span>W planie na <button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${k.planMiesiac}">${nazwaMiesiaca(k.planMiesiac)}</button></span><button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zmień</button>`
     : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}
     ${planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
@@ -902,7 +923,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       <label>Tagi<input name="tagi" value="${esc(k.tagi.join(', '))}" placeholder="np. historia, reportaż" autocomplete="off"></label>
       <p class="podpowiedz">Oddziel przecinkami.</p>
       ${edytowana ? '' : `<fieldset class="segment"><legend>Gdzie odłożyć</legend>
-        ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}</fieldset>
+        ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}${radio('gdzie', 'zyczenia', 'Lista życzeń', jako === 'zyczenia')}${radio('gdzie', 'pozniej', 'Na później', jako === 'pozniej')}</fieldset>
         <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>`}
       <p class="blad" hidden></p>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button>
@@ -1031,6 +1052,8 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     let zmienione = [nowa];
     const gdzie = f.elements.gdzie.value;
     if (gdzie === 'czytam') zacznijCzytac(nowa);
+    if (gdzie === 'zyczenia') naListeZyczen(nowa);
+    if (gdzie === 'pozniej') odlozNaPozniej(nowa);
     if (gdzie === 'bazowa') {
       const mies = Math.max(0.5, parseFloat(String(el('miesiace').value).replace(',', '.')) || 2);
       zmienione = ustawBazowa(nowa, dodajDni(dzisISO(), Math.round(mies * 30.44) - 1));
@@ -1709,6 +1732,7 @@ function blokOkresow(m) {
 function kalendarzMiesiaca(mc) {
   const cel = bazaDzienna(), dzis = dzisISO();
   const pierwszy = dzienTygodnia(mc.od), ileDni = dniWMiesiacu(mc.ym);
+  const okl = U.kalBezOkladek ? {} : okladkiDni(mc.od, mc.do);
   let kom = '';
   for (let i = 0; i < pierwszy; i++) kom += '<span class="kal-pusty"></span>';
   for (let d = 1; d <= ileDni; d++) {
@@ -1716,6 +1740,7 @@ function kalendarzMiesiaca(mc) {
     const p = v === 0 ? 0 : v < cel / 3 ? 1 : v < cel * 2 / 3 ? 2 : v < cel ? 3 : 4;
     const przyszly = iso > dzis;
     kom += `<button type="button" class="kal-dzien hm${p}${iso === dzis ? ' kal-dzis' : ''}${przyszly ? ' kal-przyszly' : ''}" ${przyszly ? 'disabled' : `data-akcja="dzien" data-data="${iso}"`} aria-label="${dataDluga(iso)}: ${ile(v, FORMY_STRON)}">
+      ${okl[iso] ? `<span class="kal-okl">${okl[iso].k.okladka ? `<img src="${esc(okl[iso].k.okladka)}" alt="" loading="lazy" onerror="this.remove()">` : `<span class="kal-okl-gen" style="--kolor:${PLOTNA[hash(okl[iso].k.tytul + okl[iso].k.autor) % PLOTNA.length]}">${esc((okl[iso].k.tytul.match(/[\p{L}\p{N}]/u) || ['?'])[0])}</span>`}</span>` : ''}
       <span class="kal-nr">${d}</span>${v ? `<span class="kal-v">${v}</span>` : ''}</button>`;
   }
   return `<div class="kalendarz" role="group" aria-label="Kalendarz: ${nazwaMiesiaca(mc.ym)}">
@@ -1755,7 +1780,7 @@ function arkuszMiesiaca(start = miesiacTeraz()) {
         ${mc.minuty ? `<div><dt>Czas w sesjach</dt><dd>${czasCzytania(mc.minuty / 60).replace(/ (h|min)/g, '<small> $1</small>')}</dd></div>` : ''}
         ${mc.najDzien ? `<div><dt>Najlepszy dzień</dt><dd>${mc.najDzien[1]}<small> str., ${dataKrotka(mc.najDzien[0])}</small></dd></div>` : ''}
       </dl>
-      <section class="kd-sekcja"><h3>Kalendarz</h3>${kalendarzMiesiaca(mc)}</section>`}
+      <section class="kd-sekcja"><div class="sekcja-gora"><h3>Kalendarz</h3><button type="button" class="btn-tekst" data-kal-okl>${U.kalBezOkladek ? 'Pokaż okładki' : 'Pokaż kolory'}</button></div>${kalendarzMiesiaca(mc)}</section>`}
       <section class="kd-sekcja">
         <div class="sekcja-gora"><h3>Plan na ten miesiąc</h3><button type="button" class="btn btn-maly" data-akcja="plan-miesiaca" data-ym="${ym}">${I.plus}Dodaj książki</button></div>
         ${mc.zaplanowane.length ? `<ul class="lista">${mc.zaplanowane.map(({ k, zrobiona }) => `<li class="wiersz${zrobiona ? ' plan-zrobiona' : ''}">
@@ -1782,6 +1807,7 @@ function arkuszMiesiaca(start = miesiacTeraz()) {
     const n = e.target.closest('[data-mies]');
     if (n) { ym = przesunMiesiac(ym, +n.dataset.mies); a.rysuj(); a.el.scrollTop = 0; return; }
     if (e.target.closest('[data-mies-teraz]')) { ym = miesiacTeraz(); a.rysuj(); return; }
+    if (e.target.closest('[data-kal-okl]')) { U.kalBezOkladek = !U.kalBezOkladek; a.rysuj(); return; }
     const o = e.target.closest('[data-odplanuj]');
     if (o) {
       const k = znajdz(o.dataset.odplanuj);
@@ -2134,8 +2160,10 @@ async function udostepnijPolke(dane, nazwa) {
   } catch (e) { console.warn(e); toast('Nie udało się utworzyć obrazka.', { typ: 'blad' }); }
 }
 
-/* ================= plan tygodnia (2.6) ================= */
+/* ================= plan tygodnia: zaawansowany (2.7) ================= */
 const zakresTyg = pn => `${dataKrotka(pn)} – ${dataKrotka(dodajDni(pn, 6))}`;
+const czasTekst = min => min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`;
+const celWpisu = e => [e.strony ? `${e.strony} str.` : '', e.minuty ? czasTekst(e.minuty) : ''].filter(Boolean).join(' / ');
 
 function arkuszTygodnia(start = poczatekTygodnia()) {
   let pn = start;
@@ -2143,59 +2171,97 @@ function arkuszTygodnia(start = poczatekTygodnia()) {
     tytul: 'Plan tygodnia', klasa: 'arkusz-tydzien', odswiezalny: true,
     render: () => {
       const dzis = dzisISO(), teraz = poczatekTygodnia();
-      const wpisy = planTygodnia(pn).map(e => ({ ...e, ...stanWpisu(e, pn) }));
+      const wpisy = planTygodniaPelny(pn);
       const m = mapaDni(), t = postepTygodnia(m, pn);
       const naTydzien = wpisy.filter(e => !e.dzien);
-      const zaplStron = wpisy.filter(e => e.dzien).reduce((s, e) => s + e.strony, 0);
+      const dzienne = wpisy.filter(e => e.dzien);
+      const zaplStron = dzienne.reduce((s, e) => s + (e.strony || stronZMinut(e.minuty || 0)), 0);
       const dni = Array.from({ length: 7 }, (_, i) => dodajDni(pn, i));
+      const pojemnosc = dni.reduce((s, d) => s + czasDnia(d), 0);
+      const zalegle = dzienne.filter(e => e.dzien < dzis && !e.zrobione && !e.staly).length;
+      const rozlozone = new Set(dzienne.filter(e => !e.staly).map(e => e.id));
       return `<div class="mies-nawigacja">
         <button type="button" class="btn-ikona" data-tyg="-1" aria-label="Poprzedni tydzień">${I.wstecz}</button>
         <h3 class="mies-tytul tyg-tytul">${zakresTyg(pn)}${pn === teraz ? '<small>ten tydzień</small>' : ''}</h3>
         <button type="button" class="btn-ikona" data-tyg="1" aria-label="Następny tydzień">${I.dalej}</button>
       </div>
       ${pn !== teraz ? `<p class="mies-wroc"><button type="button" class="btn-tekst" data-tyg-teraz>Wróć do tego tygodnia</button></p>` : ''}
-      <div class="tyg-podsumowanie">
-        <span><strong>${liczba(t.strony)}</strong> z ${liczba(t.cel.strony)} str. przeczytane</span>
-        <span>${zaplStron ? `zaplanowane ${liczba(zaplStron)} str.` : 'nic nie rozplanowane'}</span>
-      </div>
+      <dl class="tyg-liczby">
+        <div><dt>Przeczytane</dt><dd>${liczba(t.strony)}<small> / ${liczba(t.cel.strony)} str.</small></dd></div>
+        <div><dt>Zaplanowane</dt><dd>${liczba(zaplStron)}<small> str.</small></dd></div>
+        <div><dt>Twój czas</dt><dd>${czasTekst(pojemnosc)}<small> ≈ ${liczba(stronZMinut(pojemnosc))} str.</small></dd></div>
+      </dl>
+      ${zaplStron > stronZMinut(pojemnosc) * 1.1 && pojemnosc ? `<p class="zle tyg-ostrzezenie">Plan ma więcej stron, niż zdążysz przeczytać w swoim czasie (${czasTekst(minutZeStron(zaplStron))} przy ${Math.round(tempoPlanu())} str./h). <button type="button" class="btn-tekst" data-akcja="czas-czytania">Zmień swój czas</button></p>` : ''}
+      ${zalegle && pn === teraz ? `<div class="baner tyg-zalegle"><p>Masz ${ile(zalegle, ['niezrobiony wpis', 'niezrobione wpisy', 'niezrobionych wpisów'])} z poprzednich dni.</p><button type="button" class="btn btn-maly" data-zalegle>Przenieś na dziś</button></div>` : ''}
+
       <section class="kd-sekcja">
-        <div class="sekcja-gora"><h3>Do przeczytania w tym tygodniu</h3><button type="button" class="btn btn-maly" data-akcja="tydzien-dodaj" data-pn="${pn}">${I.plus}Wybierz</button></div>
+        <div class="sekcja-gora"><h3>Książki na ten tydzień</h3><button type="button" class="btn btn-maly" data-akcja="tydzien-dodaj" data-pn="${pn}">${I.plus}Wybierz</button></div>
         ${naTydzien.length ? `<ul class="lista">${naTydzien.map(e => `<li class="wiersz${e.zrobione ? ' plan-zrobiona' : ''}">
           <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${e.k.id}">${okladka(e.k, 's')}
             <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(e.k.tytul)}</span>
-            <span class="wiersz-autor">${e.zrobione ? 'zrobione' : `${e.przecz ? `w tym tygodniu +${e.przecz} str., ` : ''}zostało ${ile(zostaloStron(e.k), FORMY_STRON)}`}</span></span></button>
+            <span class="wiersz-autor">${e.zrobione ? 'zrobione' : `${e.przecz ? `+${e.przecz} str. w tym tygodniu, ` : ''}zostało ${ile(zostaloStron(e.k), FORMY_STRON)}${rozlozone.has(e.id) ? '' : ', jeszcze nie rozłożona'}`}</span></span></button>
           ${e.zrobione ? `<span class="plan-check">${I.check}</span>` : `<button type="button" class="btn-ikona" data-usun-wpis="${e.i}" aria-label="Usuń z planu">${I.zamknij}</button>`}
         </li>`).join('')}</ul>
-        ${pn >= teraz ? `<div class="przyciski"><button type="button" class="btn btn-glowny btn-maly" data-rozloz>${I.kalendarz}Rozłóż strony na dni</button></div>
-          <p class="podpowiedz">Podzielę pozostałe strony tych książek równo na dni do niedzieli${pn === teraz ? ', od dziś' : ''}.</p>` : ''}`
-        : '<p class="cichy">Wybierz z listy do przeczytania (albo z czytanych) to, co chcesz przeczytać w tym tygodniu.</p>'}
+        ${pn >= teraz ? `<div class="przyciski"><button type="button" class="btn btn-glowny btn-maly" data-akcja="rozloz" data-pn="${pn}">${I.kalendarz}Rozłóż na dni…</button></div>` : ''}`
+        : '<p class="cichy">Wybierz książki z listy do przeczytania (albo czytane), a potem rozłóż je na dni według swojego czasu.</p>'}
       </section>
-      <section class="kd-sekcja"><h3>Dzień po dniu</h3>
+
+      <section class="kd-sekcja"><div class="sekcja-gora"><h3>Dzień po dniu</h3><button type="button" class="btn-tekst" data-akcja="czas-czytania">${I.zegar}Mój czas</button></div>
         <ol class="tyg-dni">${dni.map((d, i) => {
-          const dz = wpisy.filter(e => e.dzien === d), przecz = m.get(d) || 0;
-          const cel = dz.reduce((s, e) => s + e.strony, 0);
-          return `<li class="tyg-dzien${d === dzis ? ' dzis' : ''}${d < dzis ? ' minal' : ''}">
+          const dz = dzienne.filter(e => e.dzien === d), przecz = m.get(d) || 0;
+          const cel = dz.reduce((s, e) => s + (e.strony || stronZMinut(e.minuty || 0)), 0);
+          const poj = stronZMinut(czasDnia(d));
+          const zapelnienie = poj ? Math.min(100, cel / poj * 100) : cel ? 100 : 0;
+          return `<li class="tyg-dzien${d === dzis ? ' dzis' : ''}${d < dzis ? ' minal' : ''}${!czasDnia(d) ? ' wolny' : ''}" data-dzien="${d}">
             <div class="tyg-dzien-gora"><button type="button" class="tyg-dzien-nazwa" data-akcja="dzien" data-data="${d}"><strong>${DNI_PELNE[i]}</strong> <span>${dataKrotka(d)}</span></button>
               <span class="tyg-dzien-liczby">${przecz ? `<span class="${cel && przecz >= cel ? 'ok' : ''}">${przecz}${cel ? `/${cel}` : ''} str.</span>` : cel ? `${cel} str.` : ''}</span>
               <button type="button" class="btn-ikona maly" data-akcja="tydzien-dodaj" data-pn="${pn}" data-dzien="${d}" aria-label="Zaplanuj na ${DNI_PELNE[i]}">${I.plus}</button></div>
+            <div class="tyg-pojemnosc" title="Zaplanowane względem twojego czasu"><span class="${zapelnienie >= 100 && cel > poj * 1.1 ? 'przeciazony' : ''}" style="width:${zapelnienie.toFixed(0)}%"></span></div>
+            <p class="tyg-czas">${czasDnia(d) ? `${czasTekst(czasDnia(d))} ≈ ${poj} str.` : 'dzień bez czytania'}</p>
             ${dz.length ? `<ul class="tyg-wpisy">${dz.map(e => `<li class="${e.zrobione ? 'zrobione' : e.minal ? 'pominiete' : ''}">
               <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
-              <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${d === dzis && e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${esc(e.k.tytul)}</button>
-              <span class="tyg-str">${e.strony ? `${e.przecz ? `${e.przecz}/` : ''}${e.strony} str.` : e.przecz ? `+${e.przecz}` : ''}</span>
-              <button type="button" class="btn-ikona maly" data-usun-wpis="${e.i}" aria-label="Usuń">${I.zamknij}</button></li>`).join('')}</ul>` : ''}
+              <span class="tyg-mini-okl">${okladka(e.k, 's')}</span>
+              <button type="button" class="tyg-wpis" data-wpis-planu="${e.staly ? `s:${e.staly}` : e.i}" data-dzien="${d}">
+                <span class="tyg-ksiazka">${e.staly ? `<span class="tyg-staly" title="Stały plan">↻</span>` : ''}${esc(e.k.tytul)}</span>
+                <span class="tyg-str">${e.przecz && e.strony ? `${e.przecz}/` : ''}${celWpisu(e) || (e.przecz ? `+${e.przecz} str.` : 'dowolnie')}</span></button>
+              ${d >= dzis && !e.zrobione ? `<button type="button" class="btn-ikona maly" data-jutro="${e.staly ? `s:${e.staly}` : e.i}" data-dzien="${d}" aria-label="Przenieś na następny dzień" title="Na następny dzień">${I.dalej}</button>` : ''}
+            </li>`).join('')}</ul>` : ''}
           </li>`;
         }).join('')}</ol>
       </section>
+
+      <section class="kd-sekcja"><div class="sekcja-gora"><h3>Stałe plany</h3><button type="button" class="btn btn-maly" data-akcja="staly-plan">${I.plus}Dodaj</button></div>
+        ${Z.ustawienia.stalePlany.length ? `<ul class="stale-lista">${Z.ustawienia.stalePlany.map(r => { const k = znajdz(r.id); return k ? `<li><button type="button" class="stale-wiersz" data-akcja="staly-plan" data-rid="${r.rid}">
+          <span class="tyg-staly">↻</span><span class="stale-tytul">${esc(k.tytul)}</span>
+          <span class="stale-opis">${r.dni.length === 7 ? 'codziennie' : r.dni.map(x => DNI_KR[x]).join(', ')}${celWpisu(r) ? ` · ${celWpisu(r)}` : ''}</span></button></li>` : ''; }).join('')}</ul>`
+        : '<p class="cichy">Powtarzaj plan co tydzień, np. „Lalka: od poniedziałku do piątku po 30 stron” albo „Audiobook: weekendy po 45 minut”.</p>'}
+      </section>
       <div class="przyciski przyciski-srodek">
-        ${wpisy.some(e => e.dzien && e.dzien >= dzis) ? `<button type="button" class="btn" data-ics-tydzien>${I.dzwonek}Dodaj do kalendarza telefonu</button>` : ''}
-        <button type="button" class="btn-tekst" data-akcja="idz" data-widok="ustawienia" data-zamknij>Ustaw przypomnienia</button>
+        ${dzienne.some(e => e.dzien >= dzis) ? `<button type="button" class="btn" data-ics-tydzien>${I.dzwonek}Dodaj do kalendarza telefonu</button>` : ''}
+        <button type="button" class="btn-tekst" data-do-przypomnien>Ustaw przypomnienia</button>
       </div>`;
     }
   });
+  const otworzWpis = (klucz, dzien) => {
+    if (String(klucz).startsWith('s:')) arkuszWpisuPlanu(pn, { staly: klucz.slice(2), dzien });
+    else arkuszWpisuPlanu(pn, { i: +klucz });
+  };
   a.tresc.addEventListener('click', async e => {
     const n = e.target.closest('[data-tyg]');
     if (n) { pn = dodajDni(pn, 7 * +n.dataset.tyg); a.rysuj(); a.el.scrollTop = 0; return; }
     if (e.target.closest('[data-tyg-teraz]')) { pn = poczatekTygodnia(); a.rysuj(); return; }
+    const w = e.target.closest('[data-wpis-planu]');
+    if (w) { otworzWpis(w.dataset.wpisPlanu, w.dataset.dzien); return; }
+    const j = e.target.closest('[data-jutro]');
+    if (j) {
+      const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni));
+      const jutro = dodajDni(j.dataset.dzien, 1);
+      if (j.dataset.jutro.startsWith('s:')) przeniesStaly(pn, j.dataset.jutro.slice(2), j.dataset.dzien, jutro);
+      else przeniesWpis(pn, +j.dataset.jutro, jutro);
+      utrwalUstawienia(); odswiez();
+      toast(`Przeniesiono na ${DNI_PELNE[dzienTygodnia(jutro)]}.`, { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni = przed; utrwalUstawienia(); odswiez(); } });
+      return;
+    }
     const u = e.target.closest('[data-usun-wpis]');
     if (u) {
       const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni[pn] || []));
@@ -2204,12 +2270,17 @@ function arkuszTygodnia(start = poczatekTygodnia()) {
       toast('Usunięto z planu.', { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni[pn] = przed; utrwalUstawienia(); odswiez(); } });
       return;
     }
-    if (e.target.closest('[data-rozloz]')) {
-      const ids = [...new Set(planTygodnia(pn).filter(x => !x.dzien && !stanWpisu(x, pn).zrobione).map(x => x.id))];
-      if (!ids.length) { toast('Wszystko z planu jest już zrobione.'); return; }
-      const dni = rozlozPlan(pn, ids);
+    if (e.target.closest('[data-zalegle]')) {
+      const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni));
+      const ileP = przeniesNiezrobione(pn);
       utrwalUstawienia(); odswiez();
-      toast(dni ? `Rozłożono na ${ile(dni, FORMY_DNI)}.` : 'Ten tydzień już minął.');
+      toast(`Przeniesiono na dziś: ${ileP}.`, { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni = przed; utrwalUstawienia(); odswiez(); } });
+      return;
+    }
+    if (e.target.closest('[data-do-przypomnien]')) {
+      while (otwarte.length) otwarte[otwarte.length - 1].zamknij();
+      idz('ustawienia');
+      setTimeout(() => { const c = $('#f-przypomnienia'); if (c) window.scrollTo({ top: c.getBoundingClientRect().top + window.scrollY - 70 }); }, 400);
       return;
     }
     if (e.target.closest('[data-ics-tydzien]')) {
@@ -2219,17 +2290,182 @@ function arkuszTygodnia(start = poczatekTygodnia()) {
   });
 }
 
+/** Stały plan na jeden dzień: ukryj go tego dnia i dodaj zwykły wpis na inny dzień. */
+function przeniesStaly(pn, rid, zDnia, naDzien) {
+  const r = Z.ustawienia.stalePlany.find(x => x.rid === rid);
+  if (!r) return;
+  const lista = planTygodnia(pn);
+  lista.push({ id: r.id, dzien: zDnia, strony: 0, minuty: 0, ukryty: rid });
+  zapiszPlanTygodnia(pn, lista);
+  if (naDzien) {
+    const pn2 = poczatekTygodnia(naDzien), l2 = planTygodnia(pn2);
+    l2.push({ id: r.id, dzien: naDzien, strony: r.strony, minuty: r.minuty });
+    zapiszPlanTygodnia(pn2, l2);
+  }
+}
+
+/* ---------- arkusz: jeden wpis planu (zmień cel, przenieś, kopiuj, usuń) ---------- */
+function arkuszWpisuPlanu(pn, { i = null, staly = null, dzien = null }) {
+  const r = staly ? Z.ustawienia.stalePlany.find(x => x.rid === staly) : null;
+  const e = staly ? (r && { id: r.id, dzien, strony: r.strony, minuty: r.minuty }) : planTygodnia(pn).find(x => x.i === i);
+  const k = e && znajdz(e.id);
+  if (!k) return;
+  const st = stanWpisuPelny({ ...e, k }, pn);
+  const a = arkusz({
+    tytul: 'Wpis w planie', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <div class="postep-ksiazka">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span>
+        <span class="wiersz-autor">${DNI_PELNE[dzienTygodnia(e.dzien)]}, ${dataKrotka(e.dzien)}${st.przecz ? ` · przeczytane ${st.przecz} str.` : ''}${staly ? ' · stały plan' : ''}</span></span></div>
+      ${staly ? `<p class="podpowiedz">To wpis ze stałego planu. Zmiany tutaj dotyczą tylko tego dnia, a cały plan zmienisz w „Stałe plany”.</p>` : ''}
+      <div class="f-rzad"><label>Stron<input name="strony" type="number" inputmode="numeric" min="0" value="${e.strony || ''}" placeholder="dowolnie"></label>
+        <label>albo do strony<input name="doStrony" type="number" inputmode="numeric" min="1" max="${k.strony}" placeholder="${k.status === 'czytam' ? k.strona + (e.strony || 0) : ''}"></label></div>
+      <label>Minut czytania (opcjonalnie)<input name="minuty" type="number" inputmode="numeric" min="0" value="${e.minuty || ''}" placeholder="np. 30"></label>
+      <p class="podpowiedz">Wpis jest zrobiony, gdy przeczytasz tyle stron albo spędzisz tyle minut w sesji z tą książką.</p>
+      <label>Przenieś na dzień<input name="data" type="date" value="${e.dzien}"></label>
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-kopiuj-reszta>Powtórz do końca tygodnia</button>
+        ${!staly ? `<button type="button" class="btn btn-maly" data-zrob-staly>Zrób z tego stały plan</button>` : ''}</div>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn btn-ryzyko" data-usun>${staly ? 'Pomiń ten dzień' : 'Usuń'}</button>
+        <button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc), v = n => f.elements.namedItem(n).value;
+  const zastosuj = (fn, komunikat) => {
+    const przed = JSON.parse(JSON.stringify({ p: Z.ustawienia.planyTygodni, s: Z.ustawienia.stalePlany }));
+    fn();
+    utrwalUstawienia(); a.zamknij(); odswiez();
+    toast(komunikat, { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni = przed.p; Z.ustawienia.stalePlany = przed.s; utrwalUstawienia(); odswiez(); } });
+  };
+  const nowyCel = () => {
+    let strony = Math.max(0, Math.round(+v('strony')) || 0);
+    const doS = Math.round(+v('doStrony')) || 0;
+    if (doS > 0) strony = Math.max(1, doS - (k.status === 'czytam' ? k.strona : 0));
+    return { strony, minuty: Math.max(0, Math.round(+v('minuty')) || 0) };
+  };
+  f.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const cel = nowyCel(), data = poprawnaData(v('data')) ? v('data') : e.dzien;
+    zastosuj(() => {
+      if (staly) { przeniesStaly(pn, staly, e.dzien, null); const pn2 = poczatekTygodnia(data), l = planTygodnia(pn2); l.push({ id: e.id, dzien: data, ...cel }); zapiszPlanTygodnia(pn2, l); }
+      else {
+        const lista = planTygodnia(pn).filter(x => x.i !== i);
+        zapiszPlanTygodnia(pn, lista);
+        const pn2 = poczatekTygodnia(data), l = planTygodnia(pn2);
+        l.push({ id: e.id, dzien: data, ...cel });
+        zapiszPlanTygodnia(pn2, l);
+      }
+    }, data !== e.dzien ? `Przeniesiono na ${DNI_PELNE[dzienTygodnia(data)]}, ${dataKrotka(data)}.` : 'Zapisano wpis.');
+  });
+  $('[data-usun]', f).addEventListener('click', () => zastosuj(() => {
+    if (staly) przeniesStaly(pn, staly, e.dzien, null); else usunZPlanu(pn, i);
+  }, staly ? 'Pominięto ten dzień.' : 'Usunięto wpis.'));
+  $('[data-kopiuj-reszta]', f).addEventListener('click', () => {
+    const cel = nowyCel(), nd = dodajDni(pn, 6);
+    zastosuj(() => {
+      const l = planTygodnia(pn);
+      for (let d = dodajDni(e.dzien, 1); d <= nd; d = dodajDni(d, 1)) if (czasDnia(d) > 0 && !l.some(x => x.id === e.id && x.dzien === d && !x.ukryty)) l.push({ id: e.id, dzien: d, ...cel });
+      zapiszPlanTygodnia(pn, l);
+    }, 'Powtórzono do niedzieli (bez dni bez czytania).');
+  });
+  $('[data-zrob-staly]', f)?.addEventListener('click', () => { a.zamknij(); arkuszStalegoPlanu(null, { id: e.id, dzien: e.dzien, ...nowyCel() }); });
+}
+
+/* ---------- arkusz: stały plan ---------- */
+function arkuszStalegoPlanu(rid = null, wstepne = {}) {
+  const r = rid ? Z.ustawienia.stalePlany.find(x => x.rid === rid) : null;
+  const dane = r || { id: wstepne.id || '', dni: wstepne.dzien ? [dzienTygodnia(wstepne.dzien)] : [0, 1, 2, 3, 4], strony: wstepne.strony || 0, minuty: wstepne.minuty || 0 };
+  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()];
+  const a = arkusz({
+    tytul: r ? 'Stały plan' : 'Nowy stały plan', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <label>Książka<select name="id" required>${kandydaci.map(k => `<option value="${k.id}"${k.id === dane.id ? ' selected' : ''}>${esc(k.tytul)}</option>`).join('')}</select></label>
+      <fieldset class="segment segment-dni"><legend>W które dni</legend>${DNI_KR.map((d, i) => `<label class="seg"><input type="checkbox" name="dni" value="${i}"${dane.dni.includes(i) ? ' checked' : ''}><span>${d}</span></label>`).join('')}</fieldset>
+      <div class="f-rzad"><label>Stron dziennie<input name="strony" type="number" inputmode="numeric" min="0" value="${dane.strony || ''}" placeholder="dowolnie"></label>
+        <label>albo minut<input name="minuty" type="number" inputmode="numeric" min="0" value="${dane.minuty || ''}" placeholder="np. 30"></label></div>
+      <p class="podpowiedz">Plan powtarza się co tydzień, aż skończysz książkę. Pojedynczy dzień możesz pominąć albo przenieść w planie tygodnia.</p>
+      <div class="przyciski przyciski-koniec">${r ? '<button type="button" class="btn btn-ryzyko" data-usun-staly>Usuń plan</button>' : ''}
+        <button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('submit', ev => {
+    ev.preventDefault();
+    const nowy = { rid: r ? r.rid : noweId(), id: f.elements.id.value, dni: $$('[name="dni"]:checked', f).map(x => +x.value), strony: Math.max(0, Math.round(+f.elements.strony.value) || 0), minuty: Math.max(0, Math.round(+f.elements.minuty.value) || 0) };
+    if (!nowy.dni.length) { toast('Wybierz co najmniej jeden dzień.', { typ: 'blad' }); return; }
+    Z.ustawienia.stalePlany = [...Z.ustawienia.stalePlany.filter(x => x.rid !== nowy.rid), nowy];
+    utrwalUstawienia(); a.zamknij(); odswiez();
+    toast('Zapisano stały plan.');
+  });
+  $('[data-usun-staly]', f)?.addEventListener('click', () => {
+    const przed = [...Z.ustawienia.stalePlany];
+    Z.ustawienia.stalePlany = Z.ustawienia.stalePlany.filter(x => x.rid !== rid);
+    utrwalUstawienia(); a.zamknij(); odswiez();
+    toast('Usunięto stały plan.', { akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.stalePlany = przed; utrwalUstawienia(); odswiez(); } });
+  });
+}
+
+/* ---------- arkusz: mój czas na czytanie ---------- */
+function arkuszCzasu() {
+  const c = Z.ustawienia.czasDni;
+  const a = arkusz({
+    tytul: 'Twój czas na czytanie', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <p class="cichy">Ile minut możesz zwykle czytać w każdy dzień? Plan rozłoży strony według tego czasu. 0 = dzień bez czytania.</p>
+      <ul class="czas-dni">${DNI_PELNE.map((d, i) => `<li><span>${d}</span><input name="d${i}" type="number" inputmode="numeric" min="0" max="600" step="5" value="${c[i]}"><span class="cichy">min</span></li>`).join('')}</ul>
+      <div class="szybkie">${[[15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 h']].map(([v, n]) => `<button type="button" class="chip" data-wszystkie="${v}">wszystkie ${n}</button>`).join('')}</div>
+      <p class="podpowiedz">Twoje tempo: ${Math.round(tempoPlanu())} stron na godzinę${tempoOgolne() ? ' (z sesji czytania)' : ' (zakładane, zmieni się po kilku sesjach ze stoperem)'}.</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('click', e => { const b = e.target.closest('[data-wszystkie]'); if (b) for (let i = 0; i < 7; i++) f.elements[`d${i}`].value = b.dataset.wszystkie; });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    Z.ustawienia.czasDni = Array.from({ length: 7 }, (_, i) => ogranicz(Math.round(+f.elements[`d${i}`].value) || 0, 0, 600));
+    utrwalUstawienia(); a.zamknij(); odswiez();
+    toast('Zapisano twój czas na czytanie.');
+  });
+}
+
+/* ---------- arkusz: rozłóż na dni ---------- */
+function arkuszRozkladu(pn) {
+  const dzis = dzisISO(), nd = dodajDni(pn, 6);
+  const ksiazki = [...new Map(planTygodnia(pn).filter(e => !e.dzien && !e.ukryty).map(e => [e.id, znajdz(e.id)])).values()].filter(k => k && zostaloStron(k) > 0);
+  if (!ksiazki.length) { toast('Najpierw wybierz książki na ten tydzień.'); return; }
+  const odDomyslnie = pn > dzis ? pn : dzis;
+  const a = arkusz({
+    tytul: 'Rozłóż na dni', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <p class="cichy">Rozłożę ${ile(ksiazki.reduce((s, k) => s + zostaloStron(k), 0), FORMY_STRON)} (${ksiazki.map(k => `„${esc(k.tytul)}”`).join(', ')}) na dni według twojego czasu na czytanie.</p>
+      <fieldset class="segment"><legend>Jak czytać</legend>${radio('tryb', 'kolejno', 'Jedna po drugiej', Z.ustawienia.trybRozkladu === 'kolejno')}${radio('tryb', 'rownolegle', 'Wszystkie naraz, po trochu', Z.ustawienia.trybRozkladu === 'rownolegle')}</fieldset>
+      <label>Od dnia<input name="od" type="date" min="${pn}" max="${nd}" value="${odDomyslnie}"></label>
+      <p class="podpowiedz">Dni z czasem 0 minut zostaną pominięte. Wcześniejszy rozkład tych książek od wybranego dnia zostanie zastąpiony.</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-akcja="czas-czytania">${I.zegar}Mój czas</button><button type="submit" class="btn btn-glowny">Rozłóż</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const tryb = f.elements.tryb.value, od = poprawnaData(f.elements.od.value) ? f.elements.od.value : odDomyslnie;
+    const przed = JSON.parse(JSON.stringify(Z.ustawienia.planyTygodni));
+    Z.ustawienia.trybRozkladu = tryb;
+    const w = rozlozPlan(pn, ksiazki.map(k => k.id), od, tryb);
+    utrwalUstawienia(); a.zamknij(); odswiez();
+    toast(w.za_duzo ? `Rozłożono, ale to ok. ${czasTekst(w.potrzebaMin)} czytania przy twoich ${czasTekst(w.maszMin)}. Plan jest ambitny.` : `Rozłożono ${ile(w.strony, FORMY_STRON)} na ${ile(w.dni, FORMY_DNI)}.`,
+      { czas: 6000, akcja: 'Cofnij', onAkcja: () => { Z.ustawienia.planyTygodni = przed; utrwalUstawienia(); odswiez(); } });
+  });
+}
+
 function arkuszDodajDoTygodnia(pn, dzien = null) {
-  const kandydaci = [...czytane(), ...kolejka()];
-  const w = new Set(planTygodnia(pn).filter(e => (e.dzien || null) === dzien).map(e => e.id));
+  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()];
+  const w = new Set(planTygodnia(pn).filter(e => (e.dzien || null) === dzien && !e.ukryty).map(e => e.id));
   const a = arkusz({
     tytul: dzien ? `Plan: ${DNI_PELNE[dzienTygodnia(dzien)]}, ${dataKrotka(dzien)}` : 'Co czytasz w tym tygodniu?', klasa: 'arkusz-maly',
-    render: () => kandydaci.length ? `<p class="cichy">${dzien ? 'Zaznacz książki na ten dzień i wpisz, ile stron chcesz przeczytać.' : 'Zaznacz książki, które chcesz przeczytać albo ruszyć w tym tygodniu.'}</p>
+    render: () => kandydaci.length ? `<p class="cichy">${dzien ? `Zaznacz książki na ten dzień i wpisz, ile stron. Twój czas tego dnia: ${czasTekst(czasDnia(dzien))} ≈ ${stronZMinut(czasDnia(dzien))} str.` : 'Zaznacz książki, które chcesz przeczytać albo ruszyć w tym tygodniu.'}</p>
       <div class="przyciski"><button type="button" class="btn btn-maly" data-losuj-tydz>${I.kostka}Wylosuj coś z kolejki</button></div>
       <ul class="plan-lista">${kandydaci.map(k => `<li><label class="plan-wybor${w.has(k.id) ? ' wybrana' : ''}"><input type="checkbox" data-wybor="${k.id}"${w.has(k.id) ? ' checked' : ''}>
         ${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span>
-        <span class="wiersz-autor">${k.status === 'czytam' ? `czytasz, zostało ${ile(zostaloStron(k), FORMY_STRON)}` : ile(k.strony, FORMY_STRON)}</span></span>
-        ${dzien ? `<input type="number" class="plan-strony" inputmode="numeric" min="0" data-strony="${k.id}" value="${(planTygodnia(pn).find(e => e.id === k.id && e.dzien === dzien) || {}).strony || ''}" placeholder="str." aria-label="Stron">` : ''}</label></li>`).join('')}</ul>
+        <span class="wiersz-autor">${k.status === 'czytam' ? `czytasz, zostało ${ile(zostaloStron(k), FORMY_STRON)}` : k.status === 'pozniej' ? `na później, ${ile(zostaloStron(k), FORMY_STRON)}` : ile(k.strony, FORMY_STRON)}</span></span>
+        ${dzien ? `<input type="number" class="plan-strony" inputmode="numeric" min="0" data-strony="${k.id}" value="${(planTygodnia(pn).find(e => e.id === k.id && e.dzien === dzien && !e.ukryty) || {}).strony || ''}" placeholder="str." aria-label="Stron">` : ''}</label></li>`).join('')}</ul>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="button" class="btn btn-glowny" data-zapisz-tydz>Zapisz plan</button></div>`
       : '<p class="pusto">Dodaj książki do listy „Do przeczytania”, żeby je zaplanować.</p>'
   });
@@ -2248,37 +2484,108 @@ function arkuszDodajDoTygodnia(pn, dzien = null) {
       toast(`Wylosowano: „${k.tytul}”.`);
     }
     if (e.target.closest('[data-zapisz-tydz]')) {
-      const lista = planTygodnia(pn).filter(x => (x.dzien || null) !== dzien);
+      const lista = planTygodnia(pn).filter(x => (x.dzien || null) !== dzien || x.ukryty);
       for (const cb of $$('[data-wybor]', a.tresc)) if (cb.checked) {
         const s = dzien ? Math.max(0, Math.round(+$(`[data-strony="${cb.dataset.wybor}"]`, a.tresc).value) || 0) : 0;
-        lista.push({ id: cb.dataset.wybor, dzien, strony: s });
+        lista.push({ id: cb.dataset.wybor, dzien, strony: s, minuty: 0 });
       }
       zapiszPlanTygodnia(pn, lista);
       utrwalUstawienia();
       a.zamknij(); odswiez();
-      toast('Zapisano plan tygodnia.');
+      toast(dzien ? 'Zapisano plan dnia.' : 'Zapisano. Teraz możesz rozłożyć książki na dni.', dzien ? {} : { akcja: 'Rozłóż', onAkcja: () => arkuszRozkladu(pn) });
     }
   });
 }
 
 function blokPlanuDnia() {
   const dzis = dzisISO(), wpisy = planDnia(dzis);
-  const tydz = planTygodnia().filter(e => !e.dzien);
+  const tydz = planTygodnia().filter(e => !e.dzien && !e.ukryty);
   if (!wpisy.length && !tydz.length) {
     return `<section class="sekcja plan-dnia pusty"><div class="sekcja-gora"><h2>Plan tygodnia</h2><button type="button" class="btn btn-maly" data-akcja="tydzien">${I.kalendarz}Zaplanuj</button></div>
-      <p class="cichy">Wybierz, co chcesz przeczytać w tym tygodniu, a rozłożę strony na dni i przypomnę o nich.</p></section>`;
+      <p class="cichy">Wybierz, co chcesz przeczytać w tym tygodniu. Rozłożę to na dni według twojego czasu i przypomnę o tym.</p></section>`;
   }
   const zrobione = wpisy.filter(e => e.zrobione).length;
+  const suma = wpisy.reduce((s, e) => s + (e.strony || 0), 0);
   return `<section class="sekcja plan-dnia">
     <div class="sekcja-gora"><h2>Plan na dziś</h2><button type="button" class="btn-tekst" data-akcja="tydzien">${I.kalendarz}Cały tydzień</button></div>
     ${wpisy.length ? `<ul class="plan-dnia-lista">${wpisy.map(e => `<li class="${e.zrobione ? 'zrobione' : ''}">
       <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
-      <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${esc(e.k.tytul)}</button>
-      <span class="tyg-str">${e.strony ? `${e.przecz}/${e.strony} str.` : e.przecz ? `+${e.przecz} str.` : ''}</span>
+      <span class="tyg-mini-okl">${okladka(e.k, 's')}</span>
+      <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${e.staly ? '<span class="tyg-staly">↻</span>' : ''}${esc(e.k.tytul)}</button>
+      <span class="tyg-str">${e.strony ? `${e.przecz}/${e.strony} str.` : e.minuty ? `${e.minPrzecz || 0}/${e.minuty} min` : e.przecz ? `+${e.przecz} str.` : ''}</span>
+      ${!e.zrobione && e.k.status === 'czytam' ? `<button type="button" class="btn-ikona maly" data-akcja="sesja" data-id="${e.k.id}" aria-label="Sesja czytania">${I.zegar}</button>` : ''}
       ${!e.zrobione && e.k.status !== 'czytam' ? `<button type="button" class="btn btn-maly" data-akcja="zacznij" data-id="${e.k.id}">Zacznij</button>` : ''}</li>`).join('')}</ul>
-      <p class="cichy">${zrobione === wpisy.length ? 'Plan na dziś zrobiony.' : `Zrobione ${zrobione} z ${wpisy.length}.`}</p>`
-      : `<p class="cichy">Na dziś nic nie rozplanowane. W tym tygodniu: ${tydz.map(e => `„${esc(e.k.tytul)}”`).join(', ')}.</p>`}
+      <p class="cichy">${zrobione === wpisy.length ? 'Plan na dziś zrobiony.' : `Zrobione ${zrobione} z ${wpisy.length}${suma ? `, razem ${ile(suma, FORMY_STRON)}` : ''}.`}</p>`
+      : `<p class="cichy">Na dziś nic nie rozplanowane. W tym tygodniu: ${tydz.map(e => `„${esc(e.k.tytul)}”`).join(', ')}. <button type="button" class="btn-tekst" data-akcja="rozloz">Rozłóż na dni</button></p>`}
   </section>`;
+}
+
+/* ================= passa (2.7) ================= */
+function arkuszSerii() {
+  const a = arkusz({
+    tytul: 'Twoja passa', klasa: 'arkusz-maly arkusz-passa', odswiezalny: true,
+    render: () => {
+      const m = mapaDni(), s = seriaSzczegoly(m), u = Z.ustawienia.seria, naj = najdluzszaSeria(m);
+      const dzis = dzisISO(), start = dodajDni(poczatekTygodnia(dzis), -28);
+      const zam = new Set(s.zamrozone);
+      let siatka = '';
+      for (let i = 0; i < 35; i++) {
+        const d = dodajDni(start, i), r = rodzajDnia(d, m, u);
+        const kl = d > dzis ? 'przyszly' : r === 'czytal' ? 'czytal' : zam.has(d) ? 'zamrozony' : r === 'wolny' ? 'wolny' : d === dzis ? 'dzis-brak' : 'brak';
+        siatka += `<span class="passa-dzien ${kl}${d === dzis ? ' dzis' : ''}" title="${dataKrotka(d)}: ${m.get(d) || 0} str.">${+d.slice(8)}</span>`;
+      }
+      return `<div class="passa-gora"><span class="passa-plomien">${I.plomien}</span><p class="passa-liczba">${s.dni}</p><p>${odmiana(s.dni, FORMY_DNI)} z rzędu</p></div>
+        <p class="cichy passa-stan">${s.dzisZrobione ? 'Dzisiejszy dzień zaliczony.' : s.dzisWolny ? 'Dziś masz dzień wolny: passa się nie przerwie.' : `Dziś przeczytaj co najmniej ${ile(u.prog, FORMY_STRON_D)}, żeby passa trwała.`}
+          Rekord: ${ile(naj, FORMY_DNI)}.${u.zamrozenia ? ` Zamrożenia w tym miesiącu: zostało ${s.zamrozeniaZostalo} z ${u.zamrozenia}.` : ''}</p>
+        ${u.cel ? `<div class="cel-wiersz"><p class="cel-wiersz-gora"><span>Cel passy</span><span><strong>${Math.min(s.dni, u.cel)}</strong> z ${ile(u.cel, FORMY_DNI)}</span></p>${pasek(Math.min(100, s.dni / u.cel * 100))}</div>` : ''}
+        <div class="passa-siatka">${DNI_KR.map(d => `<span class="kal-naglowek">${d}</span>`).join('')}${siatka}</div>
+        <p class="legenda passa-legenda"><span class="passa-dzien czytal">1</span> czytanie <span class="passa-dzien wolny">1</span> dzień wolny <span class="passa-dzien zamrozony">1</span> zamrożenie <span class="passa-dzien brak">1</span> przerwa</p>
+        <form class="formularz passa-ustawienia" novalidate><h3>Zasady passy</h3>
+          <div class="f-rzad"><label>Minimum stron dziennie<input name="prog" type="number" inputmode="numeric" min="1" value="${u.prog}"></label>
+            <label>Cel passy (dni)<input name="cel" type="number" inputmode="numeric" min="0" value="${u.cel || ''}" placeholder="np. 30"></label></div>
+          <fieldset class="segment segment-dni"><legend>Dni wolne (nie przerywają passy)</legend>${DNI_KR.map((d, i) => `<label class="seg"><input type="checkbox" name="wolne" value="${i}"${u.dniWolne.includes(i) ? ' checked' : ''}><span>${d}</span></label>`).join('')}</fieldset>
+          <label>Zamrożenia na miesiąc<input name="zamrozenia" type="number" inputmode="numeric" min="0" max="10" value="${u.zamrozenia}"></label>
+          <p class="podpowiedz">Zamrożenie ratuje passę, gdy zapomnisz o jednym dniu. Zużywa się samo, do podanej liczby w każdym miesiącu.</p>
+          <div class="przyciski przyciski-koniec"><button type="submit" class="btn btn-glowny">Zapisz zasady</button></div></form>`;
+    }
+  });
+  a.tresc.addEventListener('submit', e => {
+    e.preventDefault();
+    const f = e.target;
+    Z.ustawienia = normalizujUstawienia({ ...Z.ustawienia, seria: { prog: f.elements.prog.value, cel: f.elements.cel.value, zamrozenia: f.elements.zamrozenia.value, dniWolne: $$('[name="wolne"]:checked', f).map(x => +x.value) } });
+    utrwalUstawienia(); odswiez();
+    toast('Zapisano zasady passy.');
+  });
+}
+
+/* ================= lista życzeń i na później (2.7) ================= */
+function htmlZyczenia(k) {
+  if (k.status !== 'zyczenia') return '';
+  const q = encodeURIComponent(`${k.tytul} ${k.autor} ${k.isbn || ''} cena`.trim());
+  return `<section class="kd-sekcja kd-zyczenia"><h3>Lista życzeń</h3>
+    <div class="f-rzad"><label>Cena (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cena" data-id="${k.id}" value="${k.cena ?? ''}" placeholder="np. 39,90"></label>
+      <label>Priorytet<select data-pole-zycz="priorytet" data-id="${k.id}">${[[0, 'zwykły'], [1, 'chcę'], [2, 'bardzo chcę'], [3, 'muszę mieć']].map(([v, n]) => `<option value="${v}"${k.priorytet === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label></div>
+    <label>Link do sklepu<input type="url" data-pole-zycz="link" data-id="${k.id}" value="${esc(k.link)}" placeholder="https://…"></label>
+    <div class="przyciski">${k.link ? `<a class="btn btn-maly" href="${esc(k.link)}" target="_blank" rel="noopener">Otwórz sklep</a>` : ''}
+      <a class="btn btn-maly" href="https://www.google.com/search?tbm=shop&q=${q}" target="_blank" rel="noopener">${I.szukaj}Porównaj ceny</a></div>
+  </section>`;
+}
+
+function naglowekPolki() {
+  if (U.pozyczone) return '';
+  if (U.polka === 'zyczenia') {
+    const l = listaZyczen(), suma = l.reduce((s, k) => s + (k.cena || 0), 0);
+    return l.length ? `<p class="polka-info">${ile(l.length, FORMY_KSIAZEK)} na liście${suma ? `, razem ok. <strong>${suma.toFixed(2).replace('.', ',')} zł</strong>` : ''}. Kupiłeś? Otwórz książkę i kliknij „Mam ją”.</p>` : '';
+  }
+  if (U.polka === 'pozniej') return naPozniej().length ? '<p class="polka-info">Odłożone na później: nie zaśmiecają kolejki, a zapamiętują stronę, na której skończyłeś.</p>' : '';
+  return '';
+}
+
+/* ================= kalendarz z okładkami (2.7) ================= */
+function okladkiDni(od, doDnia) {
+  const naj = {};
+  for (const k of Z.ksiazki) for (const w of k.log) if (w.data >= od && w.data <= doDnia && (!naj[w.data] || w.strony > naj[w.data].s)) naj[w.data] = { k, s: w.strony };
+  return naj;
 }
 
 /* ================= przypomnienia (2.6) ================= */
@@ -2377,7 +2684,7 @@ function arkuszWielu() {
         : `<span class="wiele-szukam">${r.stan === 'szukam' ? `<span class="ladowanie">Szukam: ${esc(r.zap)}</span>` : `${I.zamknij}Nie znalazłem: <strong>${esc(r.zap)}</strong>`}</span>
           ${r.stan !== 'szukam' ? `<button type="button" class="btn-tekst" data-recznie="${i}">Dodaj ręcznie</button>` : ''}`}
       </li>`).join('')}</ul>
-      <fieldset class="segment"><legend>Gdzie odłożyć</legend>${radio('gdzie-wiele', 'doPrzeczytania', 'Do przeczytania', true)}${radio('gdzie-wiele', 'przeczytana', 'Już przeczytane', false)}</fieldset>
+      <fieldset class="segment"><legend>Gdzie odłożyć</legend>${radio('gdzie-wiele', 'doPrzeczytania', 'Do przeczytania', true)}${radio('gdzie-wiele', 'przeczytana', 'Już przeczytane', false)}${radio('gdzie-wiele', 'zyczenia', 'Lista życzeń', false)}</fieldset>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Zamknij</button>
         <button type="button" class="btn btn-glowny" data-dodaj-wiele${doDodania.length ? '' : ' disabled'}>Dodaj ${doDodania.length ? ile(doDodania.length, FORMY_KSIAZEK_B) : ''}</button></div>` : '';
   };
@@ -2447,6 +2754,7 @@ function arkuszWielu() {
         if (okl) okl = await urlNaOkladke(okl);
         const k = nowaKsiazka({ tytul: w.tytul, autor: w.autor, strony: w.strony || Z.ustawienia.srednia, isbn: w.isbn, okladka: okl, tagi: w.tagi || [], seria: w.seria || '', tom: w.tom });
         if (gdzie === 'przeczytana') oznaczPrzeczytana(k, dzisISO(), false);
+        if (gdzie === 'zyczenia') naListeZyczen(k);
         dodane.push(k);
       }
       utrwal(dodane);
@@ -2613,7 +2921,7 @@ const AKCJE = {
     udostepnijPolke({ naglowek: `Mój rok ${r.rok}`, podpis: `${ile(r.ksiazki.length, FORMY_KSIAZEK)} · ${ile(r.strony, FORMY_STRON)}`, ksiazki: r.ksiazki.map(x => x.k) }, `zakladka-rok-${r.rok}.png`);
   },
   ksiazka: d => arkuszKsiazki(d.id),
-  dodaj: d => arkuszFormularza(null, { jako: d.jako || (U.widok === 'biblioteka' && U.polka === 'czytam' ? 'czytam' : 'doPrzeczytania') }),
+  dodaj: d => arkuszFormularza(null, { jako: d.jako || (U.widok === 'biblioteka' && ['czytam', 'zyczenia', 'pozniej'].includes(U.polka) ? U.polka : 'doPrzeczytania') }),
   edytuj: d => arkuszFormularza(d.id),
   postep: d => arkuszPostepu(d.id),
   sesja: d => otworzSesje(d.id),
@@ -2662,6 +2970,14 @@ const AKCJE = {
   'tydzien-dodaj': d => arkuszDodajDoTygodnia(d.pn || poczatekTygodnia(), d.dzien || null),
   'do-tygodnia': d => { const k = znajdz(d.id); dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
   'dodaj-wiele': () => arkuszWielu(),
+  rozloz: d => arkuszRozkladu(d.pn || poczatekTygodnia()),
+  'czas-czytania': () => arkuszCzasu(),
+  'staly-plan': d => arkuszStalegoPlanu(d.rid || null),
+  passa: () => arkuszSerii(),
+  'na-pozniej': d => { const k = znajdz(d.id), przed = { status: k.status, bazowa: k.bazowa, odlozono: k.odlozono }; utrwal(odlozNaPozniej(k)); odswiez(); toast(`„${k.tytul}” odłożona na później.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, przed); utrwal(k); odswiez(); } }); },
+  'do-kolejki': d => { const k = znajdz(d.id); utrwal(doKolejki(k, !!d.poczatek)); odswiez(); toast(`„${k.tytul}” wraca do kolejki${d.poczatek ? ' na początek' : ''}.`); },
+  zyczenia: d => { const k = znajdz(d.id); utrwal(naListeZyczen(k)); odswiez(); toast(`„${k.tytul}” na liście życzeń.`); },
+  'mam-ja': d => { const k = znajdz(d.id); utrwal(doKolejki(k)); odswiez(); toast(`„${k.tytul}” w kolejce do przeczytania.`, { akcja: 'Na początek', onAkcja: () => { utrwal(doKolejki(k, true)); odswiez(); } }); },
   'powiadomienia-zgoda': async () => {
     try {
       const w = await Notification.requestPermission();
@@ -2756,6 +3072,17 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('change', e => {
+  const pz = e.target.dataset && e.target.dataset.poleZycz;
+  if (pz) {
+    const k = znajdz(e.target.dataset.id);
+    if (!k) return;
+    const v = e.target.value.trim().replace(',', '.');
+    if (pz === 'cena') k.cena = +v > 0 ? Math.round(+v * 100) / 100 : null;
+    if (pz === 'priorytet') k.priorytet = ogranicz(+v || 0, 0, 3);
+    if (pz === 'link') { if (v && !/^https?:\/\//.test(v)) { toast('Link musi zaczynać się od https://', { typ: 'blad' }); return; } k.link = v; }
+    utrwal(k); odswiez();
+    return;
+  }
   if (e.target.id === 'sort-bib') { U.sort = e.target.value; $('#siatka-bib').innerHTML = htmlSiatki(); }
   if (e.target.name === 'motyw' && e.target.closest('#widok')) {
     Z.ustawienia.motyw = e.target.value;
