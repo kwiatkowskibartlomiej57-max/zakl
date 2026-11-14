@@ -81,6 +81,13 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.10: książka bazowa w planie tygodnia
+
+Książkę bazową (długą, czytaną codziennie przez wyznaczony okres) planuje system, nie ty.
+- **Nie da się jej wybrać** w kreatorze tygodnia, w „Szybko dodaj”, w stałych planach ani w losowaniu. Nie da się więc ustawić np. „600 stron w tym tygodniu”. Stare ręczne wpisy bazowej w planie są pomijane.
+- **Automatyczna norma na każdy dzień** (oznaczona „B” i „auto”): pozostałe strony dzielone przez dni do terminu, a dla minionych dni według planu od startu. Norma pojawia się w planie tygodnia, w „Planie na dziś” i w kalendarzu telefonu. Kliknięcie otwiera zmianę terminu.
+- **Kreator rezerwuje czas na bazową:** jej minuty są odejmowane od twojego czasu w każdym dniu, a inne książki rozkładają się w tym, co zostaje. Podgląd pokazuje bazową jako szary, kreskowany pasek z opisem, np. „105 stron w tym tygodniu, ok. 15 dziennie, rezerwuję 2 h 41 min”. Gdy bazowa zajmuje cały twój czas, kreator ostrzega.
+
 ## Wersja 2.9: zakładka Losuj i książki techniczne
 
 **Zakładka „Losuj” w dolnym pasku.** Ustawienia przeniosłem do ikony suwaków w nagłówku.

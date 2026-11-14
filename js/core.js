@@ -1,7 +1,7 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.9.0';
+const WERSJA = '2.10.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3 };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
@@ -742,6 +742,7 @@ function zapiszPlanTygodnia(pn, wpisy) {
   else delete Z.ustawienia.planyTygodni[pn];
 }
 function dodajDoPlanu(pn, id, dzien = null, strony = 0) {
+  if (znajdz(id) && znajdz(id).bazowa) return; // bazowa ma automatyczną normę
   const lista = planTygodnia(pn);
   const juz = lista.find(e => e.id === id && (e.dzien || null) === (dzien || null));
   if (juz) juz.strony = strony || juz.strony;
@@ -897,9 +898,37 @@ function stanWpisuPelny(e, pn) {
   return st;
 }
 
-/** Plan tygodnia razem ze stałymi planami i stanem każdego wpisu. */
+/**
+ * Norma książki bazowej na dany dzień — liczona przez system, nie ustawiana ręcznie.
+ * Minione dni: według planu liniowego od startu do terminu. Dziś i dalej: pozostałe strony / dni do terminu.
+ */
+function normaBazowejDnia(k, d) {
+  if (!k || !k.bazowa || !k.celData) return 0;
+  const od = k.planOd || { data: k.start || dzisISO(), strona: 0 };
+  if (d < od.data || d > k.celData) return 0;
+  const dzis = dzisISO();
+  if (d >= dzis) return planBazowej(k).norma;
+  const calosc = Math.max(1, dniMiedzy(od.data, k.celData) + 1);
+  const naStrone = n => Math.round(od.strona + (k.strony - od.strona) * ogranicz(n, 0, calosc) / calosc);
+  const n = dniMiedzy(od.data, d);
+  return Math.max(0, naStrone(n + 1) - naStrone(n));
+}
+/** Automatyczne wpisy książki bazowej na każdy dzień tygodnia. */
+function wpisyBazowej(pn) {
+  const k = bazowa();
+  if (!k) return [];
+  const wyj = [];
+  for (let i = 0; i < 7; i++) {
+    const d = dodajDni(pn, i), n = normaBazowejDnia(k, d);
+    if (n > 0) wyj.push({ id: k.id, dzien: d, strony: n, minuty: 0, auto: 'bazowa', k, i: -1 });
+  }
+  return wyj;
+}
+/** Plan tygodnia razem ze stałymi planami, automatyczną normą bazowej i stanem każdego wpisu. */
 function planTygodniaPelny(pn = poczatekTygodnia()) {
-  return [...planTygodnia(pn).filter(e => !e.ukryty), ...wpisyStale(pn)].map(e => ({ ...e, ...stanWpisuPelny(e, pn) }));
+  const b = bazowa();
+  return [...planTygodnia(pn).filter(e => !e.ukryty && !(b && e.id === b.id)), ...wpisyStale(pn).filter(e => !(b && e.id === b.id)), ...wpisyBazowej(pn)]
+    .map(e => ({ ...e, ...stanWpisuPelny(e, pn) }));
 }
 
 function przeniesWpis(pnZ, i, nowaData, { kopiuj = false } = {}) {
@@ -944,20 +973,27 @@ function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkla
   if (start > nd) return pusty;
   const dni = [];
   for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
-  let wagi = dni.map(d => czasy[dzienTygodnia(d)] || 0);
+  // czas zajęty przez książkę bazową (jej norma liczy się sama) odejmujemy od czasu dnia
+  const baz = bazowa();
+  const rezerwa = dni.map(d => baz ? minutZeStron(normaBazowejDnia(baz, d)) : 0);
+  const czasDnia0 = dni.map(d => czasy[dzienTygodnia(d)] || 0);
+  let wagi = czasDnia0.map((c, i) => Math.max(0, c - rezerwa[i]));
+  const bazowaZjada = czasDnia0.some(v => v > 0) && !wagi.some(v => v > 0);
+  if (bazowaZjada) wagi = czasDnia0.slice();
   const bezCzasu = !wagi.some(v => v > 0);
   if (bezCzasu) wagi = dni.map(() => 1);
   const sumaW = wagi.reduce((a, b) => a + b, 0);
-  const ksiazki = ids.map(znajdz).filter(k => k && zostaloStron(k) > 0);
+  const ksiazki = ids.map(znajdz).filter(k => k && zostaloStron(k) > 0 && !k.bazowa);
   const razem = ksiazki.reduce((s, k) => s + zostaloStron(k), 0);
-  if (!razem) return { ...pusty, dni };
+  const bazInfo = baz ? { k: baz, strony: dni.reduce((s, d) => s + normaBazowejDnia(baz, d), 0), min: rezerwa.reduce((a, b) => a + b, 0) } : null;
+  if (!razem) return { ...pusty, dni, baz: bazInfo, rezerwa };
   const naDzien = [];
   let nar = 0;
   wagi.forEach((w, i) => { const przed = Math.round(razem * nar / sumaW); nar += w; naDzien[i] = Math.round(razem * nar / sumaW) - przed; });
   if (limit && !bezCzasu) {
     // tylko tyle, ile zmieści się w czasie: każdy dzień dostaje swoją pojemność, aż skończą się strony
     let zostalo = razem;
-    dni.forEach((d, i) => { naDzien[i] = Math.min(zostalo, stronZMinut(czasy[dzienTygodnia(d)] || 0)); zostalo -= naDzien[i]; });
+    dni.forEach((d, i) => { naDzien[i] = Math.min(zostalo, stronZMinut(wagi[i] || 0)); zostalo -= naDzien[i]; });
   }
   const zaplanowane = naDzien.reduce((a, b) => a + b, 0);
   const wpisy = [], koniec = {}, czesc = {}; // koniec: dzień skończenia (tylko gdy plan domyka książkę); czesc: zaplanowane strony
@@ -984,14 +1020,14 @@ function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkla
       }
     });
   }
-  const potrzebaMin = minutZeStron(razem), maszMin = bezCzasu ? 0 : dni.reduce((s, d) => s + (czasy[dzienTygodnia(d)] || 0), 0);
+  const potrzebaMin = minutZeStron(razem), maszMin = bezCzasu ? 0 : wagi.reduce((a, b) => a + b, 0);
   const dniAktywne = bezCzasu ? dni.length : wagi.filter(v => v > 0).length;
   return {
     wpisy, dni, strony: razem, zaplanowane, potrzebaMin, maszMin, bezCzasu, dniAktywne, limit: limit && !bezCzasu,
     za_duzo: maszMin > 0 && potrzebaMin > maszMin * 1.1,
     minutDziennie: Math.ceil(potrzebaMin / Math.max(1, dniAktywne)),
-    naDzien: dni.map((d, i) => ({ d, strony: naDzien[i], min: czasy[dzienTygodnia(d)] || 0 })),
-    koniec, czesc
+    naDzien: dni.map((d, i) => ({ d, strony: naDzien[i], min: czasDnia0[i], rezerwa: rezerwa[i], baz: baz ? normaBazowejDnia(baz, d) : 0 })),
+    koniec, czesc, baz: bazInfo, bazowaZjada, rezerwa
   };
 }
 
@@ -1002,7 +1038,7 @@ function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu, c
   const start = r.dni[0];
   const lista = planTygodnia(pn).filter(e => !(ids.includes(e.id) && e.dzien && e.dzien >= start && !e.ukryty));
   lista.push(...r.wpisy);
-  for (const id of ids) if (znajdz(id) && !lista.some(e => e.id === id && !e.dzien)) lista.push({ id, dzien: null, strony: 0, minuty: 0 });
+  for (const id of ids) if (znajdz(id) && !znajdz(id).bazowa && !lista.some(e => e.id === id && !e.dzien)) lista.push({ id, dzien: null, strony: 0, minuty: 0 });
   zapiszPlanTygodnia(pn, lista);
   if (czasy) Z.ustawienia.czasTygodni[pn] = czasy.slice();
   return { ...r, dni: r.dni.length };
@@ -1013,7 +1049,7 @@ function rozlozPlan(pn, ids, od = dzisISO(), tryb = Z.ustawienia.trybRozkladu, c
  * krotsze: z kolejki bierze najpierw krótsze, żeby łatwiej dobić do celu liczby książek.
  */
 function dobierzKsiazki(ile, { krotsze = false, pomin = [] } = {}) {
-  const czyt = czytane().filter(k => !pomin.includes(k.id) && zostaloStron(k) > 0 && !czyTechniczna(k)).sort((a, b) => zostaloStron(a) - zostaloStron(b));
+  const czyt = czytane().filter(k => !pomin.includes(k.id) && zostaloStron(k) > 0 && !czyTechniczna(k) && !k.bazowa).sort((a, b) => zostaloStron(a) - zostaloStron(b));
   let kol = kolejka().filter(k => !pomin.includes(k.id) && !czyTechniczna(k));
   if (krotsze) kol = [...kol].sort((a, b) => a.strony - b.strony);
   return [...czyt, ...kol].slice(0, ile);

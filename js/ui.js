@@ -851,7 +851,7 @@ function htmlKsiazki(k) {
   ${['czytam', 'doPrzeczytania', 'pozniej'].includes(k.status) ? `<p class="kd-plan">${I.kalendarz}${k.planMiesiac
     ? `<span>W planie na <button type="button" class="btn-tekst" data-akcja="miesiac" data-ym="${k.planMiesiac}">${nazwaMiesiaca(k.planMiesiac)}</button></span><button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zmień</button>`
     : `<button type="button" class="btn-tekst" data-akcja="plan-ksiazki" data-id="${k.id}">Zaplanuj na miesiąc</button>`}
-    ${planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
+    ${k.bazowa ? '<span class="kd-plan-tydz">· norma dzienna liczona automatycznie</span>' : planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
   ${k.status === 'przeczytana' || k.recenzja ? `<label class="kd-recenzja">Twoje wrażenia<textarea name="recenzja" rows="3" placeholder="Co zostanie ci z tej książki?">${esc(k.recenzja)}</textarea></label>` : ''}
   ${htmlPozyczki(k)}
   ${htmlSerii(k)}
@@ -2231,10 +2231,10 @@ function arkuszTygodnia(start = poczatekTygodnia()) {
             ${dz.length ? `<ul class="tyg-wpisy">${dz.map(e => `<li class="${e.zrobione ? 'zrobione' : e.minal ? 'pominiete' : ''}">
               <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
               <span class="tyg-mini-okl">${okladka(e.k, 's')}</span>
-              <button type="button" class="tyg-wpis" data-wpis-planu="${e.staly ? `s:${e.staly}` : e.i}" data-dzien="${d}">
-                <span class="tyg-ksiazka">${e.staly ? `<span class="tyg-staly" title="Stały plan">↻</span>` : ''}${esc(e.k.tytul)}</span>
+              <button type="button" class="tyg-wpis${e.auto ? ' tyg-auto' : ''}" ${e.auto ? `data-akcja="bazowa" data-id="${e.k.id}" title="Norma książki bazowej, liczona z terminu"` : `data-wpis-planu="${e.staly ? `s:${e.staly}` : e.i}"`} data-dzien="${d}">
+                <span class="tyg-ksiazka">${e.auto ? '<span class="tyg-bazowa" title="Książka bazowa">B</span>' : ''}${e.staly ? `<span class="tyg-staly" title="Stały plan">↻</span>` : ''}${esc(e.k.tytul)}</span>
                 <span class="tyg-str">${e.przecz && e.strony ? `${e.przecz}/` : ''}${celWpisu(e) || (e.przecz ? `+${e.przecz} str.` : 'dowolnie')}</span></button>
-              ${d >= dzis && !e.zrobione ? `<button type="button" class="btn-ikona maly" data-jutro="${e.staly ? `s:${e.staly}` : e.i}" data-dzien="${d}" aria-label="Przenieś na następny dzień" title="Na następny dzień">${I.dalej}</button>` : ''}
+              ${d >= dzis && !e.zrobione && !e.auto ? `<button type="button" class="btn-ikona maly" data-jutro="${e.staly ? `s:${e.staly}` : e.i}" data-dzien="${d}" aria-label="Przenieś na następny dzień" title="Na następny dzień">${I.dalej}</button>` : ''}
             </li>`).join('')}</ul>` : ''}
           </li>`;
         }).join('')}</ol>
@@ -2383,7 +2383,7 @@ function arkuszWpisuPlanu(pn, { i = null, staly = null, dzien = null }) {
 function arkuszStalegoPlanu(rid = null, wstepne = {}) {
   const r = rid ? Z.ustawienia.stalePlany.find(x => x.rid === rid) : null;
   const dane = r || { id: wstepne.id || '', dni: wstepne.dzien ? [dzienTygodnia(wstepne.dzien)] : [0, 1, 2, 3, 4], strony: wstepne.strony || 0, minuty: wstepne.minuty || 0 };
-  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()];
+  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()].filter(k => !k.bazowa);
   const a = arkusz({
     tytul: r ? 'Stały plan' : 'Nowy stały plan', klasa: 'arkusz-maly',
     render: () => `<form class="formularz" novalidate>
@@ -2443,7 +2443,7 @@ function arkuszKreatora(pn = poczatekTygodnia()) {
   const dzis = dzisISO(), nd = dodajDni(pn, 6);
   const od = pn > dzis ? pn : dzis;
   if (od > nd) { toast('Ten tydzień już minął. Zaplanuj następny.'); return; }
-  const wczesniej = [...new Set(planTygodnia(pn).filter(e => !e.ukryty).map(e => e.id))].filter(id => { const k = znajdz(id); return k && zostaloStron(k) > 0; });
+  const wczesniej = [...new Set(planTygodnia(pn).filter(e => !e.ukryty).map(e => e.id))].filter(id => { const k = znajdz(id); return k && zostaloStron(k) > 0 && !k.bazowa && !czyTechniczna(k); });
   const st = {
     cel: Z.ustawienia.celeTygodni[pn] || Math.max(wczesniej.length, 3),
     wybrane: [...wczesniej],
@@ -2472,7 +2472,7 @@ function arkuszKreatora(pn = poczatekTygodnia()) {
 
   const htmlPodgladu = w => {
     if (!st.wybrane.length) return '';
-    const maxS = Math.max(1, ...w.naDzien.map(x => x.strony), ...w.naDzien.map(x => stronZMinut(x.min)));
+    const maxS = Math.max(1, ...w.naDzien.map(x => x.strony + (x.baz || 0)), ...w.naDzien.map(x => stronZMinut(x.min)));
     const wiersze = dniTyg.map(d => {
       const x = w.naDzien.find(y => y.d === d);
       const min = st.czasy[dzienTygodnia(d)] || 0;
@@ -2480,26 +2480,28 @@ function arkuszKreatora(pn = poczatekTygodnia()) {
       const czesci = w.wpisy.filter(e => e.dzien === d);
       const poj = stronZMinut(min);
       return `<li class="kr-dzien${!min && !w.bezCzasu ? ' wolny' : ''}"><span class="kr-dzien-n">${DNI_KR[dzienTygodnia(d)]}</span>
-        <span class="kr-pasek">${czesci.map(e => `<span style="width:${(e.strony / maxS * 100).toFixed(1)}%;background:${kolor(e.id)}" title="${esc(znajdz(e.id).tytul)}: ${e.strony} str."></span>`).join('')}
+        <span class="kr-pasek">${x.baz ? `<span class="kr-seg-baz" style="width:${(x.baz / maxS * 100).toFixed(1)}%" title="Książka bazowa: ${x.baz} str."></span>` : ''}${czesci.map(e => `<span style="width:${(e.strony / maxS * 100).toFixed(1)}%;background:${kolor(e.id)}" title="${esc(znajdz(e.id).tytul)}: ${e.strony} str."></span>`).join('')}
           ${poj && !w.bezCzasu ? `<i class="kr-poj" style="left:${Math.min(100, poj / maxS * 100).toFixed(1)}%" title="Twój czas: ${poj} str."></i>` : ''}</span>
-        <span class="kr-dzien-l">${x.strony ? `${x.strony} str.` : !min && !w.bezCzasu ? 'wolne' : '—'}${x.strony ? `<small>${czasTekst(minutZeStron(x.strony))}</small>` : ''}</span></li>`;
+        <span class="kr-dzien-l">${x.strony ? `${x.strony} str.` : !min && !w.bezCzasu ? 'wolne' : '—'}${x.strony ? `<small>${czasTekst(minutZeStron(x.strony))}</small>` : x.baz ? '<small>tylko bazowa</small>' : ''}</span></li>`;
     }).join('');
     const skonczone = Object.keys(w.koniec).length;
     const ocena = w.bezCzasu ? `<p class="kr-ocena cichy">Nie ustawiłeś czasu na czytanie, więc dzielę równo na dni.</p>`
       : w.za_duzo && st.limit ? `<div class="kr-ocena"><p><strong>Plan w twoim czasie:</strong> zaplanowane ${ile(w.zaplanowane, FORMY_STRON)} z ${w.strony}. Skończysz ${skonczone} z ${st.wybrane.length} książek, reszta przejdzie na kolejny tydzień.</p>
           <div class="przyciski"><button type="button" class="btn btn-maly" data-dopasuj-czas>Chcę skończyć wszystkie: ${w.minutDziennie} min dziennie</button></div></div>`
-      : w.za_duzo ? `<div class="kr-ocena zle"><p><strong>Za mało czasu.</strong> Ten plan to ok. ${czasTekst(w.potrzebaMin)} czytania, a masz ${czasTekst(w.maszMin)}. Potrzebujesz ok. <strong>${w.minutDziennie} min dziennie</strong>.</p>
-          <div class="przyciski"><button type="button" class="btn btn-maly" data-dopasuj-czas>Ustaw ${w.minutDziennie} min w dni czytania</button><button type="button" class="btn btn-maly" data-tylko-czas>Planuj tylko w moim czasie</button>${st.wybrane.length > 1 ? '<button type="button" class="btn btn-maly" data-zamien-krotsze>Wybierz krótsze</button>' : ''}</div></div>`
-      : `<p class="kr-ocena ok"><strong>Zmieścisz się.</strong> ok. ${czasTekst(w.potrzebaMin)} z twoich ${czasTekst(w.maszMin)} (${Math.round(w.potrzebaMin / w.maszMin * 100)}% czasu).</p>`;
+      : w.za_duzo ? `<div class="kr-ocena zle"><p><strong>Za mało czasu.</strong> Ten plan to ok. ${czasTekst(w.potrzebaMin)} czytania, a masz ${czasTekst(w.maszMin)}${w.baz && w.baz.min ? ' (po odjęciu bazowej)' : ''}. Potrzebujesz ok. <strong>${w.minutDziennie} min dziennie</strong>.</p>
+          <div class="przyciski"><button type="button" class="btn btn-maly" data-dopasuj-czas>Dodaj czas: ${w.minutDziennie} min dziennie${w.baz && w.baz.min ? ' + bazowa' : ''}</button><button type="button" class="btn btn-maly" data-tylko-czas>Planuj tylko w moim czasie</button>${st.wybrane.length > 1 ? '<button type="button" class="btn btn-maly" data-zamien-krotsze>Wybierz krótsze</button>' : ''}</div></div>`
+      : `<p class="kr-ocena ok"><strong>Zmieścisz się.</strong> ok. ${czasTekst(w.potrzebaMin)} z ${czasTekst(w.maszMin)}${w.baz && w.baz.min ? ' wolnego po bazowej' : ''} (${Math.round(w.potrzebaMin / w.maszMin * 100)}% czasu).</p>`;
     return `<ol class="kr-dni">${wiersze}</ol>
+      ${w.baz && w.baz.strony ? `<p class="kr-baz"><span class="tyg-bazowa">B</span><span>Książka bazowa „${esc(w.baz.k.tytul)}”: ${ile(w.baz.strony, FORMY_STRON)} w tym tygodniu (ok. ${ile(planBazowej(w.baz.k).norma, FORMY_STRON)} dziennie, do ${dataDluga(w.baz.k.celData, false)}). Liczę ją automatycznie i rezerwuję na nią ${czasTekst(w.baz.min)} z twojego czasu.</span></p>` : ''}
+      ${w.bazowaZjada ? '<p class="kr-ocena zle"><strong>Cały twój czas zajmuje książka bazowa.</strong> Dodaj minut w dni czytania, żeby zmieściły się inne książki.</p>' : ''}
       <p class="kr-suma">${w.limit && w.zaplanowane < w.strony ? `${w.zaplanowane} z ${ile(w.strony, FORMY_STRON_D)}` : ile(w.strony, FORMY_STRON)} · ${skonczone} z ${st.wybrane.length} książek do końca tygodnia${st.cel ? ` · cel ${st.cel}` : ''}</p>
       ${ocena}
-      <p class="legenda kr-legenda">${st.wybrane.map(id => `<span><i style="background:${kolor(id)}"></i>${esc(znajdz(id).tytul)}</span>`).join('')}${w.bezCzasu ? '' : '<span><i class="kr-poj-leg"></i>twój czas</span>'}</p>`;
+      <p class="legenda kr-legenda">${w.baz && w.baz.strony ? '<span><i class="kr-seg-baz"></i>bazowa</span>' : ''}${st.wybrane.map(id => `<span><i style="background:${kolor(id)}"></i>${esc(znajdz(id).tytul)}</span>`).join('')}${w.bezCzasu ? '' : '<span><i class="kr-poj-leg"></i>twój czas</span>'}</p>`;
   };
 
   const htmlPickera = () => {
     const q = st.filtr.trim().toLowerCase();
-    const kand = [...czytane(), ...kolejka(), ...naPozniej()].filter(k => !st.wybrane.includes(k.id) && zostaloStron(k) > 0)
+    const kand = [...czytane(), ...kolejka(), ...naPozniej()].filter(k => !st.wybrane.includes(k.id) && zostaloStron(k) > 0 && !k.bazowa)
       .filter(k => !q || `${k.tytul} ${k.autor} ${k.tagi.join(' ')}`.toLowerCase().includes(q));
     return `<label class="pole-szukaj">${I.szukaj}<input type="search" data-filtr-kr placeholder="Szukaj w swoich książkach" value="${esc(st.filtr)}"></label>
       <ul class="kr-picker">${kand.slice(0, 40).map(k => `<li><button type="button" class="kr-dodaj" data-dodaj-kr="${k.id}">${okladka(k, 's')}
@@ -2590,7 +2592,8 @@ function arkuszKreatora(pn = poczatekTygodnia()) {
     if (t.closest('[data-dopasuj-czas]')) {
       st.limit = false;
       const w = r();
-      dniTyg.forEach((d, i) => { if (d >= od && st.czasy[i] > 0) st.czasy[i] = Math.max(st.czasy[i], Math.ceil(w.minutDziennie / 5) * 5); });
+      const rez = d => { const b = bazowa(); return b ? minutZeStron(normaBazowejDnia(b, d)) : 0; };
+      dniTyg.forEach((d, i) => { if (d >= od && st.czasy[i] > 0) st.czasy[i] = Math.max(st.czasy[i], Math.ceil((w.minutDziennie + rez(d)) / 5) * 5); });
       if (!dniTyg.some((d, i) => d >= od && st.czasy[i] > 0)) dniTyg.forEach((d, i) => { if (d >= od) st.czasy[i] = Math.ceil(w.minutDziennie / 5) * 5; });
       przerysuj(); return;
     }
@@ -2631,7 +2634,7 @@ function arkuszKreatora(pn = poczatekTygodnia()) {
 function arkuszRozkladu(pn) { arkuszKreatora(pn); }
 
 function arkuszDodajDoTygodnia(pn, dzien = null) {
-  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()];
+  const kandydaci = [...czytane(), ...kolejka(), ...naPozniej()].filter(k => !k.bazowa);
   const w = new Set(planTygodnia(pn).filter(e => (e.dzien || null) === dzien && !e.ukryty).map(e => e.id));
   const a = arkusz({
     tytul: dzien ? `Plan: ${DNI_PELNE[dzienTygodnia(dzien)]}, ${dataKrotka(dzien)}` : 'Co czytasz w tym tygodniu?', klasa: 'arkusz-maly',
@@ -2686,7 +2689,7 @@ function blokPlanuDnia() {
     ${wpisy.length ? `<ul class="plan-dnia-lista">${wpisy.map(e => `<li class="${e.zrobione ? 'zrobione' : ''}">
       <span class="tyg-znak">${e.zrobione ? I.check : ''}</span>
       <span class="tyg-mini-okl">${okladka(e.k, 's')}</span>
-      <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${e.staly ? '<span class="tyg-staly">↻</span>' : ''}${esc(e.k.tytul)}</button>
+      <button type="button" class="btn-tekst tyg-ksiazka" data-akcja="${e.k.status === 'czytam' ? 'postep' : 'ksiazka'}" data-id="${e.k.id}">${e.auto ? '<span class="tyg-bazowa" title="Książka bazowa: norma liczona automatycznie">B</span>' : ''}${e.staly ? '<span class="tyg-staly">↻</span>' : ''}${esc(e.k.tytul)}</button>
       <span class="tyg-str">${e.strony ? `${e.przecz}/${e.strony} str.` : e.minuty ? `${e.minPrzecz || 0}/${e.minuty} min` : e.przecz ? `+${e.przecz} str.` : ''}</span>
       ${!e.zrobione && e.k.status === 'czytam' ? `<button type="button" class="btn-ikona maly" data-akcja="sesja" data-id="${e.k.id}" aria-label="Sesja czytania">${I.zegar}</button>` : ''}
       ${!e.zrobione && e.k.status !== 'czytam' ? `<button type="button" class="btn btn-maly" data-akcja="zacznij" data-id="${e.k.id}">Zacznij</button>` : ''}</li>`).join('')}</ul>
@@ -3541,7 +3544,7 @@ const AKCJE = {
   rok: () => arkuszRoku(),
   tydzien: d => arkuszTygodnia(d.pn || poczatekTygodnia()),
   'tydzien-dodaj': d => arkuszDodajDoTygodnia(d.pn || poczatekTygodnia(), d.dzien || null),
-  'do-tygodnia': d => { const k = znajdz(d.id); dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
+  'do-tygodnia': d => { const k = znajdz(d.id); if (k.bazowa) { toast('Książka bazowa ma normę dzienną liczoną automatycznie.'); return; } dodajDoPlanu(poczatekTygodnia(), k.id); utrwalUstawienia(); odswiez(); toast(`„${k.tytul}” w planie tygodnia.`, { akcja: 'Pokaż', onAkcja: () => arkuszTygodnia() }); },
   'dodaj-wiele': () => arkuszWielu(),
   rozloz: d => arkuszKreatora(d.pn || poczatekTygodnia()),
   kreator: d => arkuszKreatora(d.pn || poczatekTygodnia()),

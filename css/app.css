@@ -1089,3 +1089,11 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .tech-podp { font-size: 13px; margin-top: 6px; }
 .los-k-okl { width: 88px; max-width: 100%; }
 .rozdz-cel select { flex: 0 0 auto; width: auto !important; } .kd-rozdzialy { margin-bottom: 8px; }
+
+/* ================= wersja 2.10: książka bazowa w planie ================= */
+.tyg-bazowa { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-right: 5px; border-radius: 4px; background: var(--wstazka); color: #fff; font-size: 10.5px; font-weight: 700; flex: none; vertical-align: 1px; }
+.tyg-auto .tyg-str::after { content: ' · auto'; color: var(--cichy); font-size: 11px; }
+.kr-seg-baz { background: repeating-linear-gradient(135deg, var(--cichy) 0 3px, transparent 3px 6px), var(--hm1); opacity: .9; }
+.kr-legenda i.kr-seg-baz { width: 10px; height: 10px; }
+.kr-baz { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13.5px; color: var(--cichy); }
+.kr-baz .tyg-bazowa { margin-top: 2px; }
