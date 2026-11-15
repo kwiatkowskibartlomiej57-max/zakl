@@ -4556,6 +4556,7 @@ function arkuszSklepiku() {
       <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="dzwieki"${g.dzwieki ? ' checked' : ''}><span>Efekty dźwiękowe (hu-hu, kartki, ba-dum-tss)</span></label>
       <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="glos"${g.glos ? ' checked' : ''}><span>Głosy w historii</span></label>
       <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="muzyka"${g.muzyka ? ' checked' : ''}><span>Muzyka w historii</span></label>
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-test-glosu>🔊 Sprawdź głos</button><span class="cichy maly" data-test-glosu-wynik></span></div>
       <p class="cichy maly">Głosy postaci są nagrane w aplikacji (działają bez internetu). Teksty, które się zmieniają, postaci „gaworzą” jak w grach.</p>
       <div class="przyciski"><button type="button" class="btn btn-maly" data-test-zartu>😂 Opowiedz żart teraz</button></div></section>`;
     }
@@ -4566,6 +4567,18 @@ function arkuszSklepiku() {
       const d = dzisISO(), g = Z.ustawienia.gra;
       g.zadania[d] = [...new Set([...(g.zadania[d] || []), o.dataset.odbierz])];
       utrwalUstawienia(); lecaceListki(o); konfetti({ ile: 40 }); odswiez();
+      return;
+    }
+    if (e.target.closest('[data-test-glosu]')) {
+      const w = $('[data-test-glosu-wynik]', a.tresc);
+      Glos.odblokuj(); Glos.stan = 'czekam…';
+      w.textContent = 'Sówka mówi…';
+      Glos.mow('Hu-hu, pięknie!', 's', { wl: true });
+      setTimeout(() => {
+        const g = Z.ustawienia.gra;
+        w.textContent = !Glos.paczka ? 'Brak pliku audio/glosy.json albo paczki z nagraniami. Sprawdź, czy folder audio jest na GitHubie.'
+          : `${Glos.stan || 'bez odpowiedzi'}${g.glosSowki ? '' : ' · wyłączone „mówią swoimi głosami”'}. Jeśli jest „gra”, a nic nie słychać, podgłośnij telefon.`;
+      }, 1500);
       return;
     }
     const cz = e.target.closest('[data-czestosc]');
@@ -5077,9 +5090,20 @@ function dymekZakladki(tekst, potem) {
   Fx.graj('zakl');
   mowWKarcie(tekst, 'z', () => { U.zaklTimer = setTimeout(() => { d.hidden = true; }, 3500); potem && potem(); });
 }
-/** Głos w karcie Sówki na ekranie Dziś (nagranie albo gaworzenie). */
+/** Głos w karcie Sówki na ekranie Dziś (nagranie albo gaworzenie); mówiąca postać rusza dziobem. */
 function mowWKarcie(tekst, kto, potem) {
-  Glos.mow(tekst, kto, { wl: Z.ustawienia.gra.glosSowki, naKoniec: potem });
+  const post = $(kto === 'z' ? '#widok .zakl-postac' : '#widok .sowka-karta .sowka');
+  if (post) post.classList.add('mowi');
+  Glos.mow(tekst, kto, { wl: Z.ustawienia.gra.glosSowki, naKoniec: () => { if (post) post.classList.remove('mowi'); potem && potem(); } });
+}
+function kartaMowi(tekst, klasa = '', potem) { pokazDymek(tekst, { klasa }); mowWKarcie(tekst, 's', potem); }
+/** Żart w karcie: pytanie, chwila ciszy, puenta, ba-dum-tss i czasem śmiech Zakładki. Wszystko na głos. */
+function zartWKarcie() {
+  const [a, b] = losowyZart();
+  kartaMowi(a, 'mysli', () => setTimeout(() => {
+    pokazDymek(`${a} ${b}`, { klasa: 'smieje' });
+    mowWKarcie(b, 's', () => { Fx.graj('badum'); if (Math.random() < .5) setTimeout(() => dymekZakladki(losuj(SMIECH_ZAKLADKI)), 500); });
+  }, 700));
 }
 document.addEventListener('click', e => {
   const t = e.target;
@@ -5205,10 +5229,32 @@ const Glos = {
       a.muted = false; a.onended = koniec; a.onerror = gaworzZamiast;
       a.src = this.url;
       const p = a.play();
-      if (p) p.catch(() => { if (nr !== this.nr) return; clearTimeout(this.zapas); naCzas(Math.min(9000, 900 + tekst.length * 55)); });
-    }).catch(gaworzZamiast);
+      if (p) p.then(() => { this.stan = 'gra'; }).catch(err => {
+        if (nr !== this.nr) return;
+        // <audio> zablokowane (np. iPhone bez dotknięcia): gramy to samo nagranie przez WebAudio
+        this.stan = `blokada audio (${err && err.name}), próbuję WebAudio`;
+        this.grajWebAudio(blob, nr).then(ok => {
+          if (nr !== this.nr) return;
+          if (ok) { clearTimeout(this.zapas); this.stan = 'gra przez WebAudio'; this.zrodlo.onended = koniec; }
+          else { this.stan = `zablokowane: ${err && err.name}`; clearTimeout(this.zapas); naCzas(Math.min(9000, 900 + tekst.length * 55)); }
+        });
+      });
+    }).catch(e => { this.stan = `nie mogę pobrać nagrania (${e && e.message})`; gaworzZamiast(); });
   },
-  przerwij() { clearTimeout(this.zapas); if (this.audio) { this.audio.onended = null; this.audio.onerror = null; try { this.audio.pause(); } catch { /* nic */ } } Fx.ucisz(); },
+  async grajWebAudio(blob, nr) {
+    try {
+      const c = Fx.kontekst();
+      if (!c) return false;
+      if (c.state !== 'running') await c.resume().catch(() => {});
+      if (c.state !== 'running' || nr !== this.nr) return false;
+      const buf = await c.decodeAudioData(await blob.arrayBuffer());
+      if (nr !== this.nr) return false;
+      const s = c.createBufferSource(); s.buffer = buf; s.connect(c.destination); s.start();
+      this.zrodlo = s;
+      return true;
+    } catch { return false; }
+  },
+  przerwij() { if (this.zrodlo) { try { this.zrodlo.onended = null; this.zrodlo.stop(); } catch { /* już skończone */ } this.zrodlo = null; } clearTimeout(this.zapas); if (this.audio) { this.audio.onended = null; this.audio.onerror = null; try { this.audio.pause(); } catch { /* nic */ } } Fx.ucisz(); },
   stop() { this.nr++; this.przerwij(); }
 };
 Glos.wczytaj();
@@ -5479,9 +5525,12 @@ function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
     el.id = 'sowka-wyskok';
     el.className = 'sowka-wyskok';
     el.innerHTML = `<div class="wyskok-postacie"><button type="button" class="wyskok-sowa" aria-label="Schowaj">${svgSowki('zadowolona', g.zalozone)}</button><span class="wyskok-zakl">${svgZakladki('macha')}</span></div>
-      <div class="wyskok-dymek" aria-live="polite"><p class="wyskok-kto"></p><p class="wyskok-tekst"></p><p class="wyskok-puenta" hidden></p></div>`;
+      <div class="wyskok-dymek" aria-live="polite"><button type="button" class="wyskok-x" aria-label="Zamknij">✕</button><p class="wyskok-kto"></p><p class="wyskok-tekst"></p><p class="wyskok-puenta" hidden></p></div>`;
     document.body.append(el);
-    el.addEventListener('click', () => schowajRozmowe());
+    // dotknięcie dymka przewija do następnej kwestii (jak w grach), ✕ albo dotknięcie po ostatniej kwestii zamyka
+    el.addEventListener('click', e => {
+      if (e.target.closest('.wyskok-x') || !U.rozmowaPomin || !U.rozmowaPomin()) schowajRozmowe();
+    });
   }
   const nr = U.rozmowaNr = (U.rozmowaNr || 0) + 1;
   clearTimeout(U.wyskokTimer); clearTimeout(U.puentaTimer);
@@ -5494,6 +5543,11 @@ function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
   Fx.graj(kwestie[0].kto === 'z' ? 'zakl' : 'huhu');
   const ktoEl = $('.wyskok-kto', el), tEl = $('.wyskok-tekst', el), pEl = $('.wyskok-puenta', el);
   let i = 0;
+  U.rozmowaPomin = () => {
+    if (nr !== U.rozmowaNr || i >= kwestie.length) return false;
+    clearTimeout(U.puentaTimer); Glos.stop(); dalej();
+    return true;
+  };
   const dalej = () => {
     if (nr !== U.rozmowaNr) return;
     if (i >= kwestie.length) { U.wyskokTimer = setTimeout(schowajRozmowe, czasKonca); return; }
@@ -6442,17 +6496,25 @@ async function start() {
   // Sówka: raz dziennie przywitanie z niespodzianką, potem co jakiś czas sama coś powie
   setTimeout(() => { if (lsGet('zakladka-sowka-dzien') !== dzisISO() && Z.ksiazki.length) { lsSet('zakladka-sowka-dzien', dzisISO()); niespodziankaSowki('start'); } }, 3500);
   setInterval(() => { if (Math.random() < .5) niespodziankaSowki(); }, 30 * 1000);
-  setInterval(() => {
-    if (U.widok !== 'dzis' || document.hidden || otwarte.length) return;
+  // Sówka w karcie na ekranie Dziś co jakiś czas sama coś mówi (na głos), tempo z ustawienia „jak często gada”
+  const kartaGada = () => {
+    const g = Z.ustawienia.gra, co = { rzadko: 90, normalnie: 45, czesto: 22 }[g.czestosc] || 45;
+    setTimeout(kartaGada, co * 1000);
+    const k = Sowa.karta && Sowa.karta();
+    if (U.widok !== 'dzis' || document.hidden || otwarte.length || !k || Sowa.gada || document.body.classList.contains('kino-otwarte')) return;
+    if (Sowa.widacKarte && !Sowa.widacKarte(k)) return;
+    if (Date.now() - Sowa.ostatniaAktywnosc > 5 * 60 * 1000) return; // nikt nie patrzy
     const st = stanSowki();
     if (st.tryb === 'spi') return;
     U.sowkaN = (U.sowkaN || 0) + 1;
-    const r = U.sowkaN % 4;
-    if (r === 1 && Z.ustawienia.gra.zarty) { const [a, b] = losowyZart(); pokazDymek(a, { klasa: 'mysli' }); setTimeout(() => pokazDymek(`${a} ${b}`, { klasa: 'smieje' }), 3800); }
-    else if (r === 2) pokazDymek(motywacja(), { klasa: 'skacze' });
-    else if (r === 3) pokazDymek(coCzytac(), { klasa: 'mysli' });
-    else pokazDymek(wiadomoscSowki(st));
-  }, 22 * 1000);
+    const r = U.sowkaN % 5;
+    if (r === 1 && g.zarty) zartWKarcie();
+    else if (r === 2) kartaMowi(motywacja(), 'skacze');
+    else if (r === 3) kartaMowi(coCzytac(), 'mysli');
+    else if (r === 4 && g.zarty && g.zakladka18 && Math.random() < .5) { const [a, b] = losowyZartZakladki(); dymekZakladki(a, () => setTimeout(() => dymekZakladki(b, () => Fx.graj('badum')), 300)); }
+    else kartaMowi(wiadomoscSowki(st));
+  };
+  setTimeout(kartaGada, 25 * 1000);
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));

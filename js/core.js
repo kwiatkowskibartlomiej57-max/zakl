@@ -1,7 +1,7 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.20.1';
+const WERSJA = '2.20.3';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];

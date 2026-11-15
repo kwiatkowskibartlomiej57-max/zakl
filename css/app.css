@@ -1672,3 +1672,11 @@ body.kino-otwarte .sowa-lot, body.kino-otwarte .sowa-dymek { display: none; }
 .czestosc { display: grid; gap: 6px; margin: 4px 0 10px; font-size: 13.5px; }
 .segment-mini { display: flex; gap: 6px; flex-wrap: wrap; }
 .segment-mini .chip-m.akt { background: var(--zloto, #d9b66e); color: #2b210d; border-color: transparent; font-weight: 700; }
+.wyskok-dymek { position: relative; }
+.wyskok-x { position: absolute; top: 4px; right: 6px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: var(--cichy); font-size: 13px; cursor: pointer; }
+.wyskok-x:hover { background: var(--linia); }
+.wyskok-kto { padding-right: 24px; }
+/* 2.20.3: postaci w karcie ruszają się, gdy mówią */
+.sowka-karta .sowka.mowi .sowka-svg { animation: gada .34s ease-in-out infinite alternate; }
+.sowka-karta .sowka.mowi .s-dziob { transform-box: fill-box; transform-origin: 50% 0; animation: dziob .17s ease-in-out infinite alternate; }
+.zakl-postac.mowi svg { animation: zakl-gada .32s ease-in-out infinite alternate; }
