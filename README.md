@@ -81,6 +81,37 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.20.1: nagrania w jednej paczce
+
+- Wszystkie 382 nagrania głosów są w **jednym pliku** `audio/glosy-<hash>.bin` (ok. 8,7 MB), plus spis `audio/glosy.json` i `audio/cisza.mp3`. Folder `audio` ma więc 3 pliki zamiast kilkuset, co mieści się w limicie 100 plików na jedno wgranie przez stronę GitHuba.
+- Przy pierwszym uruchomieniu aplikacja pobiera z paczki tylko kawałek z potrzebną kwestią (zapytanie `Range`), a po kilku sekundach ściąga w tle całą paczkę do pamięci, żeby głosy działały offline. Nazwa paczki zmienia się razem z treścią, więc po aktualizacji telefon pobierze nową, a starą usunie.
+- Folder `audio/glos/` z poprzednich wersji nie jest już potrzebny. Jeśli masz go na GitHubie, możesz go usunąć.
+
+## Wersja 2.20: Sówka wraca do domu, sezon 2 przygód, dźwięk na iPhonie
+
+- **Powrót do karty**: gdy wracasz na ekran Dziś albo przewijasz do góry, Sówka przylatuje do swojej karty, po drodze rośnie do jej rozmiaru i siada dokładnie na swoim miejscu. Puste miejsce w karcie czeka na nią, więc nigdy nie ma dwóch sów naraz. Przy wyjściu z ekranu Dziś wylatuje z karty.
+- **Dźwięk w rozmowach**: odblokowanie dźwięku przy dotknięciu odtwarza prawdziwą (niewyciszoną) ciszę, więc iOS nie blokuje później rozmów. Przeglądarka dostaje też tryb `audioSession: playback`, dzięki czemu głosy grają przy wyciszonym przełączniku. Service worker obsługuje zapytania o fragment pliku (`Range`, odpowiedź 206), o które Safari prosi przy nagraniach, i trzyma nagrania w pamięci offline.
+- **Jak często Sówka gada**: do wyboru rzadko (ok. 8–10 min), normalnie (ok. 3–4 min) albo często (ok. 1 min), tylko gdy korzystasz z aplikacji. Do tego 14 nowych żartów Sówki i 7 nowych żartów Zakładki 18+.
+- **Przygody, sezon 2**: 6 nowych rozdziałów po 6 scen (Kot Erratum, Znikające litery, Pustynia bez słów, Zamek Gumki, Wielkie czytanie, Święto biblioteki), odblokowywanych od 3800 do 9500 stron. Doszły nowe postacie z własnymi głosami (Kot Erratum, Wielka Gumka) i nowe tła (pustynia, biały zamek). Każdy z pierwszych 10 rozdziałów ma jedną nową scenę. Razem 382 nagrane kwestie.
+
+## Wersja 2.19: Sówka lata po aplikacji
+
+- **Sówka-towarzyszka** siedzi na aktywnej zakładce dolnego menu i przelatuje po łuku, machając skrzydłami, gdy zmieniasz ekran. Czasem skomentuje miejsce, do którego trafiłeś.
+- Oczy śledzą palec albo kursor. Przy przewijaniu patrzy w górę lub w dół, a przy szybkim przewijaniu marudzi.
+- Ma drobne zachowania: przechyla głowę, rozgląda się, czyści piórka i podskakuje. Po minucie bez ruchu zasypia, a dotyk ją budzi.
+- **Dotyk**: zwykłe dotknięcie to na zmianę przywitanie, ciekawostka, żart albo motywacja. Trzy szybkie dotknięcia to łaskotki, sześć to obraza i odlot. Sówkę można też przenieść palcem.
+- Na ekranie Dziś siedzi w swojej karcie. Gdy przewiniesz w dół, wylatuje z karty. Sówka w karcie też mówi po dotknięciu.
+- **Ciekawostki same z siebie**: 40 ciekawostek nagranych głosem Sówki, opowiadanych z zaskoczenia, częściej niż wcześniej. Gdy nikt nie korzysta z aplikacji, Sówka nic nie mówi.
+- Za zapisane strony Sówka robi fikołka w powietrzu.
+
+## Wersja 2.18: prawdziwe głosy, Zakładka bez cenzury, recenzje Sówki
+
+- **Nagrane głosy postaci** zamiast syntezatora przeglądarki. Polskie głosy neuronowe (Piper) zostały nagrane z osobną barwą dla każdej postaci: Narrator, Sówka, Zakładka, Smok, Przypis i Bibliotekarz Kurz. Od wersji 2.20.1 wszystkie nagrania są sklejone w jedną paczkę `audio/glosy-<hash>.bin`, a `audio/glosy.json` mówi, gdzie w niej leży każda kwestia. Działają bez internetu.
+- Teksty, które się zmieniają (liczby stron, tytuły, ciekawostki), postaci **gaworzą** swoją barwą, tak jak w grach.
+- **Efekty dźwiękowe** generowane w przeglądarce: hu-hu Sówki, szelest kartek w historii, ba-dum-tss po puencie i dzwonek przy nagrodach.
+- **Zakładka bez cenzury (18+)**: rzuca własne, przeklinające żarty, z zaskoczenia albo co trzecie stuknięcie, a Sówka czasem ją ochrzani. Wyłączysz to w Kąciku Sówki, w sekcji Sówka i dźwięk.
+- **Recenzja po dodaniu książki**: Sówka kartkuje nową książkę i podaje ciekawostkę z Wikidata (nagrody, rok wydania, miejsce akcji, cykl). Mówi też, czy to dobry wybór względem książek ocenionych na 4–5, i wystawia ocenę w gwiazdkach. Zakładka czasem się z nią kłóci.
+
 ## Wersja 2.17: historia jak w grach, Sówka z zaskoczenia
 
 - **Kinowe przerywniki:** rozdziały „Przygód Sówki i Zakładki” odtwarzają się same, na pełnym ekranie.

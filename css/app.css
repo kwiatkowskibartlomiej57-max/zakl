@@ -1586,3 +1586,89 @@ body.kino-otwarte { overflow: hidden; }
 .kadr-przod svg { width: 100%; height: auto; border-radius: 6px; box-shadow: 0 30px 60px -30px rgba(0,0,0,.9); }
 @media (orientation: portrait) { .kadr-przod { width: 116%; } .kino-pasek { height: 7vh; } .kino-napis { bottom: calc(7vh + 18%); } }
 .kino-kadr.kb-0 .kadr-tlo svg, .kino-kadr.kb-1 .kadr-tlo svg, .kino-kadr.kb-2 .kadr-tlo svg, .kino-kadr.kb-3 .kadr-tlo svg { animation: none; }
+
+/* ---------- 2.18: rozmowa Sówki i Zakładki w wyskakującym okienku ---------- */
+.wyskok-postacie { flex: none; position: relative; display: flex; align-items: flex-end; }
+.wyskok-zakl { display: none; width: 34px; height: 64px; margin-left: -10px; margin-bottom: 2px; transition: transform .3s, filter .3s, opacity .3s; }
+.wyskok-zakl svg { width: 100%; height: 100%; }
+.sowka-wyskok.z-zakladka .wyskok-zakl { display: block; }
+.sowka-wyskok.sama-zakladka .wyskok-sowa { display: none; }
+.sowka-wyskok.sama-zakladka .wyskok-zakl { width: 46px; height: 82px; margin-left: 0; }
+.sowka-wyskok .wyskok-sowa, .sowka-wyskok .wyskok-zakl { transition: transform .3s, opacity .3s, filter .3s; }
+.sowka-wyskok.z-zakladka:not(.sama-zakladka)[data-mowi="z"] .wyskok-sowa { opacity: .6; transform: scale(.92); filter: saturate(.6); }
+.sowka-wyskok.z-zakladka:not(.sama-zakladka)[data-mowi="s"] .wyskok-zakl { opacity: .6; transform: scale(.9); filter: saturate(.6); }
+.sowka-wyskok[data-mowi="z"] .wyskok-zakl { transform: translateY(-6px) rotate(-6deg); animation: zakl-gada .32s ease-in-out infinite alternate; }
+@keyframes zakl-gada { to { transform: translateY(-9px) rotate(5deg); } }
+.sowka-wyskok.smieje .wyskok-zakl svg { animation: smiech .14s linear 7; }
+.wyskok-kto { margin: 0 0 2px; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.wyskok-tekst { margin: 0; }
+.wyskok-dymek.nowy { animation: puenta .4s cubic-bezier(.3, 1.6, .5, 1); }
+.sowka-wyskok[data-mowi="z"] .wyskok-dymek { border-color: color-mix(in srgb, #ff8fa3 55%, var(--linia)); }
+@media (prefers-reduced-motion: reduce) { .sowka-wyskok[data-mowi="z"] .wyskok-zakl, .wyskok-dymek.nowy { animation: none; } }
+
+/* ---------- 2.19: Sówka-towarzyszka lata po aplikacji ---------- */
+.sowa-lot { position: fixed; left: 0; top: 0; z-index: 40; width: 58px; height: 64px; padding: 0; border: 0; background: none; cursor: grab; touch-action: none; -webkit-tap-highlight-color: transparent; transition: opacity .35s, scale .35s; will-change: transform; }
+.sowa-lot .sowa-cialo { display: block; width: 100%; height: 100%; transform-origin: 50% 90%; transition: transform .3s; }
+.sowa-lot .sowka-svg { width: 58px; height: 64px; filter: drop-shadow(0 6px 6px rgba(0, 0, 0, .35)); animation: oddech 3.2s ease-in-out infinite; }
+.sowa-lot .s-zrenica { transition: transform .18s ease-out; }
+.sowka-karta .sowka .s-zrenica { transition: transform .18s ease-out; }
+@keyframes oddech { 50% { transform: scale(1.03, .97); } }
+.sowa-lot.w-karcie { opacity: 0; scale: .5; pointer-events: none; }
+.sowa-lot.w-rozmowie { z-index: 95; }
+body.kino-otwarte .sowa-lot, body.kino-otwarte .sowa-dymek { display: none; }
+
+/* lot: skrzydła machają, ciało pochylone w stronę lotu */
+.sowa-lot .s-skrz { transform-box: fill-box; }
+.sowa-lot .s-skrz-l { transform-origin: 80% 0; }
+.sowa-lot .s-skrz-p { transform-origin: 20% 0; }
+.sowa-lot.leci .s-skrz-l { animation: mach-l .14s ease-in-out infinite alternate; }
+.sowa-lot.leci .s-skrz-p { animation: mach-p .14s ease-in-out infinite alternate; }
+@keyframes mach-l { from { transform: rotate(10deg); } to { transform: rotate(95deg) scaleY(1.15); } }
+@keyframes mach-p { from { transform: rotate(-10deg); } to { transform: rotate(-95deg) scaleY(1.15); } }
+.sowa-lot.leci .sowa-cialo { transform: rotate(calc(var(--kier, 1) * 12deg)); }
+.sowa-lot.leci .sowka-svg { animation: none; }
+.sowa-lot.leci .s-nozki { transform: translateY(-3px); }
+.sowa-lot.laduje .sowa-cialo { animation: ladowanie .45s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes ladowanie { 0% { transform: scale(1.1, .82); } 60% { transform: scale(.94, 1.08); } }
+.sowa-lot.trzymana { cursor: grabbing; }
+.sowa-lot.trzymana .sowa-cialo { transform: scale(1.12) rotate(-6deg); }
+
+/* drobne zachowania */
+.sowa-lot.podskok .sowa-cialo { animation: skok .6s cubic-bezier(.3, 1.6, .5, 1); }
+.sowa-lot.przechyl .sowa-cialo { animation: przechyl 1.6s ease-in-out; }
+@keyframes przechyl { 30%, 70% { transform: rotate(-14deg); } }
+.sowa-lot.rozglada .sowa-cialo { animation: rozglada 1.6s ease-in-out; }
+@keyframes rozglada { 25% { transform: rotate(-7deg) translateX(-2px); } 65% { transform: rotate(7deg) translateX(2px); } }
+.sowa-lot.czysci .s-skrz-l { animation: czysci .25s ease-in-out 5 alternate; }
+@keyframes czysci { to { transform: rotate(28deg); } }
+.sowa-lot.smieje .sowa-cialo { animation: smiech .14s linear 8; }
+.sowa-lot.mowi .sowa-cialo { animation: gada .34s ease-in-out infinite alternate; }
+@keyframes gada { to { transform: translateY(-3px) scale(1.02, .98); } }
+.sowa-lot.mowi .s-dziob { transform-box: fill-box; transform-origin: 50% 0; animation: dziob .17s ease-in-out infinite alternate; }
+@keyframes dziob { to { transform: scaleY(1.35); } }
+.sowa-lot.budzi .sowa-cialo { animation: budzi .6s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes budzi { 30% { transform: translateY(-14px) scale(1.08); } }
+.sowa-lot.spi .sowka-svg { animation: oddech 5s ease-in-out infinite; }
+.sowa-lot.obrazona .s-cialo { fill: #9b4b3b; transition: fill .4s; }
+
+/* dymek nad Sówką */
+.sowa-dymek { position: fixed; left: 0; top: 0; z-index: 41; max-width: min(240px, calc(100vw - 16px)); margin: 0; padding: 8px 12px; border-radius: 14px; background: var(--pole); color: var(--tusz, inherit); border: 1px solid var(--linia); box-shadow: 0 12px 26px -14px rgba(0, 0, 0, .6); font-size: 13.5px; font-weight: 600; line-height: 1.35; pointer-events: none; }
+.sowa-dymek::after { content: ''; position: absolute; left: var(--ogon, 50%); bottom: -6px; width: 10px; height: 10px; margin-left: -5px; background: inherit; border-right: 1px solid var(--linia); border-bottom: 1px solid var(--linia); transform: rotate(45deg); }
+.sowa-dymek.pod::after { bottom: auto; top: -6px; transform: rotate(225deg); }
+.sowa-dymek.nowy { animation: dymek-sowy .35s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes dymek-sowy { from { opacity: 0; scale: .8; } }
+
+/* duży dymek rozmowy: miejsce zajmuje latająca Sówka */
+.sowka-wyskok.z-towarzyszka .wyskok-sowa { visibility: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sowa-lot .sowka-svg, .sowa-lot.leci .s-skrz-l, .sowa-lot.leci .s-skrz-p, .sowa-lot.mowi .sowa-cialo, .sowa-lot.mowi .s-dziob { animation: none; }
+}
+/* 2.20: Sówka wlatuje do karty na Dziś i z niej wylatuje */
+.sowa-lot { transform-origin: 0 0; }
+.sowa-lot.w-karcie { opacity: 0; scale: 1; transition: none; pointer-events: none; }
+.sowka-karta .sowka.pusta .sowka-svg { visibility: hidden; }
+.sowa-lot { transition: none; }
+.czestosc { display: grid; gap: 6px; margin: 4px 0 10px; font-size: 13.5px; }
+.segment-mini { display: flex; gap: 6px; flex-wrap: wrap; }
+.segment-mini .chip-m.akt { background: var(--zloto, #d9b66e); color: #2b210d; border-color: transparent; font-weight: 700; }

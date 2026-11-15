@@ -1,6 +1,6 @@
 /* Zakładka — service worker: aplikacja działa bez internetu.
    Przy każdej nowej wersji zmień WERSJA, żeby telefon pobrał świeże pliki. */
-const WERSJA = 'zakladka-2.17.0';
+const WERSJA = 'zakladka-2.20.1';
 const MEDIA = 'zakladka-media';
 const RDZEN = [
   './', 'index.html', 'css/app.css',
@@ -24,7 +24,7 @@ self.addEventListener('activate', e => {
 
 function zSieciNajpierw(req) {
   const siec = fetch(req).then(r => {
-    if (r.ok) {
+    if (r.ok && r.status === 200) {
       const kopia = r.clone();
       caches.open(WERSJA).then(c => c.put(req, kopia));
     }
@@ -46,12 +46,38 @@ function zPamieciNajpierw(req) {
   }));
 }
 
+/* Nagrania głosów: wszystkie w jednej paczce audio/glosy-<hash>.bin (nazwa zmienia się z treścią, więc pamięć najpierw).
+   Safari i aplikacja proszą o kawałki pliku (nagłówek Range), więc odpowiadamy wycinkiem z pełnej paczki w pamięci (206). */
+function wytnij(blob, zakres, typ) {
+  const m = /bytes=(\d*)-(\d*)/.exec(zakres) || [];
+  const start = Math.min(+m[1] || 0, Math.max(0, blob.size - 1)), koniec = m[2] ? Math.min(+m[2], blob.size - 1) : blob.size - 1;
+  return new Response(blob.slice(start, koniec + 1), {
+    status: 206, statusText: 'Partial Content',
+    headers: { 'Content-Type': typ, 'Content-Range': `bytes ${start}-${koniec}/${blob.size}`, 'Content-Length': String(koniec - start + 1), 'Accept-Ranges': 'bytes' }
+  });
+}
+async function nagranie(req) {
+  const url = req.url.split('#')[0], c = await caches.open(MEDIA), zakres = req.headers.get('range');
+  const typ = url.endsWith('.mp3') ? 'audio/mpeg' : 'application/octet-stream';
+  const r = await c.match(url);
+  if (r) return zakres ? wytnij(await r.blob(), zakres, typ) : r;
+  if (zakres) return fetch(req); // paczka jeszcze się nie pobrała: kawałek prosto z sieci
+  const o = await fetch(url, { credentials: 'same-origin' });
+  if (o.status === 200) {
+    await c.put(url, o.clone());
+    // stare paczki (z poprzednich wersji) wyrzucamy z pamięci
+    for (const k of await c.keys()) if (/\/audio\/glosy-[^/]+\.bin$/.test(k.url) && k.url !== url) await c.delete(k);
+  }
+  return o;
+}
+
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.pathname.endsWith('/bn.php')) return; // pośrednik BN: zawsze świeże wyniki, bez pamięci podręcznej
-  if (url.origin === self.location.origin) e.respondWith(zSieciNajpierw(req));
+  if (url.origin === self.location.origin && /\/audio\/(.+\.mp3|glosy-[^/]+\.bin)$/.test(url.pathname)) e.respondWith(nagranie(req).catch(() => fetch(req)));
+  else if (url.origin === self.location.origin) e.respondWith(zSieciNajpierw(req));
   else if (OBCE_MEDIA.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) e.respondWith(zPamieciNajpierw(req));
   // pozostałe (wyszukiwarki książek) idą zwyczajnie przez sieć
 });
