@@ -1,7 +1,7 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.21.0';
+const WERSJA = '2.21.1';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
@@ -116,7 +116,9 @@ function normalizujKsiazke(k = {}) {
     opinieNet: k.opinieNet && +k.opinieNet.ocena > 0 && poprawnaData(k.opinieNet.data) ? {
       zrodlo: String(k.opinieNet.zrodlo || '').slice(0, 40), ocena: +k.opinieNet.ocena, skala: +k.opinieNet.skala === 5 ? 5 : 10, ocen: Math.max(0, Math.round(+k.opinieNet.ocen) || 0),
       url: /^https:\/\//.test(k.opinieNet.url) ? k.opinieNet.url : '', data: k.opinieNet.data,
-      opinie: (Array.isArray(k.opinieNet.opinie) ? k.opinieNet.opinie : []).slice(0, 3).map(o => ({ tekst: String(o.tekst || '').slice(0, 400), ocena: +o.ocena || null }))
+      opinie: (Array.isArray(k.opinieNet.opinie) ? k.opinieNet.opinie : []).slice(0, 3).map(o => ({ tekst: String(o.tekst || '').slice(0, 400), ocena: +o.ocena || null })),
+      tematy: Object.fromEntries(Object.entries(k.opinieNet.tematy || {}).filter(([t, v]) => /^[a-z]+$/.test(t) && +v > 0).map(([t, v]) => [t, Math.round(+v)])),
+      opinieSrednia: +k.opinieNet.opinieSrednia || null
     } : null,
     cenyCeneo: k.cenyCeneo && poprawnaData(k.cenyCeneo.data) ? Object.fromEntries(['papier', 'ebook', 'audio'].map(f => [f, k.cenyCeneo[f] && +k.cenyCeneo[f].cena > 0 ? { cena: +k.cenyCeneo[f].cena, link: /^https:\/\//.test(k.cenyCeneo[f].link) ? k.cenyCeneo[f].link : '', nazwa: String(k.cenyCeneo[f].nazwa || '').slice(0, 120) } : null]).concat([['data', k.cenyCeneo.data]])) : null,
     cenaDocelowa: +k.cenaDocelowa > 0 ? Math.round(+k.cenaDocelowa * 100) / 100 : null,

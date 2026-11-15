@@ -51,6 +51,25 @@ function lcKsiazka(html) {
   }
   return null;
 }
+/** O czym najczęściej piszą czytelnicy (liczone ze wszystkich opinii) i średnia ocen w opiniach. */
+const TEMATY = {
+  wciaga: /wciąga|nie (mogłam|mogłem) się oderwać|pochłon|jednym tchem|nie da się odłożyć/i,
+  nudna: /nudn|dłuży|dłużyzn|męcząc|ciężko się czyta|nie (dałam|dałem) rady|przegadan/i,
+  klimat: /klimat/i,
+  humor: /humor|zabawn|śmieszn|(śmiałam|śmiałem) się/i,
+  jezyk: /piękny język|pięknie napisan|styl|pióro|język/i,
+  emocje: /wzrusz|płakał|łzy|emocj|chwyta za serce/i,
+  polecam: /polecam/i,
+  rozczarowanie: /rozczarow|zawiod|spodziewał/i,
+  bohaterowie: /bohater|postaci/i,
+  zakonczenie: /zakończeni|końcówk|finał/i
+};
+function lcTematy(opinie) {
+  const t = {};
+  for (const o of opinie) for (const [k, re] of Object.entries(TEMATY)) if (re.test(o.tekst)) t[k] = (t[k] || 0) + 1;
+  const oc = opinie.map(o => o.ocena).filter(x => x != null);
+  return { tematy: t, opinieIle: opinie.length, opinieSrednia: oc.length ? Math.round(oc.reduce((a, b) => a + b, 0) / oc.length * 10) / 10 : null };
+}
 /** Krótkie cytaty z opinii: najlepsza, najgorsza i jedna ze środka; skrócone do 1–2 zdań. */
 function lcCytaty(opinie) {
   const skroc = t => { const zd = t.split(/(?<=[.!?…])\s+/); let o = ''; for (const z of zd) { if ((o + ' ' + z).length > 220) break; o = (o + ' ' + z).trim(); } return (o || t.slice(0, 200) + '…').trim(); };
@@ -79,7 +98,7 @@ export default {
         const k = lcKsiazka(await st.text()) || {};
         const wynik = {
           zrodlo: 'Lubimyczytać', tytul: k.tytul || wybor.tytul, autorzy: wybor.autorzy, url: k.url || `https://lubimyczytac.pl${wybor.href}`,
-          ocena: k.ocena || wybor.ocena || null, ocen: k.ocen || wybor.ocen, skala: k.skala || 10, gatunek: k.gatunek || '', opinie: lcCytaty(k.opinie || [])
+          ocena: k.ocena || wybor.ocena || null, ocen: k.ocen || wybor.ocen, skala: k.skala || 10, gatunek: k.gatunek || '', opinie: lcCytaty(k.opinie || []), ...lcTematy(k.opinie || [])
         };
         return new Response(JSON.stringify(wynik), { headers: { ...cors, 'Cache-Control': 'public, max-age=86400' } });
       } catch (e) {

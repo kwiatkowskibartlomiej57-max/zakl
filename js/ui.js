@@ -1125,10 +1125,8 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     odswiez();
     toast(`Dodano „${nowa.tytul}”.`);
     if (opisWyniku && !nowa.opis) { nowa.opis = opisWyniku; nowa.opisZrodlo = 'Biblioteka Narodowa'; utrwal(nowa); }
-    const opisGotowy = !nowa.opis ? uzupelnijOpis(nowa, { cicho: true }) : null;
-    const opinieGotowe = pobierzOpinie(nowa, { cicho: true });
     if (nowa.status === 'zyczenia') sprawdzCeny(nowa, { cicho: true });
-    recenzjaKsiazki(nowa, opisGotowy, opinieGotowe);
+    poDodaniu(nowa);
   });
   if (!edytowana) setTimeout(() => $('#f-q', f).focus(), 80);
 }
@@ -3168,6 +3166,7 @@ function arkuszWielu({ pula = false } = {}) {
       }
       utrwal(dodane);
       a.zamknij(); odswiez();
+      if (dodane.length === 1) poDodaniu(dodane[0]);
       const bezStron = wybrane.filter(r => !r.w.strony).length;
       toast(`Dodano ${ile(dodane.length, FORMY_KSIAZEK_B)}.${bezStron ? ` ${bezStron} bez liczby stron: wpisałem ${Z.ustawienia.srednia}, popraw w edycji.` : ''}`, { czas: 6000 });
     }
@@ -3391,6 +3390,7 @@ async function dodajDoPuli(q) {
   utrwal(k);
   if (U.widok === 'losuj') renderWidok();
   toast(`Dodano do puli: „${k.tytul}”${w.strony ? '' : ' (sprawdź liczbę stron)'}.`, { akcja: 'Edytuj', onAkcja: () => arkuszFormularza(k.id) });
+  poDodaniu(k);
 }
 
 function arkuszPuliZBiblioteki() {
@@ -3941,7 +3941,7 @@ document.addEventListener('click', async e => {
   U.podobne[b.dataset.dla] = lista.filter(x => x !== p);
   odswiez();
   toast(`„${k.tytul}” ${b.dataset.gdzie === 'zyczenia' ? 'na liście życzeń' : 'w kolejce do przeczytania'}.`, { akcja: 'Pokaż', onAkcja: () => arkuszKsiazki(k.id) });
-  uzupelnijOpis(k, { cicho: true });
+  poDodaniu(k);
 });
 /** Najwyżej dwa przypomnienia naraz (od najważniejszego), reszta zwinięta. */
 function stosBanerow(lista) {
@@ -4174,7 +4174,7 @@ async function decyzjaOdkrywaj(rodzaj) {
     zapis.id = k.id;
     utrwal(k);
     if (x.okladka) urlNaOkladke(x.okladka).then(o => { if (o !== k.okladka) { k.okladka = o; utrwal(k); } });
-    setTimeout(() => { uzupelnijOpis(k, { cicho: true }); if (rodzaj === 'tak') sprawdzCeny(k, { cicho: true }); }, 400);
+    setTimeout(() => { if (rodzaj === 'tak') { sprawdzCeny(k, { cicho: true }); poDodaniu(k); } else uzupelnijOpis(k, { cicho: true }); }, 400);
     if (navigator.vibrate) navigator.vibrate(rodzaj === 'tak' ? [15, 40, 15] : 20);
     if (rodzaj === 'tak') serduszka();
   }
@@ -4267,7 +4267,7 @@ document.addEventListener('click', e => {
     const n = nowaKsiazka({ tytul: tyt, autor: k.autor, strony: Z.ustawienia.srednia, seria: k.seria || (k.fakty.cykl || [''])[0], tom: k.tom != null ? k.tom + 1 : null });
     naListeZyczen(n); utrwal(n); odswiez();
     toast(`„${tyt}” na liście życzeń.`, { akcja: 'Pokaż', onAkcja: () => arkuszKsiazki(n.id) });
-    uzupelnijOpis(n, { cicho: true }); sprawdzCeny(n, { cicho: true });
+    sprawdzCeny(n, { cicho: true }); poDodaniu(n);
   }
 });
 document.addEventListener('keydown', e => {
@@ -6051,12 +6051,47 @@ function ocenaSowki(k) {
   const gwiazdki = Math.max(1, Math.min(5, Math.round(o)));
   return { gwiazdki, pasuje: siec != null ? (siec >= .75 || (pasujeGust && siec >= .64)) : pasujeGust, siec };
 }
+/* opinie mówione nagranym głosem: każda możliwa średnia, liczba ocen, wydźwięk i tematy z opinii */
+const LICZBY_SLOWNIE = ['zero', 'jeden', 'dwa', 'trzy', 'cztery', 'pięć', 'sześć', 'siedem', 'osiem', 'dziewięć', 'dziesięć'];
+function zdanieOceny(o) {
+  const [c, d] = (Math.round(o.ocena * 10) / 10).toFixed(1).split('.');
+  return `${o.zrodlo === 'Lubimyczytać' ? 'Na Lubimyczytać' : 'W Open Library'} ma średnią ${LICZBY_SLOWNIE[+c]}${d !== '0' ? ` przecinek ${LICZBY_SLOWNIE[+d]}` : ''} na ${o.skala === 5 ? 'pięć' : 'dziesięć'}.`;
+}
+const ZDANIA_ILOSCI = [[50, 'Ocen jest na razie niewiele.'], [100, 'Oceniło ją kilkadziesiąt osób.'], [1000, 'Oceniło ją kilkaset osób.'], [10000, 'Oceniło ją kilka tysięcy osób.'], [20000, 'Oceniło ją kilkanaście tysięcy osób.'], [100000, 'Oceniło ją kilkadziesiąt tysięcy osób!'], [Infinity, 'Oceniło ją ponad sto tysięcy osób!']];
+const zdanieIlosci = n => ZDANIA_ILOSCI.find(([g]) => n < g)[1];
+const ZDANIA_TEMATOW = { wciaga: 'Ludzie piszą, że bardzo wciąga.', nudna: 'Niektórzy narzekają, że się dłuży.', klimat: 'Chwalą klimat.', humor: 'Dużo osób śmiało się przy czytaniu.', jezyk: 'Chwalą styl i język.', emocje: 'Piszą, że mocno porusza.', polecam: 'Wiele osób poleca ją dalej.', rozczarowanie: 'Kilka osób jest rozczarowanych.', bohaterowie: 'Czytelnicy dużo piszą o bohaterach.', zakonczenie: 'Wiele osób wspomina zakończenie.' };
+const ZDANIA_WYDZWIEKU = ['Opinie, które przeczytałam, są zachwycone.', 'Opinie, które przeczytałam, są mieszane.', 'W opiniach jest sporo narzekania.'];
+/** Kwestie Sówki o opiniach z sieci: wszystko mówione z nagrań, oprócz samego cytatu. */
+function kwestieOpinii(o) {
+  const siec = ocenaProc(o), kw = [{ kto: 's', tekst: losuj(RECENZJA.siec) }];
+  kw.push({ kto: 's', tekst: `${o.zrodlo}: ${ocenaTekst(o)}${o.ocen ? `, ${o.ocen.toLocaleString('pl-PL')} ${odmiana(o.ocen, ['ocena', 'oceny', 'ocen'])}` : ''} ${'★'.repeat(Math.round(siec * 5))}`, mowa: zdanieOceny(o) });
+  if (o.ocen) kw.push({ kto: 's', tekst: zdanieIlosci(o.ocen) });
+  kw.push({ kto: 's', tekst: losuj(siec >= .76 ? RECENZJA.wysoko : siec >= .62 ? RECENZJA.srednio : RECENZJA.nisko) });
+  if (o.opinieSrednia && (o.opinie || []).length) kw.push({ kto: 's', tekst: ZDANIA_WYDZWIEKU[o.opinieSrednia >= 8 ? 0 : o.opinieSrednia >= 6 ? 1 : 2] });
+  const tematy = Object.entries(o.tematy || {}).filter(([t, n]) => n >= 2 && ZDANIA_TEMATOW[t]).sort((a, b) => b[1] - a[1]).slice(0, 2);
+  tematy.forEach(([t]) => kw.push({ kto: 's', tekst: ZDANIA_TEMATOW[t] }));
+  const cyt = (o.opinie || []).length ? losuj(o.opinie) : null;
+  if (cyt) { kw.push({ kto: 's', tekst: losuj(RECENZJA.cytat) }); kw.push({ kto: 's', tekst: `„${cyt.tekst}”${cyt.ocena ? ` (${cyt.ocena}/10)` : ''}`, czytaj: true }); }
+  return kw;
+}
+/** Po dodaniu książki (każdą drogą): opis, opinie z sieci i recenzja Sówki. */
+function poDodaniu(k, { opisGotowy = null } = {}) {
+  if (!k) return;
+  const opis = opisGotowy || (!k.opis ? uzupelnijOpis(k, { cicho: true }) : null);
+  const opinie = pobierzOpinie(k, { cicho: true });
+  recenzjaKsiazki(k, opis, opinie);
+}
 async function recenzjaKsiazki(k, opisGotowy, opinieGotowe) {
   const g = Z.ustawienia.gra;
   if (!g.sowka || !k) return;
   // chwilę czekamy na opis, fakty i opinie z internetu (najwyżej 9 s)
-  await Promise.race([Promise.all([opisGotowy, opinieGotowe].map(p => p || Promise.resolve())), new Promise(r => setTimeout(r, 9000))]);
-  if (otwarte.length || document.body.classList.contains('kino-otwarte')) return;
+  if (U.recenzjaTrwa && Date.now() - U.recenzjaTrwa < 60000) return; // jedna recenzja naraz (np. przy Odkrywaj)
+  U.recenzjaTrwa = Date.now();
+  await Promise.race([Promise.all([opisGotowy, opinieGotowe].map(p => p || Promise.resolve())), new Promise(r => setTimeout(r, 10000))]);
+  // nie przerywamy, tylko czekamy, aż zamkniesz okna (do 40 s)
+  for (let i = 0; i < 80 && (otwarte.length || document.body.classList.contains('kino-otwarte') || document.hidden); i++) await new Promise(r => setTimeout(r, 500));
+  if (otwarte.length || document.body.classList.contains('kino-otwarte')) { U.recenzjaTrwa = 0; return; }
+  setTimeout(() => { U.recenzjaTrwa = 0; }, 30000);
   const { gwiazdki, pasuje, siec } = ocenaSowki(k);
   const werdykt = losuj(pasuje ? RECENZJA.dobryWybor : RECENZJA.ryzyko);
   const o = k.opinieNet;
@@ -6065,12 +6100,8 @@ async function recenzjaKsiazki(k, opisGotowy, opinieGotowe) {
     { kto: 's', tekst: `*kartkuje „${k.tytul}”* Hm… hm… hu-hu…`, fx: 'kartka' }
   ];
   if (o) {
-    kwestie.push({ kto: 's', tekst: losuj(RECENZJA.siec) });
-    kwestie.push({ kto: 's', tekst: `${o.zrodlo}: ${ocenaTekst(o)}${o.ocen ? `, z ${o.ocen.toLocaleString('pl-PL')} ${odmiana(o.ocen, ['oceny', 'ocen', 'ocen'])}` : ''}.`, czytaj: true });
-    kwestie.push({ kto: 's', tekst: losuj(siec >= .76 ? RECENZJA.wysoko : siec >= .62 ? RECENZJA.srednio : RECENZJA.nisko) });
-    const cyt = o.opinie && o.opinie.length ? losuj(o.opinie) : null;
-    if (cyt) { kwestie.push({ kto: 's', tekst: losuj(RECENZJA.cytat) }); kwestie.push({ kto: 's', tekst: `„${cyt.tekst}”${cyt.ocena ? ` (${cyt.ocena}/10)` : ''}`, czytaj: true }); }
-    if (Math.random() < .5) kwestie.push({ kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true });
+    kwestie.push(...kwestieOpinii(o));
+    if (Math.random() < .35) kwestie.push({ kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true });
   } else kwestie.push({ kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true });
   kwestie.push({ kto: 's', tekst: `${werdykt} Moja ocena: ${'★'.repeat(gwiazdki)}${'☆'.repeat(5 - gwiazdki)}`, mowa: werdykt });
   // czasem Zakładka się nie zgadza i robi się kłótnia
