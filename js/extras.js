@@ -629,6 +629,27 @@ const Wyszukiwarka = (() => {
     return { papier: naj('papier'), ebook: naj('ebook'), audio: naj('audio'), wszystkie: pasujace.sort((a, b) => a.cena - b.cena).slice(0, 8), data: new Date().toISOString().slice(0, 10) };
   }
 
+  /* ----- opinie czytelników (2.21): Lubimyczytać przez pośrednika, a zapasowo średnia z Open Library ----- */
+  async function opinie(k) {
+    const tytul = k.tytul.split(/[:(]/)[0].trim(), autor = k.autor ? k.autor.split(',')[0].trim() : '';
+    const wlasny = (ustawienia().posrednik || (typeof POSREDNIK_BN !== 'undefined' ? POSREDNIK_BN : '')).trim().replace(/\/+$/, '');
+    if (wlasny && !wlasny.includes('{url}')) {
+      try {
+        const r = await zTimeoutem(`${wlasny}?${new URLSearchParams({ opinie: tytul, autor })}`, 15000);
+        const x = await r.json();
+        if (x && x.zrodlo === 'Lubimyczytać' && x.ocena) return { ...x, data: new Date().toISOString().slice(0, 10) };
+      } catch { /* stary worker albo brak sieci: próbujemy dalej */ }
+    }
+    try {
+      const q = new URLSearchParams({ title: tytul, fields: 'title,author_name,ratings_average,ratings_count,key', limit: '5' });
+      if (autor) q.set('author', autor.split(' ').pop());
+      const j = await (await zTimeoutem(`https://openlibrary.org/search.json?${q}`, 12000)).json();
+      const w = (j.docs || []).filter(d => d.ratings_count > 0).sort((a, b) => b.ratings_count - a.ratings_count)[0];
+      if (w) return { zrodlo: 'Open Library', ocena: Math.round(w.ratings_average * 10) / 10, skala: 5, ocen: w.ratings_count, url: `https://openlibrary.org${w.key}`, opinie: [], data: new Date().toISOString().slice(0, 10) };
+    } catch { /* brak sieci */ }
+    return null;
+  }
+
   /** Sprawdza, które źródła działają (do Ustawień). */
   async function test() {
     const probny = '9788308039861';
@@ -640,7 +661,7 @@ const Wyszukiwarka = (() => {
     };
   }
 
-  return { szukaj, szukajMadrze, podpowiedzi, opis, opisPro, ceny, podobne, wKategorii, cenaEbooka, podobienstwo, bezOgonkow, czyIsbn, test, stan, isbn10na13 };
+  return { szukaj, szukajMadrze, podpowiedzi, opis, opisPro, ceny, opinie, podobne, wKategorii, cenaEbooka, podobienstwo, bezOgonkow, czyIsbn, test, stan, isbn10na13 };
 })();
 
 /* ---------- skaner kodów kreskowych ----------

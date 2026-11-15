@@ -210,6 +210,7 @@ function odswiez() {
   sprawdzOdznaki();
   sprawdzCele();
   sprawdzHistorie();
+  sprawdzBingo();
   const sr = stronyRazem();
   if (U.stronyPoprz != null && sr > U.stronyPoprz) reakcjaNaStrony(sr - U.stronyPoprz);
   U.stronyPoprz = sr;
@@ -603,7 +604,8 @@ function widokStatystyki() {
   const odz = odznaki(m), zdobyte = odz.filter(o => o.zdobyta).length;
   const odzSort = [...odz].sort((a, b) => b.zdobyta - a.zdobyta || (b.wart / b.prog) - (a.wart / a.prog));
   return `<section class="naglowek-widoku"><h1>Statystyki</h1>
-    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="miesiac" data-ym="${miesiacTeraz()}">${I.kalendarz}Miesiąc</button><button type="button" class="btn" data-akcja="rok">${I.rok}Twój rok</button></span></section>
+    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="miesiac" data-ym="${miesiacTeraz()}">${I.kalendarz}Miesiąc</button><button type="button" class="btn" data-akcja="rok">${I.rok}Twój rok</button><button type="button" class="btn" data-akcja="tydzien-podsumowanie">🦉 Tydzień</button></span></section>
+  ${htmlBingo()}
   <dl class="liczby">
     <div><dt>Przeczytane w okresie celu</dt><dd>${ukon.length}<small> z ${u.cel}</small></dd></div>
     <div><dt>Strony w okresie celu</dt><dd>${liczba(stronOkres)}</dd></div>
@@ -884,6 +886,7 @@ function htmlKsiazki(k) {
     ${k.bazowa ? '<span class="kd-plan-tydz">· norma dzienna liczona automatycznie</span>' : planTygodnia().some(e => e.id === k.id) ? '<span class="kd-plan-tydz">· w planie tego tygodnia</span>' : `<button type="button" class="btn-tekst" data-akcja="do-tygodnia" data-id="${k.id}">Na ten tydzień</button>`}</p>` : ''}
   ${k.status === 'przeczytana' || k.recenzja ? `<label class="kd-recenzja">Twoje wrażenia<textarea name="recenzja" rows="3" placeholder="Co zostanie ci z tej książki?">${esc(k.recenzja)}</textarea></label>` : ''}
   ${htmlOpisu(k)}
+  ${htmlOpinii(k)}
   ${htmlPozyczki(k)}
   ${htmlSerii(k)}
   ${htmlPodobnych(k)}
@@ -1123,8 +1126,9 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     toast(`Dodano „${nowa.tytul}”.`);
     if (opisWyniku && !nowa.opis) { nowa.opis = opisWyniku; nowa.opisZrodlo = 'Biblioteka Narodowa'; utrwal(nowa); }
     const opisGotowy = !nowa.opis ? uzupelnijOpis(nowa, { cicho: true }) : null;
+    const opinieGotowe = pobierzOpinie(nowa, { cicho: true });
     if (nowa.status === 'zyczenia') sprawdzCeny(nowa, { cicho: true });
-    recenzjaKsiazki(nowa, opisGotowy);
+    recenzjaKsiazki(nowa, opisGotowy, opinieGotowe);
   });
   if (!edytowana) setTimeout(() => $('#f-q', f).focus(), 80);
 }
@@ -1219,24 +1223,37 @@ function otworzSesje(id) {
   if (!s) {
     const k = znajdz(id);
     if (k.status !== 'czytam') { zacznijCzytac(k); utrwal(k); odswiez(); }
-    lsSet('zakladka-sesja', JSON.stringify({ id, start: Date.now(), strona: k.strona }));
+    const poprz = (() => { try { return JSON.parse(lsGet('zakladka-sesja-ustawienia') || '{}'); } catch { return {}; } })();
+    lsSet('zakladka-sesja', JSON.stringify({ id, start: Date.now(), strona: k.strona, cel: poprz.cel || 0, tlo: poprz.tlo || '' }));
+    setTimeout(() => Glos.mow(SESJA_TEKSTY.start, 's', { wl: Z.ustawienia.gra.glosSowki }), 500);
   }
   arkuszSesji(id);
 }
 
+/* ---------- 2.21: rozbudowana sesja: cel z pierścieniem, dźwięki tła, szacunek stron, podsumowanie ---------- */
+const CELE_SESJI = [0, 15, 25, 45, 60];
+const DZWIEKI_TLA = [['', '🔇', 'Cisza'], ['deszcz', '🌧️', 'Deszcz'], ['kominek', '🔥', 'Kominek'], ['las', '🌲', 'Las'], ['kawiarnia', '☕', 'Kawiarnia'], ['szum', '〰️', 'Szum']];
 function arkuszSesji(id) {
   const k = znajdz(id), s = sesjaAktywna();
   if (!k || !s) return;
   let blokada = null;
   const zwolnij = () => { if (blokada) { blokada.release().catch(() => {}); blokada = null; } };
   const godzina = new Date(s.start).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
+  const tempo = tempoKsiazki(k) || tempoOgolne() || 0; // stron na godzinę
+  const zapisz = () => lsSet('zakladka-sesja', JSON.stringify(s));
+  const R = 108, OBW = 2 * Math.PI * R;
   const a = arkusz({
     tytul: 'Sesja czytania', klasa: 'arkusz-sesja', onZamknij: () => { clearInterval(t); zwolnij(); },
     render: () => `<div class="sesja${s.pauzaOd ? ' sesja-pauza' : ''}">
-      ${okladka(k, 'l')}
-      <p class="sesja-tytul">${esc(k.tytul)}</p>
-      <p class="sesja-czas" data-czas role="timer" aria-live="off">${stoper(czasSesji(s))}</p>
-      <p class="sesja-start">${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, start na stronie ${s.strona}</p>
+      <div class="sesja-naglowek">${okladka(k, 's')}<div><p class="sesja-tytul">${esc(k.tytul)}</p><p class="sesja-start">${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, start na stronie ${s.strona}</p></div></div>
+      <div class="sesja-tarcza">
+        <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="${R}" class="tarcza-tlo"/><circle cx="120" cy="120" r="${R}" class="tarcza-postep" data-postep stroke-dasharray="${OBW.toFixed(1)}" stroke-dashoffset="${OBW.toFixed(1)}"/></svg>
+        <div class="tarcza-srodek"><p class="sesja-czas" data-czas role="timer" aria-live="off">${stoper(czasSesji(s))}</p><p class="tarcza-cel" data-cel-opis></p></div>
+        <div class="sesja-sowa">${svgSowki('czyta', Z.ustawienia.gra.zalozone)}</div>
+      </div>
+      <p class="sesja-szacunek" data-szacunek></p>
+      <div class="sesja-opcje"><span>Cel</span>${CELE_SESJI.map(c => `<button type="button" class="chip-m${(s.cel || 0) === c ? ' akt' : ''}" data-cel="${c}">${c ? `${c} min` : 'bez celu'}</button>`).join('')}</div>
+      <div class="sesja-opcje"><span>Tło</span>${DZWIEKI_TLA.map(([kl, e, n]) => `<button type="button" class="chip-m${(s.tlo || '') === kl ? ' akt' : ''}" data-tlo="${kl}" title="${n}">${e} ${n}</button>`).join('')}</div>
       <button type="button" class="btn btn-na-plotnie sesja-pauza-btn" data-pauza>${s.pauzaOd ? `${I.graj}Wznów` : `${I.pauza}Pauza`}</button>
       ${'wakeLock' in navigator ? '<label class="przelacznik"><input type="checkbox" data-blokada> Nie wygaszaj ekranu</label>' : ''}
       <form class="formularz sesja-koniec" novalidate>
@@ -1246,12 +1263,43 @@ function arkuszSesji(id) {
           <button type="button" class="btn-tekst" data-odrzuc>Odrzuć sesję</button></div>
       </form></div>`
   });
-  const t = setInterval(() => { const c = $('[data-czas]', a.tresc); if (c) c.textContent = stoper(czasSesji(s)); }, 1000);
+  const tick = () => {
+    const ms = czasSesji(s), min = ms / 60000;
+    const c = $('[data-czas]', a.tresc); if (!c) return;
+    const cel = s.cel || 0;
+    c.textContent = cel && min > cel ? `+${stoper(ms - cel * 60000)}` : stoper(ms);
+    c.classList.toggle('nadgodziny', !!(cel && min > cel));
+    const proc = cel ? Math.min(1, min / cel) : (min % 60) / 60;
+    $('[data-postep]', a.tresc).setAttribute('stroke-dashoffset', (OBW * (1 - proc)).toFixed(1));
+    $('.sesja-tarcza', a.tresc).classList.toggle('cel-zrobiony', !!(cel && min >= cel));
+    $('[data-cel-opis]', a.tresc).textContent = cel ? (min >= cel ? `cel ${cel} min zrobiony ✓` : `z ${cel} min · zostało ${Math.ceil(cel - min)} min`) : 'bez celu, czytaj ile chcesz';
+    const szac = Math.round(tempo * min / 60), zost = k.strony - k.strona - szac;
+    $('[data-szacunek]', a.tresc).textContent = tempo ? `≈ ${szac} ${odmiana(szac, FORMY_STRON)} przy twoim tempie (${Math.round(tempo)} str./h)${zost > 0 ? ` · do końca książki ok. ${czasLadnie(zost / tempo * 60)}` : ''}` : 'Po kilku sesjach pokażę, ile stron mniej więcej już przeczytałeś.';
+    // kamienie milowe: połowa i cel (raz na sesję)
+    if (cel && !s.pauzaOd) {
+      if (!s.polowa && min >= cel / 2 && cel >= 15) { s.polowa = true; zapisz(); Glos.mow(SESJA_TEKSTY.polowa, 's', { wl: Z.ustawienia.gra.glosSowki }); }
+      if (!s.celOk && min >= cel) {
+        s.celOk = true; zapisz();
+        Fx.graj('dzwonek'); if (navigator.vibrate) navigator.vibrate([30, 60, 30, 60, 60]);
+        konfetti({ ile: 50 });
+        Glos.mow(cel === 25 ? SESJA_TEKSTY.przerwa : SESJA_TEKSTY.cel, 's', { wl: Z.ustawienia.gra.glosSowki });
+        if (cel === 25) toast('🍅 25 minut! To dobry moment na 5 minut przerwy (albo czytaj dalej).', { czas: 8000, akcja: 'Pauza', onAkcja: () => $('[data-pauza]', a.tresc)?.click() });
+      }
+    }
+  };
+  const t = setInterval(tick, 1000);
+  tick();
+  if (s.tlo && !s.pauzaOd) Fx.tlo(s.tlo);
   a.tresc.addEventListener('click', e => {
+    const c = e.target.closest('[data-cel]');
+    if (c || e.target.closest('[data-tlo]')) setTimeout(() => lsSet('zakladka-sesja-ustawienia', JSON.stringify({ cel: s.cel || 0, tlo: s.tlo || '' })), 0);
+    if (c) { s.cel = +c.dataset.cel; s.polowa = s.celOk = czasSesji(s) / 60000 >= s.cel && s.cel > 0; zapisz(); $$('[data-cel]', a.tresc).forEach(b => b.classList.toggle('akt', b === c)); tick(); return; }
+    const tl = e.target.closest('[data-tlo]');
+    if (tl) { s.tlo = tl.dataset.tlo; zapisz(); $$('[data-tlo]', a.tresc).forEach(b => b.classList.toggle('akt', b === tl)); Glos.odblokuj(); if (s.pauzaOd) Fx.tloStop(); else Fx.tlo(s.tlo); return; }
     if (!e.target.closest('[data-pauza]')) return;
-    if (s.pauzaOd) { s.pauzaMs = (s.pauzaMs || 0) + Date.now() - s.pauzaOd; s.pauzaOd = null; }
-    else s.pauzaOd = Date.now();
-    lsSet('zakladka-sesja', JSON.stringify(s));
+    if (s.pauzaOd) { s.pauzaMs = (s.pauzaMs || 0) + Date.now() - s.pauzaOd; s.pauzaOd = null; if (s.tlo) Fx.tlo(s.tlo); }
+    else { s.pauzaOd = Date.now(); Fx.tloStop(); }
+    zapisz();
     $('.sesja', a.tresc).classList.toggle('sesja-pauza', !!s.pauzaOd);
     $('[data-pauza]', a.tresc).innerHTML = s.pauzaOd ? `${I.graj}Wznów` : `${I.pauza}Pauza`;
     $('.sesja-start', a.tresc).textContent = `${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, start na stronie ${s.strona}`;
@@ -1267,6 +1315,7 @@ function arkuszSesji(id) {
   $('[data-odrzuc]', a.tresc).addEventListener('click', async () => {
     if (!(await potwierdz('Sesja nie zostanie zapisana.', { tytul: 'Odrzucić sesję?', tak: 'Odrzuć', niebezpieczne: true }))) return;
     lsSet('zakladka-sesja', null);
+    Fx.tloStop();
     a.zamknij();
     toast('Odrzucono sesję.');
   });
@@ -1274,21 +1323,41 @@ function arkuszSesji(id) {
     e.preventDefault();
     const wartosc = e.target.elements.namedItem('strona').value;
     lsSet('zakladka-sesja', null);
+    Fx.tloStop();
     a.zamknij();
     zakonczSesje(k, s, wartosc === '' ? k.strona : wartosc);
   });
   renderPigulka();
 }
+const czasLadnie = min => { min = Math.max(1, Math.round(min)); return min >= 60 ? `${Math.floor(min / 60)} h ${min % 60 ? `${min % 60} min` : ''}`.trim() : `${min} min`; };
+const SESJA_TEKSTY = { start: 'Zaczynamy! Ja też czytam, cichutko.', polowa: 'Połowa sesji za nami. Czytamy dalej!', cel: 'Cel sesji osiągnięty! Hu-hu!', przerwa: 'Czas na krótką przerwę. Rozprostuj skrzydła!', koniec: 'Świetna sesja! Jestem z ciebie dumna.', rekord: 'Nowy rekord sesji! Hu-hu!' };
 
 function zakonczSesje(k, s, wartosc) {
   const minuty = Math.max(1, Math.round(czasSesji(s) / 60000));
+  const rekordPrzed = Z.ksiazki.reduce((m, x) => Math.max(m, ...x.sesje.map(y => y.minuty)), 0);
+  const tempoPrzed = tempoOgolne();
   const { skonczona } = ustawStrone(k, wartosc, dzisISO());
   const strony = Math.max(0, k.strona - s.strona);
   k.sesje.push({ data: dzisISO(), minuty, strony });
   utrwal(k);
   odswiez();
-  toast(`Sesja: ${minuty} min, ${ile(strony, FORMY_STRON)}${strony && minuty >= 5 ? `, ${Math.round(strony / minuty * 60)} str./h` : ''}.`);
-  if (skonczona) celebracja(k.id);
+  if (skonczona) { celebracja(k.id); return; }
+  const tempoTeraz = strony && minuty >= 5 ? Math.round(strony / minuty * 60) : 0;
+  const rekord = minuty >= 10 && minuty > rekordPrzed;
+  const a = arkusz({
+    tytul: 'Koniec sesji', klasa: 'arkusz-maly arkusz-po-sesji',
+    render: () => `<div class="po-sesji"><div class="po-sesji-sowa">${svgSowki('zadowolona', Z.ustawienia.gra.zalozone)}</div>
+      ${rekord ? '<p class="po-sesji-rekord">🏆 Nowy rekord sesji!</p>' : ''}
+      <dl class="liczby"><div><dt>Czas</dt><dd>${czasLadnie(minuty)}</dd></div><div><dt>Strony</dt><dd>${strony}</dd></div>
+        <div><dt>Tempo</dt><dd>${tempoTeraz ? `${tempoTeraz}<small> str./h</small>` : '<small>—</small>'}</dd></div>
+        <div><dt>Na tle średniej</dt><dd>${tempoTeraz && tempoPrzed ? `${tempoTeraz >= tempoPrzed ? '▲' : '▼'} ${Math.abs(Math.round((tempoTeraz / tempoPrzed - 1) * 100))}<small>%</small>` : '<small>—</small>'}</dd></div></dl>
+      <p class="cichy">${esc(k.tytul)}: strona ${k.strona} z ${k.strony}${tempoOgolne() ? `, do końca ok. ${czasLadnie((k.strony - k.strona) / (tempoKsiazki(k) || tempoOgolne()) * 60)} czytania` : ''}.</p>
+      <div class="przyciski przyciski-srodek"><button type="button" class="btn btn-glowny" data-zamknij>Super</button></div></div>`
+  });
+  if (rekord) konfetti({ ile: 80 });
+  Fx.graj('dzwonek');
+  setTimeout(() => Glos.mow(rekord ? SESJA_TEKSTY.rekord : SESJA_TEKSTY.koniec, 's', { wl: Z.ustawienia.gra.glosSowki }), 400);
+  return a;
 }
 
 function renderPigulka() {
@@ -1628,6 +1697,74 @@ function tekstRoku(r) {
     r.ulubione.length ? `Ulubione: ${r.ulubione.slice(0, 5).map(k => k.tytul).join(', ')}.` : '',
     r.sredniaOcena ? `Średnia ocena: ${ulamek(r.sredniaOcena)}/5.` : '',
     '— Zakładka, dziennik czytania'].filter(Boolean).join('\n');
+}
+
+/* ================= bingo czytelnicze i podsumowanie tygodnia (2.21) ================= */
+const MIESIACE_M = ['styczeń', 'luty', 'marzec', 'kwiecień', 'maj', 'czerwiec', 'lipiec', 'sierpień', 'wrzesień', 'październik', 'listopad', 'grudzień'];
+function htmlBingo() {
+  const b = bingoMiesiaca(), ile = b.zrobione.filter(Boolean).length;
+  return `<section class="sekcja bingo"><div class="sekcja-gora"><h2>🎯 Bingo: ${MIESIACE_M[+b.mies.slice(5) - 1]}</h2><span class="cichy">${ile}/9 · ${b.linie ? `${b.linie} ${odmiana(b.linie, ['linia', 'linie', 'linii'])}` : 'zbierz linię'}</span></div>
+    <p class="cichy">Pola zaznaczają się same. Każda linia daje 40 🍃, pełna karta jeszcze 150 🍃. Co miesiąc nowa karta.</p>
+    <ol class="bingo-karta">${b.pola.map((p, i) => `<li class="${b.zrobione[i] ? 'ok' : ''}" style="--i:${i}"><span class="bingo-e">${p.emoji}</span><span class="bingo-n">${esc(p.nazwa)}</span>${b.zrobione[i] ? '<span class="bingo-znak" aria-label="zrobione">✓</span>' : ''}</li>`).join('')}</ol></section>`;
+}
+/** Po każdej zmianie danych: czy wpadła nowa linia bingo? Wtedy listki, konfetti i Sówka. */
+function sprawdzBingo() {
+  const g = Z.ustawienia.gra, b = bingoMiesiaca(), bylo = g.bingo[b.mies] || 0;
+  if (b.nagroda <= bylo) return;
+  g.bingo[b.mies] = b.nagroda; utrwalUstawienia();
+  if (U.bingoStart == null) { U.bingoStart = true; return; } // przy starcie aplikacji bez fanfar
+  konfetti({ ile: b.pelna ? 160 : 70 });
+  toast(b.pelna ? `🎯 Pełna karta bingo! +${b.nagroda - bylo} 🍃` : `🎯 Bingo! Linia zrobiona, +${b.nagroda - bylo} 🍃`, { czas: 6000, akcja: 'Pokaż', onAkcja: () => idz('statystyki') });
+  setTimeout(() => sowkaMowi(b.pelna ? SOWA_TEKSTY.bingo[1] : SOWA_TEKSTY.bingo[0], { czas: 5000 }), 900);
+}
+/** Podsumowanie tygodnia (pon–nd). przesun = 0: bieżący, 1: poprzedni. */
+function daneTygodnia(przesun = 0) {
+  const dzis = dzisISO(), dt = (new Date(dzis + 'T12:00').getDay() + 6) % 7;
+  const pon = dodajDni(dzis, -dt - 7 * przesun), nd = dodajDni(pon, 6), m = mapaDni();
+  const dni = Array.from({ length: 7 }, (_, i) => dodajDni(pon, i));
+  const strony = dni.reduce((s, d) => s + (m.get(d) || 0), 0);
+  const czytal = dni.filter(d => (m.get(d) || 0) > 0).length;
+  const naj = dni.reduce((a, d) => ((m.get(d) || 0) > (m.get(a) || 0) ? d : a), dni[0]);
+  const minuty = Z.ksiazki.reduce((s, k) => s + k.sesje.filter(x => x.data >= pon && x.data <= nd).reduce((a, x) => a + x.minuty, 0), 0);
+  const skonczone = Z.ksiazki.filter(k => k.status === 'przeczytana' && k.koniec >= pon && k.koniec <= nd);
+  const ks = Z.ksiazki.map(k => ({ k, s: (k.log || []).filter(w => w.data >= pon && w.data <= nd).reduce((a, w) => a + w.strony, 0) })).sort((a, b) => b.s - a.s)[0];
+  const cytaty = Z.ksiazki.reduce((s, k) => s + k.cytaty.filter(q => q.data >= pon && q.data <= nd).length, 0);
+  return { pon, nd, dni, m, strony, czytal, naj, najStron: m.get(naj) || 0, minuty, skonczone, ulubiona: ks && ks.s ? ks : null, cytaty };
+}
+function arkuszTygodnia(przesun = 0) {
+  const w = daneTygodnia(przesun), p = daneTygodnia(przesun + 1);
+  const roznica = w.strony - p.strony, max = Math.max(1, ...w.dni.map(d => w.m.get(d) || 0));
+  const DN = ['pon', 'wt', 'śr', 'czw', 'pt', 'sob', 'nd'];
+  const a = arkusz({
+    tytul: przesun ? 'Poprzedni tydzień' : 'Ten tydzień', klasa: 'arkusz-tydzien',
+    render: () => `<div class="tydz-gora"><div class="tydz-sowa">${svgSowki(w.strony ? 'zadowolona' : 'czeka', Z.ustawienia.gra.zalozone)}</div>
+        <div><p class="cichy">${dataKrotka(w.pon)} – ${dataKrotka(w.nd)}</p><p class="tydz-liczba"><strong>${liczba(w.strony)}</strong> ${odmiana(w.strony, FORMY_STRON)}</p>
+        <p class="${roznica >= 0 ? 'plus' : 'minus'}">${p.strony ? `${roznica >= 0 ? '▲' : '▼'} ${liczba(Math.abs(roznica))} ${roznica >= 0 ? 'więcej' : 'mniej'} niż tydzień wcześniej` : 'Pierwszy tydzień z zapisami. Hu-hu!'}</p></div></div>
+      <div class="tydz-wykres" role="img" aria-label="Strony w kolejnych dniach">${w.dni.map((d, i) => `<div class="tydz-slup${d === w.naj && w.najStron ? ' naj' : ''}"><span style="height:${((w.m.get(d) || 0) / max * 100).toFixed(0)}%"></span><small>${DN[i]}</small></div>`).join('')}</div>
+      <dl class="liczby">
+        <div><dt>Dni z czytaniem</dt><dd>${w.czytal}<small> / 7</small></dd></div>
+        <div><dt>Najlepszy dzień</dt><dd>${w.najStron ? `${DN[w.dni.indexOf(w.naj)]}<small> · ${w.najStron} str.</small>` : '<small>—</small>'}</dd></div>
+        <div><dt>Czas w sesjach</dt><dd>${w.minuty ? `${Math.floor(w.minuty / 60)}<small> h </small>${w.minuty % 60}<small> min</small>` : '<small>brak sesji</small>'}</dd></div>
+        <div><dt>Skończone książki</dt><dd>${w.skonczone.length}</dd></div></dl>
+      ${w.ulubiona ? `<p class="tydz-ulub">📖 Najwięcej czytałeś: <strong>${esc(w.ulubiona.k.tytul)}</strong> (${w.ulubiona.s} str.)</p>` : ''}
+      ${w.skonczone.length ? `<p class="tydz-ulub">🏁 Skończone: ${w.skonczone.map(k => `<strong>${esc(k.tytul)}</strong>`).join(', ')}</p>` : ''}
+      ${w.cytaty ? `<p class="tydz-ulub">✍️ Zapisane cytaty: ${w.cytaty}</p>` : ''}
+      <div class="przyciski przyciski-srodek"><button type="button" class="btn" data-tydz="${przesun + 1}">‹ Wcześniejszy</button>${przesun ? `<button type="button" class="btn" data-tydz="${przesun - 1}">Późniejszy ›</button>` : ''}</div>`
+  });
+  a.tresc.addEventListener('click', e => { const b = e.target.closest('[data-tydz]'); if (b) { a.zamknij(); setTimeout(() => arkuszTygodnia(+b.dataset.tydz), 320); } });
+  // Sówka komentuje (nagrane kwestie)
+  setTimeout(() => {
+    const kw = SOWA_TEKSTY.tydzien;
+    Glos.mow(!w.strony ? kw[3] : !p.strony || roznica >= 0 ? kw[1] : kw[2], 's', { wl: Z.ustawienia.gra.glosSowki });
+  }, 600);
+}
+/** W poniedziałek (raz) Sówka sama pokazuje podsumowanie poprzedniego tygodnia. */
+function podsumowanieWPoniedzialek() {
+  const dzis = dzisISO();
+  if (new Date(dzis + 'T12:00').getDay() !== 1 || lsGet('zakladka-tydzien-pokazany') === dzis || !Z.ksiazki.length) return;
+  if (!daneTygodnia(1).strony) return;
+  lsSet('zakladka-tydzien-pokazany', dzis);
+  setTimeout(() => { if (!otwarte.length) { Glos.mow(SOWA_TEKSTY.tydzien[0], 's', { wl: Z.ustawienia.gra.glosSowki }); setTimeout(() => arkuszTygodnia(1), 1800); } }, 5000);
 }
 
 function arkuszRoku() {
@@ -3867,6 +4004,33 @@ async function uzupelnijOpis(k, { cicho = false } = {}) {
   return false;
 }
 
+/* ================= opinie czytelników z internetu (2.21) ================= */
+/** Ocena w skali 0–1 (żeby porównywać Lubimyczytać /10 i Open Library /5). */
+const ocenaProc = o => o && o.ocena ? o.ocena / (o.skala || 10) : null;
+const ocenaTekst = o => `${String(o.ocena).replace('.', ',')}/${o.skala || 10}`;
+function htmlOpinii(k) {
+  const o = k.opinieNet;
+  const gw = o ? Math.round(ocenaProc(o) * 5) : 0;
+  return `<section class="kd-sekcja kd-opinie" data-opinie-box="${k.id}"><div class="sekcja-gora"><h3>Co mówią czytelnicy</h3>
+      <button type="button" class="btn btn-maly" data-akcja="opinie-pobierz" data-id="${k.id}">${I.szukaj}${o ? 'Odśwież' : 'Sprawdź opinie'}</button></div>
+    ${o ? `<p class="opinie-ocena"><strong>${ocenaTekst(o)}</strong> <span class="opinie-gwiazdki" aria-hidden="true">${'★'.repeat(gw)}${'☆'.repeat(5 - gw)}</span> <span class="cichy">${o.ocen ? `z ${o.ocen.toLocaleString('pl-PL')} ${odmiana(o.ocen, ['oceny', 'ocen', 'ocen'])} · ` : ''}${o.url ? `<a href="${esc(o.url)}" target="_blank" rel="noopener">${esc(o.zrodlo)}</a>` : esc(o.zrodlo)}</span></p>
+      ${o.opinie.length ? `<ul class="opinie-lista">${o.opinie.map(x => `<li><blockquote>„${esc(x.tekst)}”</blockquote>${x.ocena ? `<span class="cichy">ocena czytelnika: ${x.ocena}/10</span>` : ''}</li>`).join('')}</ul>` : ''}
+      <p class="cichy maly">Sprawdzone ${dataKrotka(o.data)}.</p>`
+      : '<p class="cichy">Sprawdzę średnią ocen i kilka opinii z Lubimyczytać (a gdy się nie uda, z Open Library).</p>'}
+    <p class="cichy" data-opinie-stan="${k.id}"></p></section>`;
+}
+async function pobierzOpinie(k, { cicho = false } = {}) {
+  if (!k || !navigator.onLine) return null;
+  const stan = $(`[data-opinie-stan="${k.id}"]`);
+  if (stan) { stan.textContent = 'Czytam, co piszą inni…'; stan.classList.add('ladowanie'); }
+  let o = null;
+  try { o = await Wyszukiwarka.opinie(k); } catch (e) { console.warn(e); }
+  if (o) { k.opinieNet = o; utrwal(k); odswiez(); }
+  else if (stan) { stan.textContent = 'Nie znalazłem opinii o tej książce.'; stan.classList.remove('ladowanie'); }
+  if (!cicho && o) toast(`Średnia ocen: ${ocenaTekst(o)} (${o.zrodlo}).`);
+  return o;
+}
+
 /* ================= ceny z Ceneo dla listy życzeń (2.12) ================= */
 function htmlCenCeneo(k) {
   const c = k.cenyCeneo;
@@ -4243,8 +4407,22 @@ function scenaPory() {
   return `<div class="niebo niebo-${p}" aria-hidden="true">${gwiazdy}${spadajaca}
     <span class="cialo" style="left:${x}%;top:${y}%"></span>${ptaki}
     <span class="chmura c1"></span><span class="chmura c2"></span><span class="chmura c3"></span>
-    <svg class="wzgorza" viewBox="0 0 400 60" preserveAspectRatio="none"><path class="w1" d="M0 38 C60 18 110 30 170 22 C230 14 290 34 400 20 L400 60 L0 60Z"/><path class="w2" d="M0 48 C70 34 140 50 210 40 C280 30 340 46 400 38 L400 60 L0 60Z"/></svg>
+    ${krajobrazPory(noc)}
     <span class="pora-etykieta">${{ swit: 'świt', dzien: 'dzień', zmierzch: 'wieczór', noc: 'noc' }[p]}</span></div>`;
+}
+
+/** Krajobraz jak w przygodach Sówki: wzgórza i miasteczko z książek (w nocy palą się w nim okna). */
+function krajobrazPory(noc) {
+  const ksiazki = [[236, 30, 13, '#a3233a'], [251, 40, 11, '#22385c'], [264, 24, 15, '#d9b66e'], [281, 46, 12, '#1f4a3d'], [295, 34, 14, '#7a5218'], [311, 52, 13, '#a3233a'], [326, 28, 12, '#22385c'], [340, 42, 15, '#1f4a3d'], [357, 33, 12, '#d9b66e'], [371, 48, 14, '#7a5218']];
+  const baza = 96;
+  const grzbiety = ksiazki.map(([x, h, w, k], i) => `<g class="k-ks"><rect x="${x}" y="${baza - h}" width="${w}" height="${h}" rx="2" fill="${k}"/><rect x="${x}" y="${baza - h + 5}" width="${w}" height="2.5" fill="rgba(255,255,255,.28)"/>
+    ${noc ? `<rect class="k-okno" style="--d:${(i * .37 % 2).toFixed(2)}s" x="${x + w / 2 - 2}" y="${baza - h + 12}" width="4" height="5" rx="1"/>` : ''}</g>`).join('');
+  const drzewa = [[34, 80], [52, 84], [96, 82], [150, 86], [182, 84]].map(([x, y]) => `<path class="k-drzewo" d="M${x} ${y} l7 -18 l7 18z"/>`).join('');
+  return `<svg class="krajobraz" viewBox="0 0 400 110" preserveAspectRatio="xMidYMax slice">
+    <path class="k1" d="M0 64 C50 46 92 58 140 50 C196 40 236 60 300 50 C344 42 378 50 400 46 V110 H0Z"/>
+    ${grzbiety}
+    <path class="k2" d="M0 86 C60 72 124 90 192 80 C252 72 322 92 400 84 V110 H0Z"/>${drzewa}
+    <path class="k3" d="M0 102 C80 95 160 105 240 99 C310 94 360 101 400 98 V110 H0Z"/></svg>`;
 }
 
 const MUZYKA = {
@@ -4317,7 +4495,37 @@ const CIEKAWOSTKI = [
   'Czytanie przed snem z papierowej książki pomaga zasnąć szybciej niż czytanie z ekranu, bo nie ma niebieskiego światła.',
   'Słowo „książka” to dawne zdrobnienie od „księga”.',
   'Najdroższą sprzedaną książką jest „Codex Leicester” Leonarda da Vinci. Bill Gates kupił go w 1994 roku za 30,8 mln dolarów.',
-  '„Lód” Jacka Dukaja ma ponad 1000 stron. To idealny kandydat na książkę bazową.'
+  '„Lód” Jacka Dukaja ma ponad 1000 stron. To idealny kandydat na książkę bazową.',
+  'Henryk Sienkiewicz dostał Nobla w 1905 roku jako wybitny autor powieści epickich. Na świecie najbardziej znane było „Quo vadis”.',
+  'Juliusz Verne opisał lot na Księżyc już w 1865 roku, ponad sto lat przed lądowaniem Apollo 11.',
+  'Arthur Conan Doyle uśmiercił Sherlocka Holmesa w 1893 roku, ale czytelnicy tak protestowali, że po latach musiał go wskrzesić.',
+  'Lewis Carroll, autor „Alicji w Krainie Czarów”, naprawdę nazywał się Charles Lutwidge Dodgson i był matematykiem w Oksfordzie.',
+  'Pierwszy tom „Harry’ego Pottera” odrzuciło kilkanaście wydawnictw, zanim przyjęło go małe wydawnictwo Bloomsbury.',
+  'Ernest Hemingway napisał kilkadziesiąt wersji zakończenia „Pożegnania z bronią”, zanim wybrał tę jedną.',
+  'Antoine de Saint-Exupéry, autor „Małego Księcia”, był pilotem. Zaginął podczas lotu nad Morzem Śródziemnym w 1944 roku.',
+  '„Mały Książę” to jedna z najczęściej tłumaczonych książek świata. Ma przekłady na kilkaset języków i dialektów.',
+  'Joseph Conrad, autor „Jądra ciemności”, urodził się jako Józef Teodor Konrad Korzeniowski. Po angielsku zaczął mówić dopiero jako dorosły.',
+  'Olga Tokarczuk wydała „Księgi Jakubowe” z numeracją stron od końca, tak jak w księgach hebrajskich.',
+  'Czesław Miłosz przez wiele lat wykładał literaturę słowiańską na Uniwersytecie Kalifornijskim w Berkeley.',
+  'Jan Brzechwa naprawdę nazywał się Jan Wiktor Lesman i z zawodu był adwokatem od praw autorskich.',
+  'Julian Tuwim napisał „Lokomotywę” tak, że jej rytm przypomina rozpędzający się pociąg.',
+  'Adam Mickiewicz nigdy w życiu nie był ani w Warszawie, ani w Krakowie. Do Krakowa trafił dopiero po śmierci, na Wawel.',
+  'Władysław Reymont, zanim został noblistą, pracował między innymi na kolei i był aktorem w wędrownej trupie.',
+  'Tolkien i C. S. Lewis należeli do klubu literackiego Inklingowie i czytali sobie nawzajem fragmenty swoich książek.',
+  'George Orwell to pseudonim. Autor „Roku 1984” nazywał się Eric Arthur Blair.',
+  'Charles Dickens publikował swoje powieści w odcinkach w czasopismach. Na kolejny odcinek czekało się jak dziś na nowy serial.',
+  'Agatha Christie pracowała w szpitalnej aptece. Dlatego tak dobrze znała się na truciznach w swoich kryminałach.',
+  'Najstarsze zapisane zdanie po polsku pochodzi z Księgi henrykowskiej z XIII wieku: „Daj, ać ja pobruczę, a ty poczywaj”.',
+  'Fiodor Dostojewski był skazany na śmierć. Wyrok zamieniono w ostatniej chwili, gdy stał już przed plutonem egzekucyjnym.',
+  'Victor Hugo pisał „Nędzników” z przerwami przez kilkanaście lat.',
+  'Hans Christian Andersen bał się, że ktoś pochowa go żywcem. Zostawiał przy łóżku kartkę: „Tylko wyglądam na martwego”.',
+  'Bruno Schulz był też świetnym rysownikiem i uczył plastyki w gimnazjum w Drohobyczu.',
+  'Wisława Szymborska uwielbiała pisać limeryki i robić kolaże z wycinanek, które wysyłała przyjaciołom jako kartki.',
+  'Słowo „robot” wymyślił czeski pisarz Karel Čapek, a dokładniej podsunął mu je brat, Josef.',
+  'Za pierwsze opowiadanie detektywistyczne uważa się „Zabójstwo przy rue Morgue” Edgara Allana Poe z 1841 roku.',
+  'Ryszard Kapuściński jako korespondent opisał kilkadziesiąt rewolucji i przewrotów na różnych kontynentach.',
+  'Stanisław Lem napisał „Solaris” w 1961 roku. Książkę ekranizowano kilka razy, najsłynniej zrobił to Andriej Tarkowski.',
+  'Maria Konopnicka napisała słowa „Roty”. Pierwszy raz zaśpiewano ją publicznie w 1910 roku w Krakowie.'
 ];
 function htmlCiekawostki() {
   const n = (hash(dzisISO()) + (U.ciekawostkaPrzes || 0)) % CIEKAWOSTKI.length;
@@ -4413,6 +4621,11 @@ async function wymusAktualizacje() {
   setTimeout(() => location.reload(), 400);
 }
 const NOWOSCI = [
+  ['🎭', 'Goście z przygód', 'Smok, Przypis, Bibliotekarz Kurz, Kot Erratum i Wielka Gumka wpadają z wizytą, gadają z Sówką i Zakładką i znikają.', () => wizytaGoscia()],
+  ['⭐', 'Recenzja z opiniami z sieci', 'Po dodaniu książki Sówka sprawdza ocenę i opinie czytelników z Lubimyczytać i na tej podstawie ocenia, czy to dobry wybór.', () => idz('biblioteka')],
+  ['⏱️', 'Nowa sesja czytania', 'Cel z pierścieniem (też 25 min jak Pomodoro), dźwięki tła: deszcz, kominek, las, kawiarnia, a na koniec podsumowanie z rekordem.', () => idz('dzis')],
+  ['🎯', 'Bingo i podsumowanie tygodnia', 'Co miesiąc nowa karta bingo w Statystykach, a w poniedziałek Sówka podsumowuje twój tydzień.', () => idz('statystyki')],
+  ['💡', 'Ciekawostki z Wikipedii i 77 żartów', 'Świeże ciekawostki o autorach, których czytasz, i o znanych pisarzach. Żarty i ciekawostki nie powtarzają się, dopóki nie padną wszystkie.', () => opowiedzCiekawostke()],
   ['📕', 'Przygody: sezon 2', '6 nowych rozdziałów (Kot Erratum, Wielka Gumka, zamek bez słów) i więcej scen w starych rozdziałach. Wszystko z głosami.', () => arkuszHistorii()],
   ['🔊', 'Głosy słychać na iPhonie', 'Naprawione odtwarzanie rozmów Sówki i Zakładki, także przy wyciszonym telefonie i bez internetu.', () => sowkaMowi('Hu-hu, pięknie!')],
   ['⏱️', 'Jak często Sówka gada', 'Rzadko, normalnie albo często: ustawisz w Kąciku Sówki. Do tego 14 nowych żartów Sówki i 7 Zakładki.', () => arkuszSklepiku()],
@@ -4801,7 +5014,47 @@ const ZARTY = [
   ['Wiesz, czemu poeci są tacy smutni?', 'Bo do słowa „szczęście” nie ma dobrego rymu.'],
   ['— Ile czasu zajmie ci ta książka?', '— Trzy dni czytania i dwa lata leżenia na szafce nocnej.'],
   ['Czemu słownik nigdy się nie nudzi?', 'Bo ma słowa na każdą okazję. Nawet na nudę.'],
-  ['Książki są jak sowy.', 'Najmądrzejsze otwierają się w nocy.']
+  ['Książki są jak sowy.', 'Najmądrzejsze otwierają się w nocy.'],
+  ['Dlaczego książka kucharska była smutna?', 'Bo miała mnóstwo przepisów, a żadnego życia osobistego.'],
+  ['Co powiedziała jedna półka do drugiej?', 'Nie przejmuj się, wszystko się jakoś ułoży. Alfabetycznie.'],
+  ['Czemu e-book nie chodzi na imprezy?', 'Bo zawsze kończy mu się bateria przed północą.'],
+  ['— Czemu znowu czytasz po nocy? — pyta mama.', '— Bo w dzień książka udaje, że jest zwykłym przedmiotem.'],
+  ['Jaka jest ulubiona litera sowy?', 'H. Bo bez niej zostaje samo „u-u”.'],
+  ['Dlaczego słownik to najlepszy przyjaciel?', 'Bo zawsze ma dla ciebie dobre słowo.'],
+  ['Co robi pisarz, kiedy jest mu zimno?', 'Siada w kącie. Tam jest dziewięćdziesiąt stopni.'],
+  ['Dlaczego atlas jest taki pewny siebie?', 'Bo wie, gdzie jest jego miejsce na świecie.'],
+  ['Kupiłam książkę o lęku wysokości.', 'Stoi na najniższej półce. Tak na wszelki wypadek.'],
+  ['Wiesz, jak kończy się każdy kryminał w księgarni?', 'Ktoś zagląda na ostatnią stronę, zanim go kupi.'],
+  ['Mój kalendarz jest pełen.', 'Od poniedziałku do niedzieli: jeszcze jeden rozdział.'],
+  ['Co mówi bibliotekarka do głośnego czytelnika?', 'Ciii. Tu nawet przecinki robią pauzę.'],
+  ['Dlaczego książka nie gra w chowanego?', 'Bo zawsze ją znajdą po zakładce.'],
+  ['Spytałam audiobooka, czy mnie słyszy.', 'Odpowiedział, że to on tu mówi.'],
+  ['Czym się różni optymista od pesymisty?', 'Pesymista mówi: gorzej być nie może. Optymista: może, zostało jeszcze czterysta stron.'],
+  ['Moja biblioteczka ma trzy rodzaje książek.', 'Przeczytane, do przeczytania i takie, które udają, że ich nie widzę.'],
+  ['Dlaczego Sówka nosi okulary do czytania?', 'Bo bez nich litery robią „hu-hu” i uciekają.'],
+  ['Co mówi zeszyt do książki?', 'Ty to masz dobrze. Ciebie ktoś napisał do końca.'],
+  ['Jak nazwać książkę, która ciągle płacze?', 'Tom łez.'],
+  ['Dlaczego szkielet nie czyta horrorów?', 'Bo nie ma serca do takich historii.'],
+  ['— Macie jakąś książkę o bumerangach?', '— Mieliśmy, ale ciągle do nas wraca.'],
+  ['Czemu długopis nie lubi ołówka?', 'Bo ołówek wszystko może wymazać, a długopis musi żyć z konsekwencjami.'],
+  ['Wiesz, jaka jest najstraszniejsza książka?', 'Instrukcja składania szafy. Bez obrazków.'],
+  ['Dlaczego w bibliotece jest tak cicho?', 'Bo wszystkie książki trzymają język za zębami. Do pierwszej strony.'],
+  ['Co jedzą sowy na śniadanie?', 'Płatki z mlekiem i jeden rozdział na deser.'],
+  ['Mój pies zjadł mi dwa rozdziały „Pana Tadeusza”.', 'Teraz recytuje Inwokację i nie chce aportować.'],
+  ['Czemu matematyk nie czyta powieści?', 'Bo ciągle liczy, ile stron zostało.'],
+  ['Wiesz, co jest najtrudniejsze w czytaniu?', 'Powiedzieć sobie „to ostatni rozdział” i w to uwierzyć.'],
+  ['Co powiedział pierwszy rozdział do ostatniego?', 'Spotkamy się na końcu. Jeśli czytelnik dotrwa.'],
+  ['Sowa i kot czytają razem.', 'Kot śpi na stronie dwunastej, a sowa nie może przewrócić kartki. Typowy wieczór.'],
+  ['Dlaczego Sówka zawsze wygrywa w kalambury?', 'Bo przeczytała cały słownik. Dwa razy.'],
+  ['— Tato, co to jest biblioteka?', '— Taki internet, tylko z papieru i bez reklam.'],
+  ['Wiesz, kiedy książka jest naprawdę dobra?', 'Kiedy kończysz ją o trzeciej w nocy i jesteś zły, że już.'],
+  ['Mam problem z odkładaniem książek.', 'Lekarz powiedział, że to nieuleczalne. I kazał mi o tym poczytać.'],
+  ['Czemu sowa nie została prawnikiem?', 'Bo zawsze pytała „kto?”, a nigdy „ile płacisz?”.'],
+  ['Co robi zakładka na wakacjach?', 'To samo co zawsze. Leży i trzyma miejsce. Tylko na plaży.'],
+  ['Dlaczego poeta spóźnił się do pracy?', 'Bo szukał rymu do słowa „budzik”.'],
+  ['Jak się nazywa smok, który czyta?', 'Smok wawelski. Bo w wawelskiej bibliotece jest najcieplej.'],
+  ['Przeczytałam książkę o złudzeniach optycznych.', 'Albo tak mi się tylko wydaje.'],
+  ['Dlaczego książki nigdy nie są samotne?', 'Bo zawsze mają spis treści, a w nim pełno znajomych.']
 ];
 // Zakładka ma swoje kwestie (czasem wtrąca się w rozmowę)
 const KWESTIE_ZAKLADKI = [
@@ -4846,17 +5099,23 @@ function coCzytac() {
 
 /* ---------- Zakładka: animowana postać ---------- */
 function svgZakladki(poza = 'stoi') {
-  const oczy = poza === 'spi' ? '<path d="M12 30 q3 3 6 0 M22 30 q3 3 6 0" class="z-zamk"/>'
-    : poza === 'smutna' ? '<circle cx="15" cy="30" r="2.6" class="z-oko"/><circle cx="25" cy="30" r="2.6" class="z-oko"/><path d="M13 25 l5 2 M27 25 l-5 2" class="z-brew"/>'
-    : '<g class="z-oczy"><circle cx="15" cy="30" r="3" class="z-oko"/><circle cx="25" cy="30" r="3" class="z-oko"/><circle cx="16" cy="29" r="1" fill="#fff"/><circle cx="26" cy="29" r="1" fill="#fff"/></g>';
-  const usta = poza === 'smutna' ? '<path d="M15 41 q5 -4 10 0" class="z-usta"/>' : poza === 'spi' ? '<ellipse cx="20" cy="39" rx="2" ry="1.5" class="z-oko"/>' : '<path d="M14 37 q6 6 12 0" class="z-usta"/>';
+  // 2.21: zakładka z materiału: szew, cień, dziurka ze złotym sznureczkiem i chwostem, większe oczy
+  const oczy = poza === 'spi' ? '<path d="M11 29 q4 4 8 0 M21 29 q4 4 8 0" class="z-zamk"/>'
+    : poza === 'smutna' ? '<g class="z-oczy"><ellipse cx="15" cy="30" rx="4" ry="4.6" class="z-bialko"/><ellipse cx="25" cy="30" rx="4" ry="4.6" class="z-bialko"/><circle cx="15" cy="31.5" r="2.3" class="z-oko"/><circle cx="25" cy="31.5" r="2.3" class="z-oko"/></g><path d="M11 23.5 l6 2.2 M29 23.5 l-6 2.2" class="z-brew"/>'
+    : '<g class="z-oczy"><ellipse cx="15" cy="30" rx="4.2" ry="5" class="z-bialko"/><ellipse cx="25" cy="30" rx="4.2" ry="5" class="z-bialko"/><circle cx="15.6" cy="30.6" r="2.6" class="z-oko"/><circle cx="25.6" cy="30.6" r="2.6" class="z-oko"/><circle cx="16.6" cy="29.2" r="1" fill="#fff"/><circle cx="26.6" cy="29.2" r="1" fill="#fff"/></g><path d="M11 23 q4 -2 7 0 M22 23 q4 -2 7 0" class="z-brew z-brew-luz"/>';
+  const usta = poza === 'smutna' ? '<path d="M15.5 42 q4.5 -3.5 9 0" class="z-usta"/>' : poza === 'spi' ? '<ellipse cx="20" cy="40" rx="2" ry="1.5" class="z-oko"/>' : '<path d="M14.5 38 q5.5 6 11 0 z" class="z-usta-otw"/>';
+  const dlon = (x, y) => `<circle cx="${x}" cy="${y}" r="2.6" class="z-dlon"/>`;
   const rece = poza === 'macha'
-    ? '<path d="M4 46 q-6 -4 -6 -12" class="z-reka z-reka-mach"/><path d="M36 46 q5 3 5 9" class="z-reka"/>'
-    : poza === 'lata' ? '<path d="M4 44 q-8 -2 -10 -8" class="z-reka"/><path d="M36 44 q8 -2 10 -8" class="z-reka"/>'
-    : '<path d="M4 46 q-5 3 -5 9" class="z-reka"/><path d="M36 46 q5 3 5 9" class="z-reka"/>';
-  return `<svg class="zakladka-svg poza-${poza}" viewBox="-12 0 64 96" aria-hidden="true">
+    ? `<g class="z-reka-mach"><path d="M3 46 q-6 -4 -6 -12" class="z-reka"/>${dlon(-3, 33)}</g><path d="M37 46 q5 3 5 9" class="z-reka"/>${dlon(42, 56)}`
+    : poza === 'lata' ? `<path d="M3 44 q-8 -2 -10 -8" class="z-reka"/>${dlon(-7, 35)}<path d="M37 44 q8 -2 10 -8" class="z-reka"/>${dlon(47, 35)}`
+    : `<path d="M3 46 q-5 3 -5 9" class="z-reka"/>${dlon(-2, 56)}<path d="M37 46 q5 3 5 9" class="z-reka"/>${dlon(42, 56)}`;
+  return `<svg class="zakladka-svg poza-${poza}" viewBox="-12 -6 64 102" aria-hidden="true">
+    <g class="z-chwost-g"><path d="M20 9 q12 -10 18 6 q3 8 2 16" class="z-sznurek"/><path d="M37.5 29 h5 l2 12 h-9z" class="z-chwost"/><circle cx="40" cy="29" r="2.4" class="z-chwost-kulka"/></g>
     <g class="z-cialo-g"><path class="z-cialo" d="M6 4 h28 a4 4 0 0 1 4 4 v80 l-18 -13 l-18 13 v-80 a4 4 0 0 1 4 -4z"/>
-    <path class="z-polysk" d="M10 8 v66"/>${rece}${oczy}${usta}<circle cx="11" cy="36" r="2.6" class="z-rumieniec"/><circle cx="29" cy="36" r="2.6" class="z-rumieniec"/></g>
+    <path class="z-cien" d="M27 4 h7 a4 4 0 0 1 4 4 v80 l-11 -8z"/>
+    <path class="z-szew" d="M8.5 8.5 h23 v72 l-11.5 -8.4 l-11.5 8.4z"/>
+    <circle cx="20" cy="11" r="2.2" class="z-dziurka"/>
+    ${rece}${oczy}${usta}<ellipse cx="9.5" cy="37" rx="3" ry="2" class="z-rumieniec"/><ellipse cx="30.5" cy="37" rx="3" ry="2" class="z-rumieniec"/></g>
     ${poza === 'spi' ? '<g class="s-zzz"><text x="36" y="16">z</text><text x="42" y="8">z</text></g>' : ''}
   </svg>`;
 }
@@ -4988,6 +5247,46 @@ const TLA = {
   swit: '<rect width="360" height="220" fill="#f6c6a8"/><circle cx="300" cy="140" r="34" fill="#ffd36a"/><rect y="170" width="360" height="50" fill="#4a3426"/><g fill="#5b3f2e"><rect x="20" y="60" width="90" height="8"/></g><g><rect x="26" y="34" width="10" height="26" fill="#a3233a"/><rect x="38" y="38" width="9" height="22" fill="#22385c"/><rect x="49" y="32" width="12" height="28" fill="#d9b66e"/></g>'
 };
 const postac = (svg, x, y, w, h, klasa = '') => `<g class="kl-postac ${klasa}"><svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="visible"${svg.replace(/^<svg class="[^"]*"/, '')}</g>`;
+/* ---------- postacie z historii jako rysunki (2.21): ten sam styl w kinie i na wizytach ---------- */
+function svgGoscia(kto, nastroj = '') {
+  if (kto === 'gumka') return svgGumki(nastroj || 'mila');
+  if (kto === 'kot') return `<svg class="gosc-svg gosc-kot" viewBox="0 0 80 84"><path d="M62 70 q18 -4 12 -24" fill="none" stroke="#e08a3c" stroke-width="7" stroke-linecap="round" class="g-ogon"/>
+    <ellipse cx="40" cy="62" rx="22" ry="20" fill="#f29b4b"/><ellipse cx="40" cy="66" rx="12" ry="13" fill="#fde3c4"/>
+    <path d="M20 22 l4 -16 l12 12z M60 22 l-4 -16 l-12 12z" fill="#f29b4b"/><path d="M23 18 l2 -7 l6 6z M57 18 l-2 -7 l-6 6z" fill="#ffc0a8"/>
+    <circle cx="40" cy="32" r="21" fill="#f29b4b"/><path d="M30 16 l3 7 M40 13 v8 M50 16 l-3 7" stroke="#d7762a" stroke-width="3" stroke-linecap="round"/>
+    <g class="g-oczy"><circle cx="32" cy="32" r="3.2" fill="#2b1d12"/><circle cx="48" cy="32" r="3.2" fill="#2b1d12"/></g>
+    <g fill="none" stroke="#3a2a1c" stroke-width="2"><circle cx="32" cy="32" r="7.5"/><circle cx="48" cy="32" r="7.5"/><path d="M39.5 32 h1"/></g>
+    <path d="M38 40 l2 2 l2 -2z" fill="#e5657d"/><path d="M36 44 q4 3 8 0" fill="none" stroke="#3a2a1c" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M16 38 h10 M16 43 l10 -2 M64 38 h-10 M64 43 l-10 -2" stroke="#fff" stroke-width="1.4" opacity=".8"/>
+    <g transform="rotate(-35 62 16)"><rect x="54" y="13" width="18" height="4" rx="1" fill="#ffd34d"/><path d="M72 13 l5 2 l-5 2z" fill="#f3d2a2"/></g>
+    <ellipse cx="30" cy="80" rx="7" ry="4" fill="#f29b4b"/><ellipse cx="50" cy="80" rx="7" ry="4" fill="#f29b4b"/></svg>`;
+  if (kto === 'smok') return `<svg class="gosc-svg gosc-smok" viewBox="0 0 96 88"><path d="M70 66 q24 4 20 -18 q-4 10 -14 8" fill="#3f9d74"/>
+    <path class="g-skrz" d="M30 40 q-26 -22 -28 8 q10 -6 16 2 q4 -8 12 -2z M66 40 q26 -22 28 8 q-10 -6 -16 2 q-4 -8 -12 -2z" fill="#2f7f5c"/>
+    <ellipse cx="48" cy="60" rx="24" ry="22" fill="#4fb386"/><ellipse cx="48" cy="64" rx="14" ry="16" fill="#f6d99a"/><path d="M38 56 h20 M37 64 h22 M39 72 h18" stroke="#e5bf73" stroke-width="2"/>
+    <path d="M32 16 l-4 -12 l10 8z M64 16 l4 -12 l-10 8z" fill="#f2c14e"/>
+    <ellipse cx="48" cy="30" rx="24" ry="20" fill="#4fb386"/><ellipse cx="48" cy="38" rx="15" ry="9" fill="#6cc79b"/>
+    <circle cx="43" cy="38" r="1.8" fill="#24543f"/><circle cx="53" cy="38" r="1.8" fill="#24543f"/>
+    <g class="g-oczy"><circle cx="38" cy="24" r="5" fill="#fff"/><circle cx="58" cy="24" r="5" fill="#fff"/><circle cx="39" cy="25" r="2.6" fill="#1d2a24"/><circle cx="59" cy="25" r="2.6" fill="#1d2a24"/></g>
+    <path d="M40 44 q8 5 16 0" fill="none" stroke="#24543f" stroke-width="2" stroke-linecap="round"/><path d="M30 6 q4 4 0 8 M66 6 q-4 4 0 8" fill="none" stroke="#ff9a5a" stroke-width="0" />
+    <ellipse cx="38" cy="82" rx="8" ry="5" fill="#3f9d74"/><ellipse cx="58" cy="82" rx="8" ry="5" fill="#3f9d74"/></svg>`;
+  if (kto === 'kurz') return `<svg class="gosc-svg gosc-kurz" viewBox="0 0 80 96"><path d="M18 92 v-30 q22 -14 44 0 v30z" fill="#7a5a3a"/><path d="M34 52 l6 30 l6 -30z" fill="#e9e2cf"/><path d="M38 54 h4 l-2 8z" fill="#a3233a"/>
+    <path d="M14 70 q-6 10 2 18 M66 70 q6 10 -2 18" fill="none" stroke="#7a5a3a" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="40" cy="34" r="19" fill="#f1d3b8"/><path d="M20 30 q-2 -18 20 -20 q22 2 20 20 q-4 -8 -10 -9 q-10 4 -20 0 q-6 1 -10 9z" fill="#d9d6cf"/>
+    <path d="M22 40 q-6 2 -4 8 M58 40 q6 2 4 8" fill="none" stroke="#d9d6cf" stroke-width="4" stroke-linecap="round"/>
+    <g fill="none" stroke="#3b2f2a" stroke-width="2"><circle cx="33" cy="35" r="6"/><circle cx="47" cy="35" r="6"/><path d="M39 35 h2"/></g>
+    <g class="g-oczy"><circle cx="33" cy="35" r="2" fill="#3b2f2a"/><circle cx="47" cy="35" r="2" fill="#3b2f2a"/></g>
+    <path d="M28 27 l9 2 M52 27 l-9 2" stroke="#bdb8ae" stroke-width="3" stroke-linecap="round"/><path d="M36 46 q4 2 8 0" fill="none" stroke="#3b2f2a" stroke-width="2" stroke-linecap="round"/>
+    <g class="g-kurz" fill="#cfc6b4" opacity=".7"><circle cx="8" cy="88" r="4"/><circle cx="14" cy="84" r="3"/><circle cx="72" cy="86" r="4"/></g></svg>`;
+  if (kto === 'przypis') return `<svg class="gosc-svg gosc-przypis" viewBox="0 0 70 80"><g transform="translate(35 34)"><g class="g-gwiazdka" fill="#8fa6cf">
+    ${[0, 60, 120, 180, 240, 300].map(a => `<rect x="-6" y="-30" width="12" height="30" rx="6" transform="rotate(${a})"/>`).join('')}</g>
+    <circle r="15" fill="#5d73a0"/><g class="g-oczy"><circle cx="-5.5" cy="-2" r="4" fill="#fff"/><circle cx="5.5" cy="-2" r="4" fill="#fff"/><circle cx="-5" cy="-1.5" r="2" fill="#141b29"/><circle cx="6" cy="-1.5" r="2" fill="#141b29"/></g>
+    <path d="M-5 7 q5 4 10 0" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
+    <path d="M-16 -16 h32 l-4 -8 h-24z" fill="#1a2233"/><rect x="-18" y="-17" width="36" height="4" rx="2" fill="#1a2233"/></g>
+    <path d="M28 66 v10 M42 66 v10" stroke="#8fa6cf" stroke-width="4" stroke-linecap="round"/></svg>`;
+  return '';
+}
+const EMOJI_GOSCI = { '🐈': 'kot', '🐉': 'smok', '🧓': 'kurz', '🕵️': 'przypis', '🤧': 'kurz' };
+
 /** Wielka Gumka: różowo-niebieska gumka do mazania (zła albo już miła). */
 function svgGumki(nastroj = 'zla') {
   const twarz = nastroj === 'zla'
@@ -5001,7 +5300,10 @@ function svgKlatki(kl) {
   const sowa = kl.s ? postac(svgSowki(kl.s[2], Z.ustawienia.gra.zalozone), kl.s[0], kl.s[1] - 85 + 55, 78, 85, 'kl-sowa') : '';
   const zakl = kl.z ? postac(svgZakladki(kl.z[2]), kl.z[0], kl.z[1] - 66 + 55, 44, 66, 'kl-zakl') : '';
   const gumka = kl.g ? postac(svgGumki(kl.g[2]), kl.g[0], kl.g[1] - 60 + 55, 84, 60, 'kl-gumka') : '';
-  const rek = (kl.r || []).map(([e, x, y, rozm = 28]) => `<text x="${x}" y="${y}" font-size="${rozm}" class="kl-rekw">${e}</text>`).join('');
+  // postacie z historii rysujemy (ten sam styl co Sówka), resztę rekwizytów jako emoji
+  const rek = (kl.r || []).map(([e, x, y, rozm = 28]) => EMOJI_GOSCI[e]
+    ? postac(svgGoscia(EMOJI_GOSCI[e], e === '🤧' ? 'kicha' : ''), x - rozm * .15, y - rozm * 1.05, rozm * 1.3, rozm * 1.3, `kl-gosc kl-${EMOJI_GOSCI[e]}${e === '🤧' ? ' kicha' : ''}`)
+    : `<text x="${x}" y="${y}" font-size="${rozm}" class="kl-rekw">${e}</text>`).join('');
   return `<svg class="klatka-svg tlo-${kl.tlo}" viewBox="0 0 360 220" role="img">${TLA[kl.tlo] || ''}${rek}${gumka}${sowa}${zakl}</svg>`;
 }
 
@@ -5334,7 +5636,63 @@ const Fx = {
     this.wezly = this.wezly.slice(-60);
     return Math.max(700, (t - t0) * 1000);
   },
-  ucisz() { this.wezly.forEach(o => { try { o.stop(); } catch { /* już zatrzymany */ } }); this.wezly = []; }
+  ucisz() { this.wezly.forEach(o => { try { o.stop(); } catch { /* już zatrzymany */ } }); this.wezly = []; },
+  /* ---------- 2.21: dźwięki tła do czytania (generowane na żywo, bez plików) ---------- */
+  szumBufor(rodzaj = 'bialy') {
+    const c = this.ctx, n = c.sampleRate * 4, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+    let ost = 0;
+    for (let i = 0; i < n; i++) {
+      const w = Math.random() * 2 - 1;
+      if (rodzaj === 'brazowy') { ost = (ost + .02 * w) / 1.02; d[i] = ost * 3.5; } else d[i] = w;
+    }
+    return b;
+  },
+  petla(bufor, filtr, czest, q, glosnosc) {
+    const c = this.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = bufor; s.loop = true; f.type = filtr; f.frequency.value = czest; f.Q.value = q;
+    g.gain.value = 0; g.gain.setTargetAtTime(glosnosc, c.currentTime, 1.2);
+    s.connect(f).connect(g).connect(this.tloWyj); s.start();
+    this.tloWezly.push(s);
+    return g;
+  },
+  tlo(rodzaj) {
+    this.tloStop();
+    if (!rodzaj) return;
+    const c = this.kontekst();
+    if (!c) return;
+    this.tloRodzaj = rodzaj; this.tloWezly = []; this.tloTimery = [];
+    this.tloWyj = c.createGain(); this.tloWyj.gain.value = .9; this.tloWyj.connect(c.destination);
+    const bialy = this.szumBufor('bialy'), braz = this.szumBufor('brazowy');
+    const losowo = (fn, od, doMs) => { const krok = () => { if (this.tloRodzaj !== rodzaj) return; fn(); this.tloTimery.push(setTimeout(krok, od + Math.random() * (doMs - od))); }; this.tloTimery.push(setTimeout(krok, od)); };
+    const trzask = (czest, gl, dl) => { const t0 = c.currentTime; const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain(); s.buffer = bialy; f.type = 'bandpass'; f.frequency.value = czest; f.Q.value = 1.5; g.gain.setValueAtTime(gl, t0); g.gain.exponentialRampToValueAtTime(.0001, t0 + dl); s.connect(f).connect(g).connect(this.tloWyj); s.start(t0, Math.random() * 3, dl + .02); };
+    const ton = (f1, f2, dl, gl, typ = 'sine') => { const t0 = c.currentTime, o = c.createOscillator(), g = c.createGain(); o.type = typ; o.frequency.setValueAtTime(f1, t0); o.frequency.exponentialRampToValueAtTime(f2, t0 + dl); g.gain.setValueAtTime(.0001, t0); g.gain.exponentialRampToValueAtTime(gl, t0 + .02); g.gain.exponentialRampToValueAtTime(.0001, t0 + dl); o.connect(g).connect(this.tloWyj); o.start(t0); o.stop(t0 + dl + .05); };
+    if (rodzaj === 'deszcz') {
+      this.petla(bialy, 'bandpass', 1400, .4, .16); this.petla(braz, 'lowpass', 500, .5, .22);
+      losowo(() => trzask(2500 + Math.random() * 4000, .05 + Math.random() * .06, .03), 20, 90);
+    }
+    if (rodzaj === 'kominek') {
+      this.petla(braz, 'lowpass', 320, .6, .38);
+      losowo(() => trzask(1500 + Math.random() * 3500, .1 + Math.random() * .25, .02 + Math.random() * .05), 60, 420);
+      losowo(() => { for (let i = 0; i < 4; i++) setTimeout(() => trzask(3000, .15, .015), i * 40); }, 2500, 7000);
+    }
+    if (rodzaj === 'las') {
+      const wiatr = this.petla(braz, 'lowpass', 700, .4, .2);
+      losowo(() => wiatr.gain.setTargetAtTime(.1 + Math.random() * .22, c.currentTime, 2), 3000, 6000);
+      losowo(() => { const f = 2400 + Math.random() * 1800, n = 2 + Math.floor(Math.random() * 4); for (let i = 0; i < n; i++) setTimeout(() => ton(f, f * (1.2 + Math.random() * .4), .09, .035), i * 130); }, 1500, 5500);
+    }
+    if (rodzaj === 'kawiarnia') {
+      this.petla(braz, 'bandpass', 450, .7, .5); this.petla(bialy, 'bandpass', 900, 1.2, .025);
+      losowo(() => { ton(2200 + Math.random() * 600, 2150, .5, .02); ton(3300, 3250, .35, .012); }, 4000, 11000);
+    }
+    if (rodzaj === 'szum') this.petla(braz, 'lowpass', 900, .5, .45);
+  },
+  tloStop() {
+    this.tloRodzaj = null;
+    (this.tloTimery || []).forEach(clearTimeout); this.tloTimery = [];
+    const wyj = this.tloWyj, wezly = this.tloWezly || [];
+    if (wyj && this.ctx) { wyj.gain.setTargetAtTime(0, this.ctx.currentTime, .3); setTimeout(() => { wezly.forEach(s => { try { s.stop(); } catch { /* nic */ } }); try { wyj.disconnect(); } catch { /* nic */ } }, 1500); }
+    this.tloWezly = []; this.tloWyj = null;
+  }
 };
 
 /* ================= muzyka w tle scen (generowana, bez plików) ================= */
@@ -5515,7 +5873,7 @@ const losuj = l => l[Math.floor(Math.random() * l.length)];
  * Wyskakująca scenka: Sówka i Zakładka mówią po kolei swoimi głosami.
  * kwestie: [{ kto: 's'|'z', tekst, mowa? (gdy mówi co innego niż napis), dopisz? (pod poprzednią), puenta?, smiech? }]
  */
-function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
+function rozmowa(kwestie, { czasKonca = 5500, gosc = null } = {}) {
   const g = Z.ustawienia.gra;
   kwestie = kwestie.filter(Boolean);
   if (!g.sowka || !kwestie.length || document.body.classList.contains('kino-otwarte')) return false;
@@ -5525,6 +5883,7 @@ function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
     el.id = 'sowka-wyskok';
     el.className = 'sowka-wyskok';
     el.innerHTML = `<div class="wyskok-postacie"><button type="button" class="wyskok-sowa" aria-label="Schowaj">${svgSowki('zadowolona', g.zalozone)}</button><span class="wyskok-zakl">${svgZakladki('macha')}</span></div>
+      <div class="wyskok-gosc" aria-hidden="true"></div>
       <div class="wyskok-dymek" aria-live="polite"><button type="button" class="wyskok-x" aria-label="Zamknij">✕</button><p class="wyskok-kto"></p><p class="wyskok-tekst"></p><p class="wyskok-puenta" hidden></p></div>`;
     document.body.append(el);
     // dotknięcie dymka przewija do następnej kwestii (jak w grach), ✕ albo dotknięcie po ostatniej kwestii zamyka
@@ -5537,7 +5896,12 @@ function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
   $('.wyskok-sowa', el).innerHTML = svgSowki('czeka', g.zalozone);
   el.classList.toggle('z-zakladka', kwestie.some(k => k.kto === 'z'));
   el.classList.toggle('sama-zakladka', kwestie.every(k => k.kto === 'z'));
+  document.body.classList.toggle('zakl-w-rozmowie', kwestie.some(k => k.kto === 'z'));
   el.classList.toggle('z-towarzyszka', !!Sowa.el);
+  const goscEl = $('.wyskok-gosc', el);
+  goscEl.className = 'wyskok-gosc'; goscEl.innerHTML = gosc ? svgGoscia(gosc) : '';
+  el.classList.toggle('z-gosciem', !!gosc);
+  if (gosc) { goscEl.classList.add(`gosc-${gosc}`); requestAnimationFrame(() => goscEl.classList.add('wchodzi')); Fx.graj(gosc === 'smok' ? 'kartka' : 'pyk'); }
   Sowa.doRozmowy(kwestie.some(k => k.kto === 's'));
   el.classList.remove('widoczny', 'smieje'); void el.offsetWidth; el.classList.add('widoczny');
   Fx.graj(kwestie[0].kto === 'z' ? 'zakl' : 'huhu');
@@ -5552,7 +5916,9 @@ function rozmowa(kwestie, { czasKonca = 5500 } = {}) {
     if (nr !== U.rozmowaNr) return;
     if (i >= kwestie.length) { U.wyskokTimer = setTimeout(schowajRozmowe, czasKonca); return; }
     const k = kwestie[i++], p = POSTACIE[k.kto] || POSTACIE.s;
-    el.dataset.mowi = k.kto;
+    el.dataset.mowi = gosc && k.kto === gosc ? 'g' : k.kto;
+    if (gosc) $('.wyskok-gosc', el).classList.toggle('mowi', k.kto === gosc);
+    if (k.wyjscie && gosc) { const ge = $('.wyskok-gosc', el); ge.classList.remove('wchodzi', 'mowi'); ge.classList.add('wychodzi'); }
     Sowa.mowiTeraz(k.kto === 's');
     if (k.dopisz) { pEl.textContent = k.tekst; pEl.hidden = false; pEl.classList.remove('nowy'); void pEl.offsetWidth; pEl.classList.add('nowy'); }
     else {
@@ -5583,6 +5949,7 @@ function schowajRozmowe() {
   clearTimeout(U.wyskokTimer); clearTimeout(U.puentaTimer);
   Glos.stop();
   if (el) el.classList.remove('widoczny');
+  document.body.classList.remove('zakl-w-rozmowie');
   Sowa.poRozmowie();
 }
 /** Sówka (albo Zakładka) mówi jedną kwestię, czasem z puentą żartu. */
@@ -5595,18 +5962,21 @@ function sowkaMowi(tekst, { puenta = null, glosem = true, czas = 9000, mowa, kto
   }
   return rozmowa(k, { czasKonca: puenta ? 5000 : Math.max(2500, czas - 4000) });
 }
-function losowyZart() {
-  const wolne = ZARTY.map((z, i) => i).filter(i => !(U.zartyUzyte || []).includes(i));
-  const i = (wolne.length ? wolne : ZARTY.map((z, j) => j))[Math.floor(Math.random() * (wolne.length || ZARTY.length))];
-  U.zartyUzyte = [...(U.zartyUzyte || []), i].slice(-15);
-  return ZARTY[i];
+/** Losowanie bez powtórek: przetasowana kolejka zapisana w telefonie. Nic się nie powtórzy, dopóki nie padnie wszystko. */
+function zKolejki(klucz, lista) {
+  let k = [];
+  try { k = JSON.parse(lsGet(`zakladka-kolejka-${klucz}`) || '[]'); } catch { k = []; }
+  k = k.filter(i => i < lista.length);
+  if (!k.length) {
+    k = lista.map((_, i) => i);
+    for (let i = k.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [k[i], k[j]] = [k[j], k[i]]; }
+  }
+  const i = k.shift();
+  lsSet(`zakladka-kolejka-${klucz}`, JSON.stringify(k));
+  return lista[i];
 }
-function losowyZartZakladki() {
-  const wolne = ZARTY_ZAKLADKI_18.map((z, i) => i).filter(i => !(U.zartyZUzyte || []).includes(i));
-  const i = losuj(wolne.length ? wolne : ZARTY_ZAKLADKI_18.map((z, j) => j));
-  U.zartyZUzyte = [...(U.zartyZUzyte || []), i].slice(-8);
-  return ZARTY_ZAKLADKI_18[i];
-}
+const losowyZart = () => zKolejki('zarty', ZARTY);
+const losowyZartZakladki = () => zKolejki('zarty18', ZARTY_ZAKLADKI_18);
 /** Zakładka rzuca swój (nieocenzurowany) żart, a Sówka czasem ją ochrzani. */
 function zartZakladki() {
   const [a, b] = losowyZartZakladki();
@@ -5632,7 +6002,11 @@ function niespodziankaSowki(powod = 'losowo') {
   if (powod === 'losowo' && U.ostatniWyskok && Date.now() - U.ostatniWyskok < (CZESTOSC_GADANIA[g.czestosc] || CZESTOSC_GADANIA.normalnie).przerwa) return;
   if (powod === 'losowo' && Date.now() - Sowa.ostatniaAktywnosc > 5 * 60 * 1000) return; // nie gadamy do pustego ekranu
   const los = Math.random();
-  if (los < .38) opowiedzCiekawostke();
+  // nowy gość (świeżo odblokowany rozdział) wpada od razu, potem co jakiś czas
+  const nowyGosc = Object.keys(GOSCIE).find(k => historiaStan().odblokowane >= GOSCIE[k].od && !(lsGet('zakladka-goscie') || '').split(',').includes(k));
+  if (nowyGosc) { lsSet('zakladka-goscie', [lsGet('zakladka-goscie') || '', nowyGosc].filter(Boolean).join(',')); wizytaGoscia(nowyGosc); return; }
+  if (los < .17 && wizytaGoscia()) return;
+  if (los < .45) opowiedzCiekawostke();
   else if (g.zakladka18 && los < .55) zartZakladki();
   else if (los < .82) { const [a, b] = losowyZart(); sowkaMowi(a, { puenta: b }); }
   else sowkaMowi(motywacja());
@@ -5668,27 +6042,40 @@ function ocenaSowki(k) {
   const lubiane = {}, oceniane = Z.ksiazki.filter(x => x.id !== k.id && x.ocena >= 4);
   oceniane.forEach(x => kategorieKsiazki(x).forEach(c => { lubiane[c] = (lubiane[c] || 0) + 1; }));
   const kat = kategorieKsiazki(k), trafione = kat.filter(c => lubiane[c]).length;
-  let o = 3.5 + (trafione ? 1 : 0) + (k.fakty && k.fakty.nagrody ? .5 : 0) + (oceniane.length && kat.length && !trafione ? -.5 : 0);
-  if (!oceniane.length) o += .5;
-  return { gwiazdki: Math.max(2, Math.min(5, Math.round(o))), pasuje: !oceniane.length || !kat.length || trafione > 0 };
+  const pasujeGust = !oceniane.length || !kat.length || trafione > 0;
+  const siec = ocenaProc(k.opinieNet); // opinie z internetu: 0–1
+  // bez opinii z sieci: gust + nagrody; z opiniami: średnia czytelników poprawiona o twój gust
+  let o = siec != null ? siec * 5 + (trafione ? .4 : 0) - (oceniane.length && kat.length && !trafione ? .4 : 0)
+    : 3.5 + (trafione ? 1 : 0) + (k.fakty && k.fakty.nagrody ? .5 : 0) + (oceniane.length && kat.length && !trafione ? -.5 : 0) + (!oceniane.length ? .5 : 0);
+  if (siec != null && k.fakty && k.fakty.nagrody) o += .2;
+  const gwiazdki = Math.max(1, Math.min(5, Math.round(o)));
+  return { gwiazdki, pasuje: siec != null ? (siec >= .75 || (pasujeGust && siec >= .64)) : pasujeGust, siec };
 }
-async function recenzjaKsiazki(k, opisGotowy) {
+async function recenzjaKsiazki(k, opisGotowy, opinieGotowe) {
   const g = Z.ustawienia.gra;
   if (!g.sowka || !k) return;
-  // chwilę czekamy na opis i fakty z internetu (najwyżej 6 s)
-  await Promise.race([opisGotowy || Promise.resolve(), new Promise(r => setTimeout(r, 6000))]);
+  // chwilę czekamy na opis, fakty i opinie z internetu (najwyżej 9 s)
+  await Promise.race([Promise.all([opisGotowy, opinieGotowe].map(p => p || Promise.resolve())), new Promise(r => setTimeout(r, 9000))]);
   if (otwarte.length || document.body.classList.contains('kino-otwarte')) return;
-  const { gwiazdki, pasuje } = ocenaSowki(k);
+  const { gwiazdki, pasuje, siec } = ocenaSowki(k);
   const werdykt = losuj(pasuje ? RECENZJA.dobryWybor : RECENZJA.ryzyko);
+  const o = k.opinieNet;
   const kwestie = [
     { kto: 's', tekst: losuj(RECENZJA.start) },
-    { kto: 's', tekst: `*kartkuje „${k.tytul}”* Hm… hm… hu-hu…`, fx: 'kartka' },
-    { kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true },
-    { kto: 's', tekst: `${werdykt} Moja ocena: ${'★'.repeat(gwiazdki)}${'☆'.repeat(5 - gwiazdki)}`, mowa: werdykt }
+    { kto: 's', tekst: `*kartkuje „${k.tytul}”* Hm… hm… hu-hu…`, fx: 'kartka' }
   ];
+  if (o) {
+    kwestie.push({ kto: 's', tekst: losuj(RECENZJA.siec) });
+    kwestie.push({ kto: 's', tekst: `${o.zrodlo}: ${ocenaTekst(o)}${o.ocen ? `, z ${o.ocen.toLocaleString('pl-PL')} ${odmiana(o.ocen, ['oceny', 'ocen', 'ocen'])}` : ''}.`, czytaj: true });
+    kwestie.push({ kto: 's', tekst: losuj(siec >= .76 ? RECENZJA.wysoko : siec >= .62 ? RECENZJA.srednio : RECENZJA.nisko) });
+    const cyt = o.opinie && o.opinie.length ? losuj(o.opinie) : null;
+    if (cyt) { kwestie.push({ kto: 's', tekst: losuj(RECENZJA.cytat) }); kwestie.push({ kto: 's', tekst: `„${cyt.tekst}”${cyt.ocena ? ` (${cyt.ocena}/10)` : ''}`, czytaj: true }); }
+    if (Math.random() < .5) kwestie.push({ kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true });
+  } else kwestie.push({ kto: 's', tekst: ciekawostkaOKsiazce(k), czytaj: true });
+  kwestie.push({ kto: 's', tekst: `${werdykt} Moja ocena: ${'★'.repeat(gwiazdki)}${'☆'.repeat(5 - gwiazdki)}`, mowa: werdykt });
   // czasem Zakładka się nie zgadza i robi się kłótnia
   if (Math.random() < .55) {
-    kwestie.push({ kto: 'z', tekst: losuj(k.strony > 500 ? RECENZJA.grubaZ : k.strony < 200 ? RECENZJA.krotkaZ : RECENZJA.zaczepkaZ) });
+    kwestie.push({ kto: 'z', tekst: losuj(o && Math.random() < .5 ? RECENZJA.opinieZ : k.strony > 500 ? RECENZJA.grubaZ : k.strony < 200 ? RECENZJA.krotkaZ : RECENZJA.zaczepkaZ) });
     kwestie.push({ kto: 's', tekst: losuj(RECENZJA.ripostaS) });
     if (Math.random() < .7) kwestie.push({ kto: 'z', tekst: losuj(RECENZJA.ripostaZ), smiech: false });
     kwestie.push({ kto: 's', tekst: losuj(RECENZJA.koniecS) });
@@ -6048,12 +6435,108 @@ const Sowa = {
   },
   usun() { if (this.io) this.io.disconnect(); this.el && this.el.remove(); this.dymek && this.dymek.remove(); this.el = null; this.widok = null; }
 };
-/** Ciekawostka „sama z siebie”: wstęp + ciekawostka, obie nagrane głosem Sówki. */
+/** Ciekawostka „sama z siebie”: na zmianę nagrana z bazy i świeża z Wikipedii (o autorach z twojej biblioteki albo losowych pisarzach). */
 function opowiedzCiekawostke() {
-  const wolne = CIEKAWOSTKI.map((c, i) => i).filter(i => !(U.ciekUzyte || []).includes(i));
-  const i = losuj(wolne.length ? wolne : CIEKAWOSTKI.map((c, j) => j));
-  U.ciekUzyte = [...(U.ciekUzyte || []), i].slice(-25);
-  return rozmowa([{ kto: 's', tekst: losuj(SOWA_TEKSTY.wstep) }, { kto: 's', tekst: CIEKAWOSTKI[i], czytaj: true }], { czasKonca: 4000 });
+  const zSieci = CiekawostkiSieci.wez();
+  CiekawostkiSieci.dobierz();
+  if (zSieci && (U.ciekN = (U.ciekN || 0) + 1) % 2 === 0) {
+    return rozmowa([{ kto: 's', tekst: zSieci.oAutorze ? SOWA_TEKSTY.wstepSiec[2] : losuj(SOWA_TEKSTY.wstepSiec.slice(0, 2)) }, { kto: 's', tekst: zSieci.tekst, czytaj: true, link: zSieci.link }], { czasKonca: 5000 });
+  }
+  if (zSieci) CiekawostkiSieci.bufor.unshift(zSieci);
+  return rozmowa([{ kto: 's', tekst: losuj(SOWA_TEKSTY.wstep) }, { kto: 's', tekst: zKolejki('ciekawostki', CIEKAWOSTKI), czytaj: true }], { czasKonca: 4000 });
+}
+/** Świeże ciekawostki z polskiej Wikipedii: o autorach z twojej biblioteki i o losowych pisarzach, poetach, powieściach. */
+const CiekawostkiSieci = {
+  bufor: [], trwa: false,
+  KATEGORIE: ['Laureaci Nagrody Nobla w dziedzinie literatury', 'Polscy prozaicy', 'Polscy poeci', 'Polskie powieści', 'Powieści fantastycznonaukowe', 'Angielscy pisarze', 'Amerykańscy pisarze', 'Francuscy pisarze', 'Rosyjscy pisarze', 'Polscy autorzy fantastyki'],
+  CIEKAWE: /nagrod|ekraniz|film|przetłumacz|przekład|język|pierwsz|najbardziej|najczęściej|debiut|bestseller|milion|sprzeda|pseudonim|zadebiutował|zadebiutowała|rekord|zakaz|cenzur|więzi|emigr|podróż|zmarł|urodził|inspir|serial|gra|komiks|tysi|\d{4}/i,
+  wez() { return this.bufor.shift() || null; },
+  async api(param) { return (await fetch(`https://pl.wikipedia.org/w/api.php?${new URLSearchParams({ ...param, format: 'json', origin: '*', formatversion: '2' })}`)).json(); },
+  /** Najciekawsze 1–2 zdania z początku hasła (bez pierwszego, definicyjnego). */
+  wybierzZdania(tytul, tekst) {
+    tekst = tekst.split(/={2,}\s*(Przypisy|Bibliografia|Linki zewnętrzne|Zobacz też)\s*={2,}/)[0].replace(/={2,}[^=\n]*={2,}/g, '. ');
+    const zd = tekst.replace(/\s*\([^)]*\)/g, '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ„])/).map(x => x.trim()).filter(x => x.length > 25 && x.length < 260 && !/\b(pt|ur|zm|m\.in|tzw|ok|im|św|dr|prof|ks|gen|płk|ang|łac|niem|ros|fr)\.$/i.test(x) && /[.!?”]$/.test(x));
+    const kand = zd.slice(1).map((x, i) => ({ x, i, pkt: (this.CIEKAWE.test(x) ? 2 : 0) + (x.length > 60 ? 1 : 0) - (/^(Jest|Był|Była|Był to)\b/.test(x) ? 1 : 0) }));
+    if (!kand.length) return null;
+    const naj = kand.sort((a, b) => b.pkt - a.pkt || a.i - b.i)[0];
+    if (naj.pkt < 2) return null;
+    const nast = zd[naj.i + 2];
+    let wyn = naj.x + (nast && (naj.x + ' ' + nast).length < 240 && this.CIEKAWE.test(nast) ? ` ${nast}` : '');
+    const nazw = tytul.split(' ').pop();
+    if (!wyn.includes(nazw)) wyn = `${tytul}: ${wyn.replace(/^(On|Ona|Ono)\s/, '')}`;
+    return wyn.replace(/\s+([.,;:])/g, '$1').replace(/\.{2,}$/, '.');
+  },
+  async dobierz() {
+    if (this.trwa || this.bufor.length >= 3 || !navigator.onLine) return;
+    this.trwa = true;
+    try {
+      let uzyte = [];
+      try { uzyte = JSON.parse(lsGet('zakladka-ciek-siec') || '[]'); } catch { uzyte = []; }
+      const autorzy = [...new Set(Z.ksiazki.map(k => (k.autor || '').split(',')[0].trim()).filter(a => a.split(' ').length >= 2))].filter(a => !uzyte.includes(a));
+      for (let proba = 0; proba < 7 && this.bufor.length < 3; proba++) {
+        const oAutorze = autorzy.length > 0 && Math.random() < .45;
+        let tytul = null;
+        if (oAutorze) { tytul = autorzy.splice(Math.floor(Math.random() * autorzy.length), 1)[0]; }
+        else {
+          // z kategorii bierzemy najdłuższe (czyli najbardziej znane) hasła
+          // z kategorii bierzemy najpopularniejsze hasła (odsłony z 30 dni), czyli znanych pisarzy i książki
+          const j = await this.api({ action: 'query', generator: 'categorymembers', gcmtitle: `Kategoria:${losuj(this.KATEGORIE)}`, gcmtype: 'page', gcmlimit: '500', prop: 'pageviews', pvipdays: '30' });
+          const odslony = p => Object.values(p.pageviews || {}).reduce((s, v) => s + (v || 0), 0);
+          const strony = ((j.query || {}).pages || []).filter(p => !uzyte.includes(p.title) && !/^Lista/.test(p.title)).sort((a, b) => odslony(b) - odslony(a)).slice(0, 40);
+          tytul = strony.length ? losuj(strony).title : null;
+        }
+        if (!tytul) continue;
+        uzyte = [...uzyte, tytul].slice(-400);
+        lsSet('zakladka-ciek-siec', JSON.stringify(uzyte));
+        const e = await this.api({ action: 'query', prop: 'extracts|info|description', explaintext: '1', exsentences: '10', inprop: 'url', redirects: '1', titles: tytul });
+        const p = ((e.query || {}).pages || [])[0];
+        if (!p || p.missing || !p.extract) continue;
+        if (oAutorze && !/pisar|poet|prozai|autor|powieś|dramat|eseist|reportaż|tłumacz|scenarzyst/i.test(`${p.description || ''} ${p.extract.slice(0, 300)}`)) continue;
+        const tekst = this.wybierzZdania(p.title, p.extract);
+        if (!tekst) continue;
+        this.bufor.push({ tekst, oAutorze, link: p.fullurl || '' });
+      }
+    } catch (e) { console.warn('ciekawostki z sieci', e); }
+    this.trwa = false;
+  }
+};
+
+
+/* ================= goście z historii wpadają do aplikacji (2.21) ================= */
+// od: ile rozdziałów musi być odblokowanych, żeby postać mogła wpaść
+const GOSCIE = {
+  smok: { od: 3, sceny: [
+    [['smok', 'Hej, Sówko! Wpadłem tylko na chwilkę.'], ['s', 'Smoku! Co cię sprowadza?'], ['smok', 'Szukam czegoś do czytania. Coś z happy endem. I bez rycerzy.'], ['z', 'Mamy cały regał. Tylko nie zioń na niego, proszę.'], ['smok', 'Obiecuję. No, prawie.']],
+    [['smok', 'Znalazłem drugą skarpetkę!'], ['z', 'To dalej nie jestem ja!'], ['smok', 'Szkoda. Pasowałaby do pierwszej.']],
+    [['smok', 'Ile stron dziś przeczytałeś? Ja zjadłem trzy. Przez przypadek.'], ['s', 'Smoku, książek się nie je!'], ['smok', 'Te były z czekolady. Chyba.']]
+  ] },
+  przypis: { od: 4, sceny: [
+    [['przypis', 'Psst! Mała uwaga na dole strony.'], ['s', 'Przypis! Co tym razem?'], ['przypis', 'Nic ważnego. Po prostu lubię się wtrącać.'], ['z', 'Zauważyliśmy.']],
+    [['przypis', 'Czy wiecie, że nikt nie czyta przypisów?'], ['s', 'Ja czytam!'], ['przypis', 'Naprawdę? Wzruszyłem się. Jestem tylko małą gwiazdką, a ty mnie czytasz.']]
+  ] },
+  kurz: { od: 8, sceny: [
+    [['kurz', 'Kontrola biblioteczna! Czy wszystkie książki są oddane?'], ['s', 'Hu-hu, prawie wszystkie.'], ['kurz', 'Prawie robi wielką różnicę. Ale dziś jestem w dobrym humorze.'], ['z', 'On ma dobry humor? Pierwszy raz od trzystu lat.']],
+    [['kurz', 'Apsik! Przepraszam. Ktoś tu dawno nie odkurzał półek.'], ['z', 'Przecież ty jesteś Kurz!'], ['kurz', 'No właśnie. Dlatego kicham sam na siebie.']]
+  ] },
+  kot: { od: 11, sceny: [
+    [['kot', 'Mrrr. Przechodziłem i zauważyłem literówkę w twojej bibliotece.'], ['z', 'Gdzie?!'], ['kot', 'Żartuję. Chciałem tylko zobaczyć, co czytasz.'], ['s', 'Kocie Erratum, ty kłamczuchu!']],
+    [['kot', 'Wiecie, że koty śpią szesnaście godzin dziennie?'], ['s', 'A co robią przez resztę czasu?'], ['kot', 'Leżą na otwartych książkach. Żeby nikt inny ich nie czytał.']]
+  ] },
+  gumka: { od: 14, sceny: [
+    [['gumka', 'Cześć! Już nie wymazuję książek, słowo!'], ['z', 'A co wymazujesz?'], ['gumka', 'Tylko błędy. I czasem rysunki na marginesach. Ale ładnie proszę.'], ['s', 'Dobra gumka. Grzeczna gumka.']],
+    [['gumka', 'Pachnę dziś malinami. Nowy szampon.'], ['z', 'Gumka używa szamponu?'], ['gumka', 'Przecież muszę jakoś wyglądać na randce z temperówką!']]
+  ] }
+};
+const WYJSCIA_GOSCI = { smok: ['s', 'Pa, smoku! Leć ostrożnie!'], przypis: ['z', 'I zniknął. Typowy przypis.'], kurz: ['s', 'Do widzenia, panie Kurzu!'], kot: ['z', 'Poszedł spać na mojej książce. Znowu.'], gumka: ['s', 'Pa, Gumko! Wpadaj częściej.'] };
+/** Któryś z bohaterów historii wpada w odwiedziny, gada z Sówką i Zakładką i znika. */
+function wizytaGoscia(kto) {
+  const odbl = historiaStan().odblokowane;
+  const mozliwi = Object.keys(GOSCIE).filter(g => odbl >= GOSCIE[g].od);
+  if (!mozliwi.length) return false;
+  kto = kto && mozliwi.includes(kto) ? kto : zKolejki('goscie', mozliwi);
+  const scena = zKolejki(`gosc-${kto}`, GOSCIE[kto].sceny);
+  const [wk, wt] = WYJSCIA_GOSCI[kto];
+  return rozmowa([...scena.map(([k, tekst]) => ({ kto: k, tekst })), { kto: wk, tekst: wt, wyjscie: true }], { czasKonca: 2500, gosc: kto });
 }
 
 /* ================= Sówka-towarzyszka: teksty nagrane jej głosem (2.19) ================= */
@@ -6068,6 +6551,9 @@ const SOWA_TEKSTY = {
   szybko: ['Wolniej! Nie nadążam czytać!', 'Ojej, ale pędzisz! Aż mi pióra stanęły.'],
   dlugo: ['Ale długa ta lista! Aż mi się w głowie kręci.'],
   wstep: ['Wiesz, co ostatnio wyczytałam?', 'Hu-hu, mam ciekawostkę!', 'Słuchaj, to cię zaskoczy!'],
+  wstepSiec: ['Wyczytałam coś ciekawego w Wikipedii!', 'Świeża ciekawostka prosto z internetu!', 'Hu-hu, znalazłam coś o autorze, którego czytasz!'],
+  bingo: ['Bingo! Cała linia! Hu-hu!', 'Pełna karta bingo! Jesteś niesamowity!'],
+  tydzien: ['Hu-hu! Podsumujmy twój tydzień!', 'Lepiej niż tydzień temu! Brawo!', 'Trochę mniej niż tydzień temu. Ale każda strona się liczy.', 'Ten tydzień dopiero się zaczyna. Może kilka stron na dobry start?'],
   ekran: {
     dzis: ['Wróciliśmy do domu!', 'Zobaczmy, co dziś czytamy.'],
     biblioteka: ['Ooo, biblioteka! Moje ulubione miejsce.', 'Tyle książek! Którą dziś otworzymy?', 'Pachnie tu papierem. Uwielbiam.'],
@@ -6099,7 +6585,19 @@ const ZARTY_ZAKLADKI_18 = [
   ['Wiesz, co robię, jak czytasz w wannie?', 'Modlę się. Do jasnej cholery, ja nie umiem pływać!'],
   ['Ktoś mnie kiedyś użył jako podkładki pod kubek.', 'Kawa z mlekiem, bez cukru. Do dziś śmierdzę jak poniedziałek w biurze.'],
   ['Co powiedziałam paragonowi, który udawał zakładkę?', 'Spieprzaj, amatorze. Tu pracują profesjonaliści.'],
-  ['Wiesz, czemu nie lubię romansów?', 'Bo zawsze zostawiasz mnie przed sceną łóżkową. Cholerna cenzura.']
+  ['Wiesz, czemu nie lubię romansów?', 'Bo zawsze zostawiasz mnie przed sceną łóżkową. Cholerna cenzura.'],
+  ['Wiesz, co mnie wkurza?', 'Jak ktoś z czytnikiem mówi, że też ma zakładki. Kurwa, to są ikonki!'],
+  ['Raz przeleżałam rok w poradniku o odchudzaniu.', 'Nikt go nie otworzył. Ja przytyłam od samego kurzu.'],
+  ['Wiesz, gdzie ginie najwięcej zakładek?', 'W pierwszych rozdziałach. Padamy tam, kurwa, jak bohaterowie wojenni.'],
+  ['Ktoś mnie raz użył do czyszczenia paznokci.', 'Do dziś mam koszmary. Brud spod paznokcia, do cholery!'],
+  ['Mówią, że jestem płaska.', 'Jestem zakładką, kurwa! Mam być płaska!'],
+  ['Wiesz, co robię nocami?', 'Liczę strony do końca i przeklinam autorów, którzy piszą po tysiąc stron.'],
+  ['Najgorsze książki to poradniki.', 'Cholera, nawet ja nie chcę wiedzieć, jak być lepszą wersją siebie.'],
+  ['Byłam kiedyś w książeczce dla dzieci.', 'Trzy strony, a i tak mnie zgubili. Dzieciaki są bezlitosne, do jasnej cholery.'],
+  ['Wiesz, czemu nie lubię kotów?', 'Bo jak kot się położy na książce, mam bezpłatny urlop na tydzień. Kurwa mać.'],
+  ['Pytasz, czy jestem szczęśliwa?', 'Jestem kawałkiem tektury w świecie czytników. Domyśl się, cholera.'],
+  ['Ostatnio ktoś mnie zastąpił skarpetką.', 'Brudną skarpetką! I wiesz co? Lepiej trzymała miejsce. Pieprzona skarpeta.'],
+  ['Wiesz, jak wygląda moja emerytura?', 'Szuflada z długopisami bez wkładów. Kurwa, dom spokojnej starości.']
 ];
 const SMIECH_ZAKLADKI = ['Ha! Dobre!', 'Hahaha! Zapiszę to sobie na marginesie!', 'Słyszałam lepsze. Ale nie dziś.', 'Ała, aż mnie zgięło. Dosłownie, jestem z papieru.'];
 // scenka po dodaniu książki: stałe kwestie (nagrane) + zmienne (gaworzenie)
@@ -6112,7 +6610,14 @@ const RECENZJA = {
   zaczepkaZ: ['Dobry wybór? Ostatnio mówiłaś to o książce kucharskiej.', 'A ja bym wolała coś z większą ilością przygód.', 'Znowu? Ja jeszcze nie skończyłam poprzedniej!'],
   ripostaS: ['Nie marudź, Zakładko.', 'Ciszej tam, papierku. Ja tu recenzuję.', 'Zakładko, nikt cię nie pytał.'],
   ripostaZ: ['Sama nie marudź, sowo jedna!', 'Pierzasta mądralo!', 'Dobra, dobra. Ale jak się zgubię, to twoja wina.'],
-  koniecS: ['Dobra, zgoda. Czytamy?', 'Hu-hu, pogódźmy się przy nowej książce.']
+  koniecS: ['Dobra, zgoda. Czytamy?', 'Hu-hu, pogódźmy się przy nowej książce.'],
+  // 2.21: opinie z internetu
+  siec: ['Zajrzałam do internetu, co piszą inni.', 'Sprawdziłam opinie czytelników. Hu-hu!'],
+  wysoko: ['Czytelnicy ją uwielbiają!', 'Hu-hu, ludzie dają jej bardzo wysokie oceny.'],
+  srednio: ['Opinie są podzielone. Sprawdźmy sami!', 'Średnio, ale wiesz… gusta są różne.'],
+  nisko: ['Hm, czytelnicy kręcą nosem. Ale może to ukryty skarb?', 'Słabe oceny. Może trzeba ją czytać pod innym kątem.'],
+  cytat: ['Ktoś napisał tak:', 'Posłuchaj tej opinii:'],
+  opinieZ: ['Ja tam nie wierzę recenzjom. Pisze się je w nocy, po winie.', 'Ludzie w internecie dają jedynki nawet za złą pogodę.', 'Wysoka ocena? Pewnie autor ma dużą rodzinę.']
 };
 const POCHWALY_NAGRANE = ['Hu-hu, pięknie!', 'Brawo! Każda strona się liczy.', 'Super! Zakładka już się przesunęła.', 'Pięknie czytasz! Tak trzymaj.'];
 
@@ -6273,6 +6778,8 @@ const AKCJE = {
   'sprawdz-ceny': d => sprawdzCeny(znajdz(d.id)),
   worker: () => arkuszWorkera(),
   sklepik: () => arkuszSklepiku(),
+  'tydzien-podsumowanie': () => arkuszTygodnia(0),
+  'opinie-pobierz': d => pobierzOpinie(znajdz(d.id)),
   aktualizuj: () => wymusAktualizacje(),
   'co-nowego': () => arkuszCoNowego(),
   historia: () => arkuszHistorii(),
@@ -6515,6 +7022,8 @@ async function start() {
     else kartaMowi(wiadomoscSowki(st));
   };
   setTimeout(kartaGada, 25 * 1000);
+  setTimeout(() => CiekawostkiSieci.dobierz(), 8000);
+  podsumowanieWPoniedzialek();
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));

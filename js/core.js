@@ -1,7 +1,7 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.20.3';
+const WERSJA = '2.21.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
@@ -113,6 +113,11 @@ function normalizujKsiazke(k = {}) {
     fabula: String(k.fabula || '').slice(0, 4000),
     fakty: k.fakty && typeof k.fakty === 'object' ? Object.fromEntries(Object.entries(k.fakty).filter(([, v]) => Array.isArray(v)).map(([n, v]) => [String(n).slice(0, 30), v.map(x => String(x).slice(0, 80)).slice(0, 6)])) : {},
     opisLinki: (Array.isArray(k.opisLinki) ? k.opisLinki : []).filter(l => l && /^https:\/\//.test(l.link)).slice(0, 6).map(l => ({ nazwa: String(l.nazwa).slice(0, 30), link: String(l.link).slice(0, 300) })),
+    opinieNet: k.opinieNet && +k.opinieNet.ocena > 0 && poprawnaData(k.opinieNet.data) ? {
+      zrodlo: String(k.opinieNet.zrodlo || '').slice(0, 40), ocena: +k.opinieNet.ocena, skala: +k.opinieNet.skala === 5 ? 5 : 10, ocen: Math.max(0, Math.round(+k.opinieNet.ocen) || 0),
+      url: /^https:\/\//.test(k.opinieNet.url) ? k.opinieNet.url : '', data: k.opinieNet.data,
+      opinie: (Array.isArray(k.opinieNet.opinie) ? k.opinieNet.opinie : []).slice(0, 3).map(o => ({ tekst: String(o.tekst || '').slice(0, 400), ocena: +o.ocena || null }))
+    } : null,
     cenyCeneo: k.cenyCeneo && poprawnaData(k.cenyCeneo.data) ? Object.fromEntries(['papier', 'ebook', 'audio'].map(f => [f, k.cenyCeneo[f] && +k.cenyCeneo[f].cena > 0 ? { cena: +k.cenyCeneo[f].cena, link: /^https:\/\//.test(k.cenyCeneo[f].link) ? k.cenyCeneo[f].link : '', nazwa: String(k.cenyCeneo[f].nazwa || '').slice(0, 120) } : null]).concat([['data', k.cenyCeneo.data]])) : null,
     cenaDocelowa: +k.cenaDocelowa > 0 ? Math.round(+k.cenaDocelowa * 100) / 100 : null,
     ceny: (Array.isArray(k.ceny) ? k.ceny : []).filter(c => c && +c.cena > 0 && poprawnaData(c.data)).slice(-20).map(c => ({ data: c.data, cena: Math.round(+c.cena * 100) / 100, sklep: String(c.sklep || '').slice(0, 40) })),
@@ -173,6 +178,7 @@ function normalizujUstawienia(u = {}) {
     zadania: Object.fromEntries(Object.entries(g.zadania || {}).filter(([d, v]) => poprawnaData(d) && Array.isArray(v) && d >= dodajDni(dzisISO(), -60)).map(([d, v]) => [d, v.map(String).slice(0, 5)])),
     zamrozeniaKupione: Object.fromEntries(Object.entries(g.zamrozeniaKupione || {}).filter(([m, v]) => poprawnyMiesiac(m) && +v > 0).map(([m, v]) => [m, Math.min(10, Math.round(+v))])),
     sowka: g.sowka !== false,
+    bingo: Object.fromEntries(Object.entries(g.bingo || {}).filter(([m, v]) => poprawnyMiesiac(m) && +v > 0).slice(-36).map(([m, v]) => [m, Math.min(1000, Math.round(+v))])),
     historiaWidziane: ogranicz(Math.round(+g.historiaWidziane) || 0, 0, 50),
     glos: g.glos !== false, muzyka: g.muzyka !== false, zarty: g.zarty !== false, glosSowki: g.glosSowki !== false, zakladka18: g.zakladka18 !== false, dzwieki: g.dzwieki !== false, czestosc: ['rzadko', 'normalnie', 'czesto'].includes(g.czestosc) ? g.czestosc : 'normalnie'
   };
@@ -1272,6 +1278,41 @@ function kategorieKsiazki(k) {
   return wyn.slice(0, 3);
 }
 
+/* ---------- bingo czytelnicze (2.21): co miesiąc nowa karta 3×3, pola zaznaczają się same ---------- */
+const BINGO_POLA = [
+  { id: 'gruba', nazwa: 'Książka ponad 500 stron', emoji: '🧱', ok: c => c.skonczone.some(k => k.strony > 500) },
+  { id: 'krotka', nazwa: 'Książka poniżej 200 stron', emoji: '🪶', ok: c => c.skonczone.some(k => k.strony < 200) },
+  { id: 'klasyk', nazwa: 'Klasyk sprzed 1950 roku', emoji: '🏛️', ok: c => c.skonczone.some(k => +((k.fakty && k.fakty.wydanie) || [])[0] < 1950) },
+  { id: 'nagroda', nazwa: 'Nagradzana książka', emoji: '🏆', ok: c => c.skonczone.some(k => k.fakty && k.fakty.nagrody) },
+  { id: 'cykl', nazwa: 'Tom z serii', emoji: '📚', ok: c => c.skonczone.some(k => k.seria || (k.fakty && k.fakty.cykl)) },
+  { id: 'fantasy', nazwa: 'Fantasy albo sci-fi', emoji: '🐉', ok: c => c.skonczone.some(k => kategorieKsiazki(k).some(x => x === 'fantasy' || x === 'scifi')) },
+  { id: 'kryminal', nazwa: 'Kryminał albo thriller', emoji: '🔍', ok: c => c.skonczone.some(k => kategorieKsiazki(k).some(x => x === 'kryminal' || x === 'thriller')) },
+  { id: 'faktu', nazwa: 'Reportaż albo literatura faktu', emoji: '🌍', ok: c => c.skonczone.some(k => kategorieKsiazki(k).some(x => x === 'reportaz' || x === 'historia' || x === 'nauka')) },
+  { id: 'nowyAutor', nazwa: 'Autor, którego jeszcze nie czytałeś', emoji: '✨', ok: c => c.skonczone.some(k => k.autor && !Z.ksiazki.some(x => x !== k && x.autor === k.autor && x.status === 'przeczytana' && x.koniec && x.koniec < c.od)) },
+  { id: 'seria7', nazwa: '7 dni czytania z rzędu', emoji: '🔥', ok: c => { let n = 0, max = 0; for (const d of c.dni) { n = (c.mapa.get(d) || 0) > 0 ? n + 1 : 0; max = Math.max(max, n); } return max >= 7; } },
+  { id: 'sto', nazwa: '100 stron jednego dnia', emoji: '💯', ok: c => c.dni.some(d => (c.mapa.get(d) || 0) >= 100) },
+  { id: 'weekend', nazwa: 'Czytanie w sobotę i niedzielę', emoji: '🛋️', ok: c => c.dni.some(d => new Date(d + 'T12:00').getDay() === 6 && (c.mapa.get(d) || 0) > 0 && (c.mapa.get(dodajDni(d, 1)) || 0) > 0) },
+  { id: 'sesja', nazwa: 'Sesja czytania ponad godzinę', emoji: '⏱️', ok: c => Z.ksiazki.some(k => k.sesje.some(s => s.data >= c.od && s.data <= c.do && s.minuty >= 60)) },
+  { id: 'cytaty', nazwa: '3 zapisane cytaty', emoji: '✍️', ok: c => Z.ksiazki.reduce((s, k) => s + k.cytaty.filter(q => q.data >= c.od && q.data <= c.do).length, 0) >= 3 },
+  { id: 'piatka', nazwa: 'Książka na 5 gwiazdek', emoji: '⭐', ok: c => c.skonczone.some(k => k.ocena === 5) },
+  { id: 'dwie', nazwa: 'Dwie skończone książki', emoji: '✌️', ok: c => c.skonczone.length >= 2 }
+];
+const BINGO_LINIE = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+/** Karta na dany miesiąc: 9 pól wybranych na stałe (z „ziarna” miesiąca), środek zawsze „Dwie skończone książki”. */
+function bingoMiesiaca(mies = dzisISO().slice(0, 7)) {
+  const pula = BINGO_POLA.filter(p => p.id !== 'dwie').map(p => ({ p, r: hashTekstu(mies + p.id) })).sort((a, b) => a.r - b.r).slice(0, 8).map(x => x.p);
+  const pola = [...pula.slice(0, 4), BINGO_POLA.find(p => p.id === 'dwie'), ...pula.slice(4)];
+  const od = `${mies}-01`, doDnia = dodajDni(od, 40).slice(0, 7) + '-01'; // pierwszy dzień następnego miesiąca
+  const koniecMies = dodajDni(doDnia, -1);
+  const mapa = mapaDni(), dni = [];
+  for (let d = od; d <= koniecMies; d = dodajDni(d, 1)) dni.push(d);
+  const c = { od, do: koniecMies, mapa, dni, skonczone: Z.ksiazki.filter(k => k.status === 'przeczytana' && k.koniec && k.koniec >= od && k.koniec <= koniecMies) };
+  const zrobione = pola.map(p => { try { return !!p.ok(c); } catch { return false; } });
+  const linie = BINGO_LINIE.filter(l => l.every(i => zrobione[i])).length;
+  const pelna = zrobione.every(Boolean);
+  return { mies, pola, zrobione, linie, pelna, nagroda: linie * 40 + (pelna ? 150 : 0) };
+}
+
 /* ---------- listki, poziomy i zadania dnia (wersja 2.15) ---------- */
 const POZIOMY = ['Nowy czytelnik', 'Ciekawski', 'Mól książkowy', 'Pożeracz stron', 'Bibliofil', 'Erudyta', 'Strażnik biblioteki', 'Mistrz zakładki', 'Legenda czytelnictwa'];
 const ZADANIA_DNIA = [
@@ -1317,7 +1358,8 @@ function listkiZdobyte() {
   const naj = najdluzszaSeria(m);
   const passa = (naj >= 7 ? 20 : 0) + (naj >= 30 ? 100 : 0) + (naj >= 100 ? 300 : 0) + (naj >= 365 ? 1000 : 0);
   const zadania = Object.entries(Z.ustawienia.gra.zadania).reduce((s, [, ids]) => s + ids.reduce((a, id) => a + ((ZADANIA_DNIA.find(z => z.id === id) || {}).nagroda || 0), 0), 0);
-  return { razem: Math.floor(strony / 10) + dni * 5 + ksiazki * 30 + cytaty * 3 + passa + zadania, strony: Math.floor(strony / 10), dni: dni * 5, ksiazki: ksiazki * 30, cytaty: cytaty * 3, passa, zadania };
+  const bingo = Object.values(Z.ustawienia.gra.bingo || {}).reduce((a, b) => a + b, 0);
+  return { razem: Math.floor(strony / 10) + dni * 5 + ksiazki * 30 + cytaty * 3 + passa + zadania + bingo, strony: Math.floor(strony / 10), dni: dni * 5, ksiazki: ksiazki * 30, cytaty: cytaty * 3, passa, zadania, bingo };
 }
 const listkiStan = () => { const z = listkiZdobyte(); return { ...z, saldo: Math.max(0, z.razem - Z.ustawienia.gra.wydane) }; };
 /** Poziom z doświadczenia (wszystkie zdobyte listki, także wydane). */

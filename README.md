@@ -81,6 +81,17 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.21: goście z przygód, opinie z sieci, nowa sesja, bingo
+
+- **Recenzja z opiniami z internetu**: po dodaniu książki Sówka sprawdza średnią ocen, liczbę ocen i kilka opinii z **Lubimyczytać**. Czyta fragment czyjejś opinii i na tej podstawie (plus twój gust) mówi, czy to dobry wybór, i wystawia gwiazdki. Zakładka czasem kłóci się z recenzjami. W karcie książki jest nowa sekcja „Co mówią czytelnicy”. Wymaga **aktualizacji workera** (nowy kod w `proxy/cloudflare-worker.js`, endpoint `?opinie=`). Bez niej aplikacja bierze średnią z Open Library.
+- **Goście z przygód**: smok, Przypis, Bibliotekarz Kurz, Kot Erratum i Wielka Gumka (każdy, gdy jego rozdział jest odblokowany) wpadają z wizytą. Rozmawiają z Sówką i Zakładką własnymi głosami i znikają ze swoją animacją. Postacie mają teraz własne rysunki, także w kinie, zamiast emoji.
+- **Ciekawostki z Wikipedii na żywo**: o autorach z twojej biblioteki i o najpopularniejszych pisarzach, noblistach i powieściach, wybrane tak, żeby było w nich coś ciekawego. Do tego 30 nowych nagranych ciekawostek, 40 żartów Sówki i 12 żartów Zakładki. Losowanie bez powtórek zapamiętuje, co już było, także po zamknięciu aplikacji.
+- **Nowa Zakładka**: szwy, cień, dziurka ze złotym sznureczkiem i chwostem, większe oczy, mruganie. **Baner pory dnia** w stylu przygód: wzgórza i miasteczko z książek (w nocy palą się okna), kolory pasujące do aplikacji, zawsze czytelny tekst.
+- **Sesja czytania**: cel (15, 25, 45 albo 60 min) z pierścieniem postępu, komunikaty Sówki w połowie i na końcu, propozycja przerwy przy 25 minutach (Pomodoro). Dźwięki tła generowane w telefonie: deszcz, kominek, las, kawiarnia i szum. Szacunek stron na żywo i czas do końca książki. Po sesji podsumowanie z tempem na tle średniej i wykrywaniem rekordu. Ostatni cel i tło są zapamiętywane.
+- **Bingo czytelnicze** w Statystykach: co miesiąc karta 3×3, pola zaznaczają się same. Linia daje 40 🍃, pełna karta dodatkowo 150 🍃.
+- **Podsumowanie tygodnia**: przycisk „Tydzień” w Statystykach, a w poniedziałek Sówka sama pokazuje poprzedni tydzień (wykres dni, porównanie, najlepszy dzień, skończone książki).
+- Razem 611 nagranych kwestii w jednej paczce `audio/glosy-*.bin`.
+
 ## Wersja 2.20.1: nagrania w jednej paczce
 
 - Wszystkie 382 nagrania głosów są w **jednym pliku** `audio/glosy-<hash>.bin` (ok. 8,7 MB), plus spis `audio/glosy.json` i `audio/cisza.mp3`. Folder `audio` ma więc 3 pliki zamiast kilkuset, co mieści się w limicie 100 plików na jedno wgranie przez stronę GitHuba.
