@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.13.0';
+const WERSJA = '2.16.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [] };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -165,6 +165,16 @@ function normalizujUstawienia(u = {}) {
   w.losIle = ogranicz(Math.round(+u.losIle) || 3, 1, 8);
   w.budzet = +u.budzet > 0 ? Math.round(+u.budzet) : 0;
   w.cenyAuto = u.cenyAuto !== false;
+  const g = u.gra || {};
+  w.gra = {
+    wydane: Math.max(0, Math.round(+g.wydane) || 0),
+    kupione: (Array.isArray(g.kupione) ? g.kupione : []).map(String).slice(0, 100),
+    zalozone: (Array.isArray(g.zalozone) ? g.zalozone : []).map(String).slice(0, 10),
+    zadania: Object.fromEntries(Object.entries(g.zadania || {}).filter(([d, v]) => poprawnaData(d) && Array.isArray(v) && d >= dodajDni(dzisISO(), -60)).map(([d, v]) => [d, v.map(String).slice(0, 5)])),
+    zamrozeniaKupione: Object.fromEntries(Object.entries(g.zamrozeniaKupione || {}).filter(([m, v]) => poprawnyMiesiac(m) && +v > 0).map(([m, v]) => [m, Math.min(10, Math.round(+v))])),
+    sowka: g.sowka !== false,
+    historiaWidziane: ogranicz(Math.round(+g.historiaWidziane) || 0, 0, 50)
+  };
   w.listyZyczen = (Array.isArray(u.listyZyczen) ? u.listyZyczen : []).filter(l => l && String(l.nazwa || '').trim()).slice(0, 20)
     .map(l => ({ id: String(l.id || noweId()), nazwa: String(l.nazwa).trim().slice(0, 40), emoji: String(l.emoji || '📚').slice(0, 4) }));
   const od = u.odkrywaj || {};
@@ -340,6 +350,7 @@ function seriaSzczegoly(m, u = ustSerii()) {
   let d = dzis;
   if (rodzajDnia(d, m, u) !== 'czytal') d = dodajDni(d, -1); // dzisiejszy dzień jeszcze trwa
   const zuzyte = {}, zamrozone = [], wolne = [];
+  const limit = mies => u.zamrozenia + ((Z.ustawienia.gra && Z.ustawienia.gra.zamrozeniaKupione[mies]) || 0);
   const pierwszy = m.size ? [...m.keys()].reduce((a, b) => (a < b ? a : b)) : dzis;
   let n = 0, start = null, i = 0;
   while (i++ < 4000) {
@@ -348,7 +359,7 @@ function seriaSzczegoly(m, u = ustSerii()) {
     else if (r === 'wolny') wolne.push(d);
     else {
       const mies = d.slice(0, 7);
-      if ((zuzyte[mies] || 0) < u.zamrozenia && n > 0) { zuzyte[mies] = (zuzyte[mies] || 0) + 1; zamrozone.push(d); }
+      if ((zuzyte[mies] || 0) < limit(mies) && n > 0) { zuzyte[mies] = (zuzyte[mies] || 0) + 1; zamrozone.push(d); }
       else break;
     }
     d = dodajDni(d, -1);
@@ -357,7 +368,7 @@ function seriaSzczegoly(m, u = ustSerii()) {
   const tenMies = dzis.slice(0, 7);
   return {
     dni: n, start, zamrozone: zamrozone.filter(x => !start || x > start), wolne: wolne.filter(x => !start || x > start),
-    zamrozeniaZostalo: Math.max(0, u.zamrozenia - (zuzyte[tenMies] || 0)), dzisZrobione: rodzajDnia(dzis, m, u) === 'czytal',
+    zamrozeniaZostalo: Math.max(0, limit(tenMies) - (zuzyte[tenMies] || 0)), zamrozeniaLimit: limit(tenMies), dzisZrobione: rodzajDnia(dzis, m, u) === 'czytal',
     dzisWolny: rodzajDnia(dzis, m, u) === 'wolny', cel: u.cel, prog: u.prog
   };
 }
@@ -368,12 +379,13 @@ function najdluzszaSeria(m, u = ustSerii()) {
   if (!klucze.length) return 0;
   let naj = 0, teraz = 0;
   const zuzyte = {};
+  const limit = mies => u.zamrozenia + ((Z.ustawienia.gra && Z.ustawienia.gra.zamrozeniaKupione[mies]) || 0);
   for (let d = klucze[0], i = 0; d <= klucze[klucze.length - 1] && i < 4000; d = dodajDni(d, 1), i++) {
     const r = rodzajDnia(d, m, u);
     if (r === 'czytal') { teraz++; naj = Math.max(naj, teraz); }
     else if (r === 'brak') {
       const mies = d.slice(0, 7);
-      if (teraz > 0 && (zuzyte[mies] || 0) < u.zamrozenia) zuzyte[mies] = (zuzyte[mies] || 0) + 1;
+      if (teraz > 0 && (zuzyte[mies] || 0) < limit(mies)) zuzyte[mies] = (zuzyte[mies] || 0) + 1;
       else teraz = 0;
     }
   }
@@ -1257,4 +1269,79 @@ function kategorieKsiazki(k) {
   const wyn = KATEGORIE.filter(c => c.wz.test(tekst)).map(c => c.id);
   if (k.rodzaj === 'techniczna' && !wyn.includes('techniczna')) wyn.push('techniczna');
   return wyn.slice(0, 3);
+}
+
+/* ---------- listki, poziomy i zadania dnia (wersja 2.15) ---------- */
+const POZIOMY = ['Nowy czytelnik', 'Ciekawski', 'Mól książkowy', 'Pożeracz stron', 'Bibliofil', 'Erudyta', 'Strażnik biblioteki', 'Mistrz zakładki', 'Legenda czytelnictwa'];
+const ZADANIA_DNIA = [
+  { id: 'str10', nazwa: 'Przeczytaj 10 stron', nagroda: 10, ok: d => d.strony >= 10 },
+  { id: 'str25', nazwa: 'Przeczytaj 25 stron', nagroda: 15, ok: d => d.strony >= 25 },
+  { id: 'sesja15', nazwa: 'Sesja czytania 15 minut', nagroda: 15, ok: d => d.minuty >= 15 },
+  { id: 'cytat', nazwa: 'Zapisz cytat albo notatkę', nagroda: 10, ok: d => d.cytaty >= 1 },
+  { id: 'dwie', nazwa: 'Poczytaj dwie różne książki', nagroda: 15, ok: d => d.ksiazki >= 2 },
+  { id: 'cel', nazwa: 'Zrób dzienny cel stron', nagroda: 20, ok: d => d.strony >= d.cel },
+  { id: 'rozdzial', nazwa: 'Skończ rozdział', nagroda: 10, ok: d => d.rozdzialy >= 1 },
+  { id: 'ocena', nazwa: 'Oceń przeczytaną książkę', nagroda: 5, ok: d => d.oceny >= 1 }
+];
+/** Co się dziś wydarzyło (do zadań dnia). */
+function dzisiejszeStatystyki(dzien = dzisISO()) {
+  const m = mapaDni();
+  return {
+    strony: m.get(dzien) || 0, cel: dziennyCel(m),
+    minuty: Z.ksiazki.reduce((s, k) => s + k.sesje.filter(x => x.data === dzien).reduce((a, x) => a + x.minuty, 0), 0),
+    cytaty: Z.ksiazki.reduce((s, k) => s + k.cytaty.filter(c => c.data === dzien).length, 0),
+    ksiazki: Z.ksiazki.filter(k => k.log.some(w => w.data === dzien)).length,
+    rozdzialy: Z.ksiazki.reduce((s, k) => s + (k.rozdzialy || []).filter(r => r.zrobiony && r.data === dzien).length, 0),
+    oceny: Z.ksiazki.filter(k => k.ocena && k.koniec === dzien).length
+  };
+}
+/** Trzy zadania na dziś — codziennie inne, ale stałe w ciągu dnia. */
+function zadaniaDnia(dzien = dzisISO()) {
+  const pula = [...ZADANIA_DNIA];
+  const wyb = [];
+  let h = hashTekstu(dzien);
+  while (wyb.length < 3 && pula.length) { const i = h % pula.length; wyb.push(pula.splice(i, 1)[0]); h = Math.floor(h / 7) + 13; }
+  const st = dzisiejszeStatystyki(dzien), odebrane = (Z.ustawienia.gra.zadania[dzien] || []);
+  return wyb.map(z => ({ ...z, zrobione: z.ok(st), odebrane: odebrane.includes(z.id) }));
+}
+function hashTekstu(t) { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+
+/** Listki zdobyte za czytanie — liczone z danych, więc nigdy się nie „gubią”. */
+function listkiZdobyte() {
+  const m = mapaDni();
+  const strony = [...m.values()].reduce((a, b) => a + b, 0);
+  const dni = [...m.values()].filter(v => v > 0).length;
+  const ksiazki = Z.ksiazki.reduce((s, k) => s + (k.status === 'przeczytana' ? 1 : 0) + k.czytania.length, 0);
+  const cytaty = Z.ksiazki.reduce((s, k) => s + k.cytaty.length, 0);
+  const naj = najdluzszaSeria(m);
+  const passa = (naj >= 7 ? 20 : 0) + (naj >= 30 ? 100 : 0) + (naj >= 100 ? 300 : 0) + (naj >= 365 ? 1000 : 0);
+  const zadania = Object.entries(Z.ustawienia.gra.zadania).reduce((s, [, ids]) => s + ids.reduce((a, id) => a + ((ZADANIA_DNIA.find(z => z.id === id) || {}).nagroda || 0), 0), 0);
+  return { razem: Math.floor(strony / 10) + dni * 5 + ksiazki * 30 + cytaty * 3 + passa + zadania, strony: Math.floor(strony / 10), dni: dni * 5, ksiazki: ksiazki * 30, cytaty: cytaty * 3, passa, zadania };
+}
+const listkiStan = () => { const z = listkiZdobyte(); return { ...z, saldo: Math.max(0, z.razem - Z.ustawienia.gra.wydane) }; };
+/** Poziom z doświadczenia (wszystkie zdobyte listki, także wydane). */
+function poziom(xp = listkiZdobyte().razem) {
+  let n = 0, prog = 0, nast = 50;
+  while (xp >= nast && n < 98) { n++; prog = nast; nast = Math.round(nast + 60 * Math.pow(n + 1, 1.35)); }
+  return { n: n + 1, nazwa: POZIOMY[Math.min(POZIOMY.length - 1, Math.floor(n / 2))], xp, prog, nast, proc: (xp - prog) / (nast - prog) * 100 };
+}
+const SKLEP = [
+  { id: 'okulary', nazwa: 'Okulary do czytania', emoji: '👓', cena: 40 },
+  { id: 'szalik', nazwa: 'Ciepły szalik', emoji: '🧣', cena: 70 },
+  { id: 'kubek', nazwa: 'Kubek kakao', emoji: '☕', cena: 60 },
+  { id: 'kwiat', nazwa: 'Kwiatek za uchem', emoji: '🌸', cena: 50 },
+  { id: 'czapka', nazwa: 'Czapka czarodzieja', emoji: '🎩', cena: 150 },
+  { id: 'lampka', nazwa: 'Lampka do czytania', emoji: '💡', cena: 120 },
+  { id: 'korona', nazwa: 'Korona Mistrza', emoji: '👑', cena: 400 },
+  { id: 'zamrozenie', nazwa: 'Zamrożenie passy (ten miesiąc)', emoji: '🧊', cena: 120, zuzywalne: true }
+];
+function kup(id) {
+  const p = SKLEP.find(x => x.id === id), g = Z.ustawienia.gra;
+  if (!p) return { blad: 'Nie ma takiej rzeczy.' };
+  if (!p.zuzywalne && g.kupione.includes(id)) return { blad: 'Już to masz.' };
+  if (listkiStan().saldo < p.cena) return { blad: `Brakuje ${p.cena - listkiStan().saldo} listków.` };
+  g.wydane += p.cena;
+  if (p.zuzywalne) { const m = dzisISO().slice(0, 7); g.zamrozeniaKupione[m] = (g.zamrozeniaKupione[m] || 0) + 1; }
+  else { g.kupione.push(id); if (!g.zalozone.includes(id)) g.zalozone.push(id); }
+  return { ok: true, p };
 }

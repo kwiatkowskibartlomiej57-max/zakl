@@ -209,6 +209,7 @@ function odswiez() {
   renderPigulka();
   sprawdzOdznaki();
   sprawdzCele();
+  sprawdzHistorie();
 }
 
 /* ================= motyw ================= */
@@ -366,6 +367,7 @@ function widokDzis() {
     <p class="powitanie-data">${dataDzis()}</p>
     <h1>${powitanie()}</h1>
   </section>
+  ${Z.ustawienia.gra.sowka ? htmlSowki() : ''}
   <section class="dzien" aria-label="Dzisiejsze czytanie">
     <div class="dzien-pierscien">${pierscien(dzisStron, cel)}
       <div class="dzien-liczba"><strong data-licz="${dzisStron}">${dzisStron}</strong><span>z ${ile(cel, FORMY_STRON_D)}</span></div></div>
@@ -733,6 +735,10 @@ function widokUstawienia() {
     <p class="cichy">Usuwa wszystkie książki, cytaty i ustawienia z tego urządzenia. Zrób wcześniej kopię.</p>
     <div class="przyciski"><button type="button" class="btn btn-ryzyko" data-akcja="usun-wszystko">Usuń wszystkie dane</button></div>
   </section>
+  <section class="grupa"><h2>Wersja aplikacji</h2>
+    <p>Masz wersję <strong>${WERSJA}</strong>. Jeśli nie widzisz nowych funkcji, telefon trzyma starą wersję w pamięci.</p>
+    <div class="przyciski"><button type="button" class="btn btn-glowny" data-akcja="aktualizuj">Wymuś aktualizację</button><button type="button" class="btn" data-akcja="co-nowego">Co nowego</button></div>
+  </section>
   <p class="stopka">${LOGO}Zakładka ${WERSJA}. Twoje książki zostają na tym urządzeniu.</p>`;
 }
 
@@ -954,7 +960,8 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       ${htmlWyboruKategorii(k)}
       ${edytowana ? '' : `<fieldset class="segment"><legend>Gdzie odłożyć</legend>
         ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}${radio('gdzie', 'zyczenia', 'Lista życzeń', jako === 'zyczenia')}${radio('gdzie', 'pozniej', 'Na później', jako === 'pozniej')}</fieldset>
-        <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>`}
+        <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>
+        <div class="f-listy"${jako === 'zyczenia' ? '' : ' hidden'}>${htmlListWFormularzu()}</div>`}
       <p class="blad" hidden></p>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button>
         <button type="submit" class="btn btn-glowny">${edytowana ? 'Zapisz zmiany' : 'Dodaj książkę'}</button></div>
@@ -1012,6 +1019,16 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
 
   f.addEventListener('click', async e => {
     if (e.target.closest('[data-szukaj]')) szukaj();
+    const nl = e.target.closest('[data-nowa-lista-f]');
+    if (nl) {
+      const pole = $('[data-nazwa-listy-f]', f), nazwa = (nl.dataset.nowaListaF || pole.value).trim();
+      if (!nazwa) { pole.focus(); return; }
+      const n = { id: noweId(), nazwa: nazwa.slice(0, 40), emoji: nl.dataset.emoji || '🛒' };
+      Z.ustawienia.listyZyczen.push(n); utrwalUstawienia();
+      const zazn = new Set([...$$('[name="lista-f"]:checked', f).map(x => x.value), n.id]);
+      $('.f-listy', f).innerHTML = htmlListWFormularzu(zazn);
+      toast(`Nowa lista: ${n.emoji} ${n.nazwa}`);
+    }
     const pop = e.target.closest('[data-poprawka]');
     if (pop) { $('#f-q', f).value = pop.textContent; szukaj(); }
     if (e.target.closest('[data-wiele]')) { a.zamknij(); arkuszWielu(); return; }
@@ -1050,7 +1067,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     try { okl = await plikNaOkladke(plik); podglad(); } catch { toast('Nie udało się wczytać zdjęcia.', { typ: 'blad' }); }
   });
   f.addEventListener('change', e => {
-    if (e.target.name === 'gdzie') $('.f-miesiace', f).hidden = e.target.value !== 'bazowa';
+    if (e.target.name === 'gdzie') { $('.f-miesiace', f).hidden = e.target.value !== 'bazowa'; $('.f-listy', f).hidden = e.target.value !== 'zyczenia'; }
     if (e.target.name === 'format') $('.f-audio', f).hidden = e.target.value !== 'audio';
     if (e.target.name === 'seria' && !el('tom').value) {
       // znany cykl: podpowiedz kolejny numer tomu
@@ -1089,7 +1106,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     let zmienione = [nowa];
     const gdzie = f.elements.gdzie.value;
     if (gdzie === 'czytam') zacznijCzytac(nowa);
-    if (gdzie === 'zyczenia') { naListeZyczen(nowa); if (U.listaZ) nowa.listy = [U.listaZ]; }
+    if (gdzie === 'zyczenia') { naListeZyczen(nowa); nowa.listy = $$('[name="lista-f"]:checked', f).map(x => x.value); }
     if (gdzie === 'pozniej') odlozNaPozniej(nowa);
     if (gdzie === 'bazowa') {
       const mies = Math.max(0.5, parseFloat(String(el('miesiace').value).replace(',', '.')) || 2);
@@ -3959,14 +3976,18 @@ function widokOdkrywaj() {
         <p class="odk-opis${U.odk.opisy[kl] == null ? ' ladowanie' : ''}" data-odk-opis="${esc(kl)}">${U.odk.opisy[kl] == null ? 'Szukam opisu…' : esc((U.odk.opisy[kl] || 'Brak opisu.').slice(0, 320)) + ((U.odk.opisy[kl] || '').length > 320 ? '…' : '')}</p>
       </article>` : `<div class="odk-pusto">${U.odk.laduje ? '<p class="ladowanie">Szukam książek dla ciebie…</p>' : `<p>${zr.length ? 'Na razie nie mam nowych propozycji.' : 'Nie znam jeszcze twojego gustu.'}</p><button type="button" class="btn" data-odk-odswiez>Szukaj jeszcze raz</button>`}</div>`}
   </div>
-  ${x ? `<div class="odk-przyciski">
+  ${x ? `<div class="odk-cel-listy"><span>♥ trafia na:</span>
+    <button type="button" class="lista-chip maly${!U.odk.lista ? ' wybrany' : ''}" data-odk-lista="">listę życzeń</button>
+    ${Z.ustawienia.listyZyczen.map(l => `<button type="button" class="lista-chip maly${U.odk.lista === l.id ? ' wybrany' : ''}" data-odk-lista="${l.id}">${l.emoji} ${esc(l.nazwa)}</button>`).join('')}
+    <button type="button" class="lista-chip maly lista-nowa" data-akcja="lista-edytuj">+ nowa lista</button></div>
+  <div class="odk-przyciski">
     <button type="button" class="odk-btn odk-btn-cofnij" data-odk="cofnij" aria-label="Cofnij"${U.odk.cofnij.length ? '' : ' disabled'}>↶</button>
     <button type="button" class="odk-btn odk-btn-nie" data-odk="nie" aria-label="Nie interesuje mnie">✕</button>
     <button type="button" class="odk-btn odk-btn-tak" data-odk="tak" aria-label="Chcę: na listę życzeń">♥</button>
     <button type="button" class="odk-btn odk-btn-mam" data-odk="mam" aria-label="Mam ją: do przeczytania">${I.biblioteka}</button>
   </div>
   <p class="cichy odk-podp">Przesuń kartę w prawo (♥ lista życzeń) albo w lewo (✕ pomiń). „Mam ją” dodaje do kolejki i puli losowania. Zostało propozycji: ${U.odk.kolejka.length}.</p>` : ''}
-  ${polubione.length ? `<section class="sekcja"><div class="sekcja-gora"><h2>Polubione ♥</h2><span class="licznik">${Z.ustawienia.odkrywaj.tak.length}</span></div>
+  ${polubione.length ? `<section class="sekcja"><div class="sekcja-gora"><h2>Polubione ♥</h2><button type="button" class="btn-tekst" data-akcja="idz" data-widok="biblioteka" data-polka="zyczenia">Wszystkie listy życzeń</button></div>
     <ul class="odk-polubione">${polubione.map(k => `<li><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}" aria-label="${esc(k.tytul)}">${okladka(k, 'm')}<span class="kafel-zycz">${k.cena ? zl(k.cena) : ''}</span></button></li>`).join('')}</ul></section>` : ''}`;
 }
 
@@ -3979,7 +4000,7 @@ async function decyzjaOdkrywaj(rodzaj) {
   if (rodzaj === 'nie') Z.ustawienia.odkrywaj.nie.push(kl);
   else {
     const k = nowaKsiazka({ tytul: x.tytul, autor: x.autor, strony: x.strony || Z.ustawienia.srednia, isbn: x.isbn, okladka: x.okladka, opis: U.odk.opisy[kl] || '', opisZrodlo: U.odk.opisy[kl] ? 'Wikipedia' : '' });
-    if (rodzaj === 'tak') { naListeZyczen(k); Z.ustawienia.odkrywaj.tak.push(kl); } else { k.pula = true; }
+    if (rodzaj === 'tak') { naListeZyczen(k); Z.ustawienia.odkrywaj.tak.push(kl); if (U.odk.lista) k.listy = [U.odk.lista]; } else { k.pula = true; }
     zapis.id = k.id;
     utrwal(k);
     if (x.okladka) urlNaOkladke(x.okladka).then(o => { if (o !== k.okladka) { k.okladka = o; utrwal(k); } });
@@ -4053,6 +4074,8 @@ document.addEventListener('click', e => {
   const tr = t.closest('[data-los-tryb]');
   if (tr) { U.losTryb = tr.dataset.losTryb; lsSet('zakladka-los-tryb', U.losTryb); renderWidok(); return; }
   if (t.closest('[data-odk-odswiez]')) { U.odk.kolejka = []; U.podobne = {}; zbierzPropozycje({ odNowa: true }); return; }
+  const ol = t.closest('[data-odk-lista]');
+  if (ol) { U.odk.lista = ol.dataset.odkLista || null; renderWidok(); return; }
   const ok = t.closest('[data-odk-kat]');
   if (ok) { U.odk.kat = ok.dataset.odkKat || null; U.odk.kolejka = []; U.odk.strona = 0; zbierzPropozycje({ odNowa: true }); return; }
   const pl = t.closest('[data-przypisz-liste]');
@@ -4200,9 +4223,22 @@ function blokiBazowych() {
 /* ================= Dziś: pora dnia, muzyka, ciekawostki (2.13) ================= */
 function poraDnia(h = new Date().getHours()) { return h < 5 ? 'noc' : h < 9 ? 'swit' : h < 17 ? 'dzien' : h < 21 ? 'zmierzch' : 'noc'; }
 function scenaPory() {
+  // duże, żywe niebo: słońce i księżyc wędrują po łuku zależnie od godziny
+  const teraz = new Date(), h = teraz.getHours() + teraz.getMinutes() / 60;
   const p = poraDnia();
-  const gwiazdy = p === 'noc' || p === 'zmierzch' ? Array.from({ length: 14 }, (_, i) => `<i class="gwiazda" style="--x:${(hash('g' + i) % 100)}%;--y:${(hash('h' + i) % 70)}%;--d:${(i % 5) * .6}s"></i>`).join('') : '';
-  return `<div class="niebo niebo-${p}" aria-hidden="true">${gwiazdy}<span class="cialo"></span><span class="chmura c1"></span><span class="chmura c2"></span></div>`;
+  const dzienF = ogranicz((h - 5) / 16, 0, 1); // 5:00 → 21:00
+  const nocF = h >= 21 ? (h - 21) / 8 : (h + 3) / 8; // 21:00 → 5:00
+  const f = p === 'noc' ? nocF : dzienF;
+  const x = (8 + f * 74).toFixed(1), y = (62 - Math.sin(f * Math.PI) * 48).toFixed(1);
+  const noc = p === 'noc' || p === 'zmierzch';
+  const gwiazdy = noc ? Array.from({ length: 26 }, (_, i) => `<i class="gwiazda" style="--x:${(hash('g' + i) % 100)}%;--y:${(hash('h' + i) % 60)}%;--d:${((hash('d' + i) % 30) / 10).toFixed(1)}s;--r:${1 + hash('r' + i) % 2}px"></i>`).join('') : '';
+  const ptaki = p === 'dzien' || p === 'swit' ? '<span class="ptaki"><i></i><i></i><i></i></span>' : '';
+  const spadajaca = p === 'noc' ? '<i class="spadajaca"></i>' : '';
+  return `<div class="niebo niebo-${p}" aria-hidden="true">${gwiazdy}${spadajaca}
+    <span class="cialo" style="left:${x}%;top:${y}%"></span>${ptaki}
+    <span class="chmura c1"></span><span class="chmura c2"></span><span class="chmura c3"></span>
+    <svg class="wzgorza" viewBox="0 0 400 60" preserveAspectRatio="none"><path class="w1" d="M0 38 C60 18 110 30 170 22 C230 14 290 34 400 20 L400 60 L0 60Z"/><path class="w2" d="M0 48 C70 34 140 50 210 40 C280 30 340 46 400 38 L400 60 L0 60Z"/></svg>
+    <span class="pora-etykieta">${{ swit: 'świt', dzien: 'dzień', zmierzch: 'wieczór', noc: 'noc' }[p]}</span></div>`;
 }
 
 const MUZYKA = {
@@ -4340,6 +4376,610 @@ async function tekstZeZdjecia(plik, naPostep) {
   return { tekst, strona, pewnosc: Math.round(data.confidence) };
 }
 
+/* ---------- przeniesienie na listę życzeń z wyborem listy (2.14) ---------- */
+function arkuszNaListe(id) {
+  const k = znajdz(id);
+  if (!k) return;
+  const listy = Z.ustawienia.listyZyczen;
+  const zapisz = wybrane => {
+    utrwal(naListeZyczen(k)); k.listy = wybrane; utrwal(k); odswiez();
+    toast(`„${k.tytul}” na liście życzeń${wybrane.length ? `: ${wybrane.map(x => (listy.find(l => l.id === x) || {}).nazwa).join(', ')}` : ''}. Sprawdzam ceny…`);
+    sprawdzCeny(k, { cicho: true });
+  };
+  if (!listy.length) { zapisz([]); return; }
+  const a = arkusz({
+    tytul: 'Na którą listę?', klasa: 'arkusz-maly',
+    render: () => `<p class="cichy">„${esc(k.tytul)}” trafi na listę życzeń. Możesz też przypisać ją do swoich list:</p>
+      <div class="ksiazka-listy">${listy.map(l => `<label class="kat-opcja"><input type="checkbox" value="${l.id}"${U.listaZ === l.id ? ' checked' : ''}><span>${l.emoji} ${esc(l.nazwa)}</span></label>`).join('')}</div>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-akcja="lista-edytuj">+ Nowa lista</button><button type="button" class="btn btn-glowny" data-ok>Dodaj</button></div>`
+  });
+  a.tresc.addEventListener('click', e => { if (e.target.closest('[data-ok]')) { const w = $$('input:checked', a.tresc).map(x => x.value); a.zamknij(); zapisz(w); } });
+}
+
+/* ---------- aktualizacja i „co nowego” (2.14) ---------- */
+async function wymusAktualizacje() {
+  toast('Pobieram najnowszą wersję…');
+  try {
+    for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    for (const k of await caches.keys()) if (k !== 'zakladka-media') await caches.delete(k);
+  } catch { /* przeglądarka bez service workera */ }
+  lsSet('zakladka-widziana-wersja', null);
+  setTimeout(() => location.reload(), 400);
+}
+const NOWOSCI = [
+  ['🎬', 'Przygody Sówki i Zakładki', 'Pokładkowa historia w 10 rozdziałach, które odblokowujesz, czytając. Pierwszy rozdział już czeka!', () => arkuszHistorii()],
+  ['😂', 'Sówka gada', 'Żarty (całkiem śmieszne), motywacja i podpowiedź, co czytać. A Zakładka się wtrąca!', () => idz('dzis')],
+  ['🦉', 'Sówka', 'Na ekranie Dziś: towarzyszka czytania, bez presji. Dotknij ją! Pod nią: listki 🍃, poziomy, zadania dnia i sklepik.', () => idz('dzis')],
+  ['👆', 'Przytrzymaj książkę', 'Przytrzymaj okładkę palcem (na komputerze prawy przycisk), a pojawi się menu: przenieś, usuń z listy, pożycz, usuń…', () => idz('biblioteka')],
+  ['🛒', 'Listy przy dodawaniu', 'Dodając książkę na listę życzeń, od razu wybierasz listę, np. „Warto kupić”.', null],
+  ['🌅', 'Niebo pory dnia', 'Na ekranie Dziś: świt, słońce wędrujące po niebie, zachód, noc z gwiazdami i spadającą gwiazdą.', () => idz('dzis')],
+  ['📋', 'Wiele list życzeń', 'Biblioteka → Lista życzeń → „+ Nowa lista”, np. „🎂 Prezent na urodziny”. ♥ w Odkrywaj trafia od razu na wybraną listę.', () => { U.polka = 'zyczenia'; U.pozyczone = false; idz('biblioteka'); }],
+  ['🏷️', 'Kategorie', 'Fantasy, kryminał, komedia i inne: filtr w Bibliotece i propozycje z kategorii w Odkrywaj.', () => idz('biblioteka')],
+  ['💸', 'Ceny z Ceneo', 'Lista życzeń sama sprawdza najniższe ceny i zapisuje historię.', () => { U.polka = 'zyczenia'; U.pozyczone = false; idz('biblioteka'); }],
+  ['♥', 'Odkrywaj', 'Losuj → Odkrywaj: propozycje po polsku, przesuwasz w prawo albo w lewo.', () => { U.losTryb = 'odkrywaj'; idz('losuj'); }],
+  ['📚', 'Kilka książek bazowych', 'Do 3 grubych książek naraz, z normą dzienną liczoną automatycznie.', () => idz('dzis')],
+  ['🎧', 'Muzyka i ciekawostki', 'Na ekranie Dziś: muzyka do czytania, ciekawostka dnia, pisarze urodzeni dziś.', () => idz('dzis')],
+  ['📷', 'Cytat ze zdjęcia', 'W oknie cytatu: zrób zdjęcie strony, a tekst wpisze się sam.', null]
+];
+function arkuszCoNowego() {
+  lsSet('zakladka-widziana-wersja', WERSJA);
+  const a = arkusz({
+    tytul: `Co nowego w ${WERSJA}`, klasa: 'arkusz-maly',
+    render: () => `<ul class="nowosci">${NOWOSCI.map(([e, t, o, f], i) => `<li style="--i:${i}"><span class="nowosc-e">${e}</span><span class="nowosc-t"><strong>${t}</strong><span>${o}</span></span>${f ? `<button type="button" class="btn btn-maly" data-nowosc="${i}">Pokaż</button>` : ''}</li>`).join('')}</ul>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn btn-glowny" data-zamknij>Super</button></div>`
+  });
+  a.tresc.addEventListener('click', e => { const b = e.target.closest('[data-nowosc]'); if (b) { a.zamknij(); NOWOSCI[+b.dataset.nowosc][3](); } });
+}
+
+/** Listy życzeń w formularzu dodawania (np. „Warto kupić”), z szybkim tworzeniem nowej. */
+function htmlListWFormularzu(zaznaczone = new Set(U.listaZ ? [U.listaZ] : [])) {
+  const listy = Z.ustawienia.listyZyczen;
+  return `<p class="f-listy-tytul">Na które listy życzeń?</p>
+    ${listy.length ? `<div class="ksiazka-listy">${listy.map(l => `<label class="kat-opcja"><input type="checkbox" name="lista-f" value="${l.id}"${zaznaczone.has(l.id) ? ' checked' : ''}><span>${l.emoji} ${esc(l.nazwa)}</span></label>`).join('')}</div>` : ''}
+    ${listy.some(l => /warto kupi/i.test(l.nazwa)) ? '' : '<button type="button" class="lista-chip maly" data-nowa-lista-f="Warto kupić" data-emoji="🛒">+ 🛒 Warto kupić</button>'}
+    <div class="f-nowa-lista"><input data-nazwa-listy-f placeholder="Nowa lista, np. Prezent dla mamy" maxlength="40"><button type="button" class="btn btn-maly" data-nowa-lista-f>Utwórz</button></div>`;
+}
+
+/* ================= Sówka: towarzyszka czytania, bez presji (2.15) ================= */
+function stanSowki() {
+  const m = mapaDni(), dzis = dzisISO(), h = new Date().getHours();
+  const strony = m.get(dzis) || 0, cel = dziennyCel(m), s = seriaSzczegoly(m);
+  const ost = [...m.keys()].filter(d => m.get(d) > 0).sort().pop();
+  const przerwa = ost ? dniMiedzy(ost, dzis) : null;
+  const zad = zadaniaDnia(), doOdebrania = zad.filter(z => z.zrobione && !z.odebrane).length;
+  const tryb = h >= 23 || h < 6 ? 'spi' : strony >= cel ? 'czyta' : strony > 0 ? 'zadowolona' : 'czeka';
+  return { strony, cel, seria: s.dni, przerwa, h, tryb, doOdebrania };
+}
+function wiadomoscSowki(st) {
+  const n = U.sowkaN || 0;
+  const wybierz = l => l[(hashTekstu(dzisISO()) + n) % l.length];
+  if (st.doOdebrania && n % 3 === 0) return `Psst… masz ${st.doOdebrania === 1 ? 'nagrodę' : `${st.doOdebrania} nagrody`} do odebrania 🍃 Zajrzyj do zadań!`;
+  if (st.tryb === 'spi') return wybierz(['Zzz… już śpię. Ty też się wyśpij, książka poczeka do jutra 🌙', 'Zzz… śnię o bibliotece bez końca…', 'Cichutko… Dobranoc! Jutro razem poczytamy.']);
+  if (st.przerwa >= 3 && !st.strony) return wybierz([`Hej, tęskniłam! Nic się nie stało, że była przerwa. Może jedna strona na rozgrzewkę?`, 'Witaj z powrotem! Bez presji, nawet 5 minut z książką to już coś miłego.']);
+  if (st.tryb === 'czyta') return wybierz([`Cel zrobiony: ${st.strony} stron! Jestem z ciebie dumna 🦉`, 'Ale się dziś naczytałeś! Teraz możesz odpocząć z czystym sumieniem.', `${st.strony} stron! Ja też czytam, zobacz 📖`]);
+  if (st.tryb === 'zadowolona') return wybierz([`Już ${st.strony} ${odmiana(st.strony, FORMY_STRON)} dzisiaj. Super! Jeśli masz ochotę, jeszcze trochę.`, 'Fajnie, że dziś czytałeś. Każda strona się liczy 💛', st.seria > 2 ? `${st.seria} dni z rzędu! Ale pamiętaj, odpoczynek też jest ok.` : 'Dobry początek dnia z książką!']);
+  if (st.h < 11) return wybierz(['Dzień dobry! Może kilka stron do kawy? ☕ Bez pośpiechu.', 'Poranek z książką to najlepszy poranek. Ale jak nie dziś, to też dobrze.', 'Hu-hu! Masz dziś ochotę na jakąś historię?']);
+  if (st.h < 18) return wybierz(['Hej, masz chwilkę? Nawet 5 minut się liczy 📖', 'Przerwa na kilka stron? Ja posiedzę obok.', 'Co tam czytasz? Jestem ciekawa, jak się skończy!']);
+  return wybierz(['Wieczór to dobry moment na kilka stron przed snem 🌙', 'Może rozdział do herbaty? A jak jesteś zmęczony, to po prostu odpocznij.', 'Książka i koc? Brzmi jak plan na wieczór 🛋️']);
+}
+
+function svgSowki(tryb, zalozone = []) {
+  const ma = id => zalozone.includes(id);
+  const oczy = tryb === 'spi'
+    ? '<path class="s-zamk" d="M34 44 q8 6 16 0 M60 44 q8 6 16 0"/>'
+    : `<g class="s-oko"><circle cx="42" cy="44" r="11" class="s-bialko"/><circle cx="42" cy="45" r="5.5" class="s-zrenica"/><circle cx="44" cy="43" r="1.8" fill="#fff"/></g>
+       <g class="s-oko"><circle cx="68" cy="44" r="11" class="s-bialko"/><circle cx="68" cy="45" r="5.5" class="s-zrenica"/><circle cx="70" cy="43" r="1.8" fill="#fff"/></g>
+       <rect class="s-powieka" x="30" y="32" width="24" height="24" rx="12"/><rect class="s-powieka" x="56" y="32" width="24" height="24" rx="12"/>`;
+  return `<svg class="sowka-svg tryb-${tryb}" viewBox="0 0 110 120" aria-hidden="true">
+    ${ma('lampka') ? '<g class="s-lampka"><path d="M96 70 v34 M88 104 h16" stroke="#7a5218" stroke-width="3"/><path d="M86 70 h20 l-4 -12 h-12z" fill="#d9b66e"/><circle cx="96" cy="74" r="10" class="s-swiatlo"/></g>' : ''}
+    <path class="s-ucho" d="M28 26 l-4 -16 l14 10z M82 26 l4 -16 l-14 10z"/>
+    <ellipse class="s-cialo" cx="55" cy="62" rx="34" ry="40"/>
+    <ellipse class="s-brzuch" cx="55" cy="74" rx="21" ry="24"/>
+    <path class="s-piorka" d="M45 66 q5 4 10 0 M55 66 q5 4 10 0 M48 76 q5 4 10 0 M40 76 q4 3 8 0 M58 76 q4 3 8 0 M50 86 q5 4 10 0"/>
+    <path class="s-skrz s-skrz-l" d="M22 58 q-8 18 6 34 q4 -18 -6 -34z"/>
+    <path class="s-skrz s-skrz-p" d="M88 58 q8 18 -6 34 q-4 -18 6 -34z"/>
+    ${oczy}
+    <path class="s-dziob" d="M51 54 l4 7 l4 -7z"/>
+    <path class="s-nozki" d="M45 101 l-3 5 M48 101 v6 M51 101 l3 5 M59 101 l-3 5 M62 101 v6 M65 101 l3 5"/>
+    ${ma('okulary') && tryb !== 'spi' ? '<g class="s-okulary"><circle cx="42" cy="44" r="13"/><circle cx="68" cy="44" r="13"/><path d="M55 44 h0"/></g>' : ''}
+    ${ma('szalik') ? '<g class="s-szalik"><path d="M26 82 q29 12 58 0 l0 7 q-29 12 -58 0z"/><path d="M70 88 l6 16 l7 -3 l-5 -14z"/></g>' : ''}
+    ${ma('kwiat') ? '<g class="s-kwiat"><circle cx="84" cy="26" r="4" fill="#ffd34d"/><circle cx="84" cy="19" r="4.5"/><circle cx="91" cy="25" r="4.5"/><circle cx="88" cy="32" r="4.5"/><circle cx="80" cy="32" r="4.5"/><circle cx="77" cy="25" r="4.5"/></g>' : ''}
+    ${ma('czapka') ? '<g class="s-czapka"><path d="M30 26 L55 -18 L80 26z"/><ellipse cx="55" cy="26" rx="30" ry="5"/><circle cx="50" cy="8" r="2" fill="#ffd34d"/><circle cx="60" cy="-2" r="1.6" fill="#ffd34d"/></g>' : ''}
+    ${ma('korona') && !ma('czapka') ? '<path class="s-korona" d="M36 24 l4 -16 l8 10 l7 -14 l7 14 l8 -10 l4 16z"/>' : ''}
+    ${tryb === 'czyta' ? '<g class="s-ksiazka"><path d="M33 84 q11 -6 22 0 v16 q-11 -6 -22 0z" class="s-ks-l"/><path d="M77 84 q-11 -6 -22 0 v16 q11 -6 22 0z" class="s-ks-p"/></g>' : ''}
+    ${ma('kubek') ? '<g class="s-kubek"><rect x="2" y="88" width="16" height="18" rx="3"/><path d="M18 92 q6 0 6 6 q0 5 -6 5" fill="none" stroke-width="2.5"/><path class="s-para" d="M7 84 q-3 -5 0 -10 M12 84 q-3 -5 0 -10" fill="none"/></g>' : ''}
+    ${tryb === 'spi' ? '<g class="s-zzz"><text x="84" y="22">z</text><text x="92" y="12">z</text><text x="99" y="3">Z</text></g>' : ''}
+  </svg>`;
+}
+
+function htmlSowki() {
+  const st = stanSowki(), l = listkiStan(), p = poziom(l.razem);
+  return `<section class="sowka-karta tryb-${st.tryb}">
+    <div class="sowka-scena"><button type="button" class="sowka" data-sowka aria-label="Sówka, twoja towarzyszka czytania. Dotknij, żeby coś powiedziała">${svgSowki(st.tryb, Z.ustawienia.gra.zalozone)}</button>
+      <button type="button" class="zakl-postac" data-zakl aria-label="Zakładka, przyjaciółka Sówki">${svgZakladki(st.tryb === 'spi' ? 'spi' : st.tryb === 'czyta' ? 'macha' : 'stoi')}</button>
+      <p class="zakl-dymek" data-zakl-dymek hidden></p></div>
+    <div class="sowka-dymek">
+      <p class="sowka-tekst" data-sowka-tekst>${esc(wiadomoscSowki(st))}</p>
+      <div class="sowka-opcje">${st.tryb === 'spi' ? '<button type="button" class="chip-m" data-sowka-opcja="historia">🎬 Bajka na dobranoc</button>' : `<button type="button" class="chip-m" data-sowka-opcja="zart">😂 Żart</button><button type="button" class="chip-m" data-sowka-opcja="motywacja">💪 Zmotywuj</button><button type="button" class="chip-m" data-sowka-opcja="co">📚 Co czytać?</button><button type="button" class="chip-m" data-sowka-opcja="historia">🎬 Historia${historiaStan().odblokowane > (Z.ustawienia.gra.historiaWidziane || 0) ? ' <b class="kropka">!</b>' : ''}</button>`}</div>
+      ${st.tryb !== 'spi' && st.tryb !== 'czyta' && (bazowa() || czytane()[0]) ? `<div class="sowka-akcje"><button type="button" class="btn btn-maly" data-akcja="postep" data-id="${(bazowa() || czytane()[0]).id}">Zapisz strony</button><button type="button" class="btn-tekst" data-akcja="sesja" data-id="${(bazowa() || czytane()[0]).id}">10 minut?</button></div>` : ''}
+    </div>
+    <button type="button" class="sowka-pasek" data-akcja="sklepik">
+      <span class="listki">🍃 <strong data-licz="${l.saldo}">${l.saldo}</strong></span>
+      <span class="poziom-tekst">Poziom ${p.n} · ${esc(p.nazwa)}</span>
+      <span class="poziom-pasek"><span style="width:${p.proc.toFixed(1)}%"></span></span>
+      <span class="sowka-zad">${st.doOdebrania ? `<b class="kropka">${st.doOdebrania}</b>` : ''}Zadania i sklepik ›</span>
+    </button>
+  </section>`;
+}
+
+function arkuszSklepiku() {
+  const a = arkusz({
+    tytul: 'Sówka, zadania i sklepik', klasa: 'arkusz-sklepik', odswiezalny: true,
+    render: () => {
+      const l = listkiStan(), p = poziom(l.razem), g = Z.ustawienia.gra, zad = zadaniaDnia();
+      return `<div class="sklep-gora"><div class="sklep-sowka">${svgSowki(stanSowki().tryb === 'spi' ? 'spi' : 'zadowolona', g.zalozone)}</div>
+        <div><p class="sklep-saldo">🍃 <strong>${l.saldo}</strong> listków</p><p class="cichy">Poziom ${p.n}: <strong>${esc(p.nazwa)}</strong></p>
+        <span class="poziom-pasek duzy"><span style="width:${p.proc.toFixed(1)}%"></span></span><p class="cichy maly">${l.razem - p.prog} / ${p.nast - p.prog} do poziomu ${p.n + 1}</p></div></div>
+      <section class="kd-sekcja"><h3>Zadania na dziś</h3><p class="cichy">Bez presji: to tylko miłe dodatki. Nowe zadania jutro.</p>
+        <ul class="zadania">${zad.map(z => `<li class="${z.odebrane ? 'odebrane' : z.zrobione ? 'zrobione' : ''}"><span class="zad-znak">${z.odebrane ? '✓' : z.zrobione ? '★' : '○'}</span><span class="zad-nazwa">${esc(z.nazwa)}</span>
+          ${z.odebrane ? '<span class="cichy">odebrane</span>' : z.zrobione ? `<button type="button" class="btn btn-maly btn-glowny" data-odbierz="${z.id}">+${z.nagroda} 🍃</button>` : `<span class="zad-nagroda">+${z.nagroda} 🍃</span>`}</li>`).join('')}</ul></section>
+      <section class="kd-sekcja"><h3>Sklepik Sówki</h3>
+        <ul class="sklep">${SKLEP.map(x => { const ma = !x.zuzywalne && g.kupione.includes(x.id), zal = g.zalozone.includes(x.id); return `<li class="${ma ? 'ma' : ''}"><span class="sklep-e">${x.emoji}</span><span class="sklep-n">${esc(x.nazwa)}${x.zuzywalne ? `<small>ratuje passę, gdy zapomnisz o jednym dniu${(g.zamrozeniaKupione[dzisISO().slice(0, 7)] || 0) ? ` · masz: ${g.zamrozeniaKupione[dzisISO().slice(0, 7)]}` : ''}</small>` : ''}</span>
+          ${ma ? `<button type="button" class="btn btn-maly${zal ? ' btn-glowny' : ''}" data-zaloz="${x.id}">${zal ? 'Założone' : 'Załóż'}</button>` : `<button type="button" class="btn btn-maly" data-kup="${x.id}"${l.saldo < x.cena ? ' disabled' : ''}>${x.cena} 🍃</button>`}</li>`; }).join('')}</ul></section>
+      <section class="kd-sekcja"><h3>Skąd masz listki</h3><dl class="rekordy">
+        <div><dt>Strony (1 za 10)</dt><dd>${l.strony}</dd></div><div><dt>Dni czytania (5 za dzień)</dt><dd>${l.dni}</dd></div>
+        <div><dt>Skończone książki (30)</dt><dd>${l.ksiazki}</dd></div><div><dt>Cytaty (3)</dt><dd>${l.cytaty}</dd></div>
+        <div><dt>Bonusy za passę</dt><dd>${l.passa}</dd></div><div><dt>Zadania dnia</dt><dd>${l.zadania}</dd></div>
+        <div><dt>Wydane w sklepiku</dt><dd>−${g.wydane}</dd></div></dl></section>
+      <label class="przelacznik maly"><input type="checkbox" data-sowka-wl${g.sowka ? ' checked' : ''}><span>Pokazuj Sówkę na ekranie Dziś</span></label>`;
+    }
+  });
+  a.tresc.addEventListener('click', e => {
+    const o = e.target.closest('[data-odbierz]');
+    if (o) {
+      const d = dzisISO(), g = Z.ustawienia.gra;
+      g.zadania[d] = [...new Set([...(g.zadania[d] || []), o.dataset.odbierz])];
+      utrwalUstawienia(); lecaceListki(o); konfetti({ ile: 40 }); odswiez();
+      return;
+    }
+    const k = e.target.closest('[data-kup]');
+    if (k) {
+      const w = kup(k.dataset.kup);
+      if (w.blad) { toast(w.blad, { typ: 'blad' }); return; }
+      utrwalUstawienia(); konfetti({ ile: 60 }); odswiez();
+      toast(`${w.p.emoji} ${w.p.nazwa}${w.p.zuzywalne ? ': passa jest bezpieczniejsza w tym miesiącu.' : ': Sówka już to ma na sobie!'}`);
+      return;
+    }
+    const z = e.target.closest('[data-zaloz]');
+    if (z) { const g = Z.ustawienia.gra, id = z.dataset.zaloz; g.zalozone = g.zalozone.includes(id) ? g.zalozone.filter(x => x !== id) : [...g.zalozone, id]; utrwalUstawienia(); odswiez(); }
+  });
+  a.tresc.addEventListener('change', e => { if (e.target.matches('[data-sowka-wl]')) { Z.ustawienia.gra.sowka = e.target.checked; utrwalUstawienia(); odswiez(); } });
+}
+
+/** Listki lecą od przycisku do licznika. */
+function lecaceListki(z) {
+  if (bezRuchu()) return;
+  const r = z.getBoundingClientRect();
+  for (let i = 0; i < 8; i++) {
+    const s = document.createElement('span');
+    s.className = 'listek-lot'; s.textContent = '🍃';
+    s.style.left = `${r.left + r.width / 2}px`; s.style.top = `${r.top}px`;
+    s.style.setProperty('--dx', `${(Math.random() - .5) * 160}px`); s.style.setProperty('--d', `${i * 50}ms`);
+    document.body.append(s);
+    setTimeout(() => s.remove(), 1400);
+  }
+}
+
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-sowka]');
+  if (!s) return;
+  U.sowkaN = (U.sowkaN || 0) + 1;
+  s.classList.remove('skok'); void s.offsetWidth; s.classList.add('skok');
+  const t = $('[data-sowka-tekst]');
+  if (t) { t.classList.remove('nowy'); void t.offsetWidth; t.textContent = wiadomoscSowki(stanSowki()); t.classList.add('nowy'); }
+  if (navigator.vibrate) navigator.vibrate(12);
+  if (U.sowkaN % 5 === 0) serduszka();
+});
+
+/* ================= menu po przytrzymaniu książki (2.15) ================= */
+/** Animacja zniknięcia kafelka, potem akcja (np. usunięcie, przeniesienie). */
+function animujZnikniecie(id, fn, kierunek = 'znika') {
+  const el = !bezRuchu() && $(`#widok [data-akcja="ksiazka"][data-id="${CSS.escape(id)}"]`);
+  const li = el && (el.closest('li') || el);
+  if (!li) { fn(); return; }
+  li.classList.add(kierunek);
+  setTimeout(fn, 260);
+}
+
+/** Zmiana półki z cofnięciem: zapisuje stan sprzed zmiany. */
+function zmienZCofnieciem(k, zmiana, komunikat) {
+  const przed = JSON.parse(JSON.stringify(k));
+  animujZnikniecie(k.id, () => {
+    utrwal(zmiana(k));
+    odswiez();
+    toast(komunikat, { akcja: 'Cofnij', onAkcja: () => { Object.keys(k).forEach(x => delete k[x]); Object.assign(k, przed); utrwal(k); odswiez(); } });
+  }, 'odlatuje');
+}
+
+function menuKsiazki(id) {
+  const k = znajdz(id);
+  if (!k) return;
+  const lista = U.widok === 'biblioteka' && U.polka === 'zyczenia' && U.listaZ ? Z.ustawienia.listyZyczen.find(l => l.id === U.listaZ) : null;
+  const poz = [];
+  const dodaj = (ikona, tekst, akcja, opcje = {}) => poz.push({ ikona, tekst, akcja, ...opcje });
+  dodaj('📖', 'Otwórz', 'otworz');
+  if (k.status === 'czytam') { dodaj('➕', 'Zapisz postęp', 'postep'); dodaj('⏱️', 'Sesja czytania', 'sesja'); dodaj('✅', 'Skończona', 'skonczona'); dodaj('🕓', 'Odłóż na później', 'pozniej'); }
+  if (k.status === 'doPrzeczytania') { dodaj('▶️', 'Zacznij czytać', 'zacznij'); dodaj('⬆️', 'Na początek kolejki', 'poczatek'); dodaj('🗓️', 'Na ten tydzień', 'tydzien'); dodaj('🕓', 'Na później', 'pozniej'); dodaj('♥', 'Na listę życzeń', 'zyczenia'); }
+  if (k.status === 'pozniej') { dodaj('▶️', k.strona ? 'Wróć do czytania' : 'Zacznij czytać', 'zacznij'); dodaj('📚', 'Do kolejki', 'kolejka'); }
+  if (k.status === 'zyczenia') {
+    dodaj('🛍️', 'Mam ją (kupiona / prezent)', 'mam');
+    dodaj('💸', 'Sprawdź ceny', 'ceny');
+    if (lista) dodaj('➖', `Usuń z listy „${lista.nazwa}”`, 'zListy', { klasa: 'ryzyko-lekkie' });
+    dodaj('📋', 'Listy, na których jest…', 'listy');
+    dodaj('🕓', 'Na później', 'pozniej');
+  }
+  if (k.status === 'przeczytana') { dodaj('⭐', 'Oceń', 'otworz'); dodaj('💬', 'Dodaj cytat', 'cytat'); dodaj('🔁', 'Przeczytaj ponownie', 'ponownie'); }
+  if (k.status === 'porzucona') dodaj('▶️', 'Wróć do czytania', 'zacznij');
+  if (k.status !== 'przeczytana') dodaj('🎲', k.pula ? 'Wyjmij z puli losowania' : 'Do puli losowania', 'pula');
+  dodaj('✏️', 'Edytuj', 'edytuj');
+  if (k.status !== 'zyczenia' && k.status !== 'przeczytana') dodaj('🤝', k.pozyczona ? 'Pożyczka…' : 'Pożycz / z biblioteki', 'pozyczka');
+  dodaj('🗑️', 'Usuń z biblioteki', 'usun', { klasa: 'ryzyko' });
+
+  const a = arkusz({
+    tytul: k.tytul, ukryjTytul: true, klasa: 'arkusz-maly arkusz-menu',
+    render: () => `<div class="menu-ks">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(statusKsiazki(k))}</span></span></div>
+      <ul class="menu-lista">${poz.map((p, i) => `<li style="--i:${i}"><button type="button" class="menu-poz ${p.klasa || ''}" data-menu="${p.akcja}"><span class="menu-ik">${p.ikona}</span>${esc(p.tekst)}</button></li>`).join('')}</ul>`
+  });
+  a.tresc.addEventListener('click', async e => {
+    const b = e.target.closest('[data-menu]');
+    if (!b) return;
+    const co = b.dataset.menu;
+    a.zamknij();
+    await new Promise(r => setTimeout(r, 120));
+    const D = { id: k.id };
+    switch (co) {
+      case 'otworz': arkuszKsiazki(k.id); break;
+      case 'postep': AKCJE.postep(D); break;
+      case 'sesja': AKCJE.sesja(D); break;
+      case 'skonczona': AKCJE.skonczona(D); break;
+      case 'cytat': AKCJE['cytat-dodaj'](D); break;
+      case 'edytuj': AKCJE.edytuj(D); break;
+      case 'pozyczka': AKCJE.pozyczka(D); break;
+      case 'mam': AKCJE['mam-ja'](D); break;
+      case 'ceny': sprawdzCeny(k); break;
+      case 'listy': arkuszNaListe(k.id); break;
+      case 'zyczenia': zmienZCofnieciem(k, naListeZyczen, `„${k.tytul}” na liście życzeń.`); break;
+      case 'tydzien': AKCJE['do-tygodnia'](D); break;
+      case 'poczatek': utrwal(naPoczatekKolejki(k)); odswiez(); toast('Na początku kolejki.'); break;
+      case 'kolejka': zmienZCofnieciem(k, x => doKolejki(x), `„${k.tytul}” wraca do kolejki.`); break;
+      case 'pozniej': zmienZCofnieciem(k, odlozNaPozniej, `„${k.tytul}” odłożona na później.`); break;
+      case 'zacznij': zmienZCofnieciem(k, zacznijCzytac, `Zaczynasz „${k.tytul}”.`); break;
+      case 'ponownie': utrwal(czytajPonownie(k)); odswiez(); toast(`Czytasz „${k.tytul}” jeszcze raz.`); break;
+      case 'pula': k.pula = !k.pula; utrwal(k); odswiez(); toast(k.pula ? 'W puli losowania.' : 'Wyjęta z puli losowania.'); break;
+      case 'zListy': {
+        const przed = [...k.listy];
+        animujZnikniecie(k.id, () => { k.listy = k.listy.filter(x => x !== lista.id); utrwal(k); odswiez(); toast(`Usunięto z listy „${lista.nazwa}”. Książka zostaje na liście życzeń.`, { akcja: 'Cofnij', onAkcja: () => { k.listy = przed; utrwal(k); odswiez(); } }); });
+        break;
+      }
+      case 'usun': animujZnikniecie(k.id, () => usunKsiazke(k.id)); break;
+    }
+  });
+}
+
+/* przytrzymanie palcem (telefon) albo prawy przycisk myszy (komputer) */
+(() => {
+  let timer = null, start = null, el = null;
+  const anuluj = () => { clearTimeout(timer); timer = null; if (el) el.classList.remove('wcisk'); el = null; };
+  document.addEventListener('pointerdown', e => {
+    const t = e.target.closest('#widok [data-akcja="ksiazka"][data-id]');
+    if (!t || e.button > 0) return;
+    el = t; start = { x: e.clientX, y: e.clientY };
+    el.classList.add('wcisk');
+    timer = setTimeout(() => {
+      const id = t.dataset.id;
+      anuluj();
+      U.dlugiePrzytrzymanie = Date.now();
+      if (navigator.vibrate) navigator.vibrate(18);
+      menuKsiazki(id);
+    }, 480);
+  });
+  document.addEventListener('pointermove', e => { if (timer && start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 9) anuluj(); }, { passive: true });
+  ['pointerup', 'pointercancel', 'scroll'].forEach(n => document.addEventListener(n, () => { if (timer) anuluj(); }, { passive: true, capture: true }));
+  // po przytrzymaniu nie otwieraj od razu szczegółów (to byłby „klik”)
+  document.addEventListener('click', e => {
+    // blokujemy tylko „klik” po puszczeniu palca na okładce, nie kliknięcia w samym menu
+    if (U.dlugiePrzytrzymanie && Date.now() - U.dlugiePrzytrzymanie < 700 && !e.target.closest('.arkusz')) { e.stopPropagation(); e.preventDefault(); U.dlugiePrzytrzymanie = 0; }
+  }, true);
+  document.addEventListener('contextmenu', e => {
+    const t = e.target.closest('#widok [data-akcja="ksiazka"][data-id]');
+    if (!t) return;
+    e.preventDefault();
+    if (U.dlugiePrzytrzymanie && Date.now() - U.dlugiePrzytrzymanie < 1200) return; // Android: menu już otwarte przez przytrzymanie
+    anuluj(); U.dlugiePrzytrzymanie = Date.now(); menuKsiazki(t.dataset.id);
+  });
+})();
+
+/* ================= świat Sówki i Zakładki (2.16) ================= */
+// [pytanie albo pierwsza część, puenta] — puenta odsłania się po kliknięciu „No i?”
+const ZARTY = [
+  ['Czytam książkę o antygrawitacji.', 'Nie mogę jej odłożyć.'],
+  ['Kupiłam poradnik „Jak rozwiązać połowę swoich problemów”.', 'Kupiłam dwa.'],
+  ['— Poproszę książkę o paranoi.', '— A kto pyta?!'],
+  ['Mój wujek czyta tylko książki o drabinach.', 'Mówi, że to literatura z wyższej półki.'],
+  ['Słownik to jedyne miejsce, gdzie „lenistwo” jest przed „pracą”.', 'I wcale nie zamierzam tego zmieniać.'],
+  ['Najkrótszy horror bibliofila?', '„Pożyczysz mi tę książkę? Oddam!”'],
+  ['Sowa, która nie czyta…', '…to po prostu kura z dobrym PR-em.'],
+  ['Czytam tak wolno…', '…że autor zdążył napisać kolejny tom.'],
+  ['— Ile książek przeczytałaś w tym roku?', '— Wszystkie pierwsze rozdziały.'],
+  ['Mam w domu 300 nieprzeczytanych książek.', 'To nie bałagan. To plan emerytalny.'],
+  ['Tsundoku to kupowanie książek szybciej, niż się je czyta.', 'Jestem mistrzynią Polski. Trzy razy z rzędu.'],
+  ['— Doktorze, nie mogę przestać czytać!', '— Spokojnie, to tylko faza. Rozdziałowa.'],
+  ['Zrobiłam zakładkę w stylu ninja.', 'Niestety nie wiem, gdzie jest.'],
+  ['Mówią, że czytanie przed snem pomaga zasnąć.', 'Po „jeszcze tylko jednym rozdziale” widziałam świt. Trzy razy.'],
+  ['— Dlaczego kryminał nie mógł zasnąć?', '— Bo miał za dużo wątków.'],
+  ['Bibliotekarka: — Ta książka jest przetrzymana pół roku!', 'Czytelnik: — Wiem. Czytałem ją bardzo, bardzo uważnie.'],
+  ['— Czemu sowy nie chodzą do biblioteki w dzień?', '— Bo wypożyczają tylko nocne wydania.'],
+  ['E-booki są super.', 'Tylko trudno nimi przytrzymać drzwi.'],
+  ['Moja dieta: zero cukru, zero glutenu…', '…ale 300 stron dziennie.'],
+  ['— Sówko, ile masz lat?', '— Według Wikipedii? Zależy, którą wersję edytowano ostatnio.'],
+  ['Kupiłam książkę „Jak przestać odkładać rzeczy na później”.', 'Przeczytam ją jutro.'],
+  ['Przeczytałam książkę o historii kleju.', 'Nie mogłam się od niej oderwać.'],
+  ['— Zakładko, dlaczego jesteś taka zmęczona?', '— Bo trzymam miejsce od trzech miesięcy. Nikt mnie nie zmienia!']
+];
+// Zakładka ma swoje kwestie (czasem wtrąca się w rozmowę)
+const KWESTIE_ZAKLADKI = [
+  'Przeleżałam pół roku na stronie 37. To już nie zakładka, to lokatorka.',
+  'Pamiętam, na czym skończyłaś. To moja supermoc!',
+  'Wiesz, dlaczego jestem czerwona? Bo widziałam, jak zaginasz rogi stron. 😳',
+  'Hej! Może dziś przesuniesz mnie o kilka stron dalej?',
+  'Jestem tu, gdyby co. Trzymam miejsce. 🔖',
+  'Psst… ta książka ma świetne zakończenie. Ale nic nie mówię!'
+];
+
+function motywacja() {
+  const m = mapaDni(), dzis = dzisISO(), strony = m.get(dzis) || 0, cel = dziennyCel(m);
+  const k = bazowa() || czytane()[0];
+  const lin = [];
+  if (k) {
+    const zost = k.strony - k.strona;
+    const wieczory = Math.max(1, Math.ceil(zost / 30));
+    lin.push(`Do końca „${k.tytul}” zostało ${ile(zost, FORMY_STRON_D)}. To ${wieczory === 1 ? 'jeden wieczór' : `ok. ${wieczory} wieczorów po 30 stron`}. Dasz radę!`);
+    const tempo = tempoKsiazki(k) || tempoOgolne();
+    if (tempo) lin.push(`Czytasz ok. ${Math.round(tempo)} stron na godzinę. 15 minut to już ${Math.round(tempo / 4)} stron!`);
+  }
+  if (strony < cel) lin.push(strony ? `Brakuje ${ile(cel - strony, FORMY_STRON_D)} do celu. Ale cel to nie obowiązek, to podpowiedź. 💛` : 'Wystarczy jedna strona, żeby dzień się liczył. Jedna! Nawet stojąc w kolejce.');
+  else lin.push('Cel zrobiony! Każda kolejna strona to już czysta przyjemność.');
+  const s = seriaSzczegoly(m);
+  if (s.dni > 1) lin.push(`Czytasz ${ile(s.dni, FORMY_DNI)} z rzędu. Jestem dumna, ale bez spiny, odpoczynek też się liczy.`);
+  const h = historiaStan();
+  if (h.nastepny) lin.push(`Za ${ile(h.doNastepnego, FORMY_STRON_D)} odblokujesz nowy rozdział naszej historii: „${h.nastepny.tytul}”. Ciekawa jestem, co się stanie!`);
+  lin.push('Czytanie przez 6 minut potrafi mocno obniżyć stres. To jak drzemka, tylko z fabułą.');
+  return lin[(U.sowkaN || 0) % lin.length];
+}
+
+function coCzytac() {
+  const n = nastepnaKsiazka();
+  const k = n ? n.k : null;
+  if (!k) return 'Twoja kolejka jest pusta. Zajrzyj do „Losuj → Odkrywaj”, znajdę coś dla ciebie!';
+  const krotka = kolejka().filter(x => x.strony < 250)[0];
+  return (U.sowkaN || 0) % 2 && krotka && krotka !== k
+    ? `Masz ochotę na coś krótkiego? „${krotka.tytul}” ma tylko ${krotka.strony} stron. Idealne na weekend!`
+    : `Polecam „${k.tytul}”${k.autor ? ` (${k.autor})` : ''}, bo ${n.powod}. ${k.strony > 500 ? 'Gruba sztuka, ale wiesz… bazowe są dla odważnych.' : 'Wygląda na dobrą zabawę!'}`;
+}
+
+/* ---------- Zakładka: animowana postać ---------- */
+function svgZakladki(poza = 'stoi') {
+  const oczy = poza === 'spi' ? '<path d="M12 30 q3 3 6 0 M22 30 q3 3 6 0" class="z-zamk"/>'
+    : poza === 'smutna' ? '<circle cx="15" cy="30" r="2.6" class="z-oko"/><circle cx="25" cy="30" r="2.6" class="z-oko"/><path d="M13 25 l5 2 M27 25 l-5 2" class="z-brew"/>'
+    : '<g class="z-oczy"><circle cx="15" cy="30" r="3" class="z-oko"/><circle cx="25" cy="30" r="3" class="z-oko"/><circle cx="16" cy="29" r="1" fill="#fff"/><circle cx="26" cy="29" r="1" fill="#fff"/></g>';
+  const usta = poza === 'smutna' ? '<path d="M15 41 q5 -4 10 0" class="z-usta"/>' : poza === 'spi' ? '<ellipse cx="20" cy="39" rx="2" ry="1.5" class="z-oko"/>' : '<path d="M14 37 q6 6 12 0" class="z-usta"/>';
+  const rece = poza === 'macha'
+    ? '<path d="M4 46 q-6 -4 -6 -12" class="z-reka z-reka-mach"/><path d="M36 46 q5 3 5 9" class="z-reka"/>'
+    : poza === 'lata' ? '<path d="M4 44 q-8 -2 -10 -8" class="z-reka"/><path d="M36 44 q8 -2 10 -8" class="z-reka"/>'
+    : '<path d="M4 46 q-5 3 -5 9" class="z-reka"/><path d="M36 46 q5 3 5 9" class="z-reka"/>';
+  return `<svg class="zakladka-svg poza-${poza}" viewBox="-12 0 64 96" aria-hidden="true">
+    <g class="z-cialo-g"><path class="z-cialo" d="M6 4 h28 a4 4 0 0 1 4 4 v80 l-18 -13 l-18 13 v-80 a4 4 0 0 1 4 -4z"/>
+    <path class="z-polysk" d="M10 8 v66"/>${rece}${oczy}${usta}<circle cx="11" cy="36" r="2.6" class="z-rumieniec"/><circle cx="29" cy="36" r="2.6" class="z-rumieniec"/></g>
+    ${poza === 'spi' ? '<g class="s-zzz"><text x="36" y="16">z</text><text x="42" y="8">z</text></g>' : ''}
+  </svg>`;
+}
+
+/* ---------- pokładkowa historia: 10 rozdziałów odblokowywanych stronami ---------- */
+const HISTORIA = [
+  { tytul: 'Spotkanie', progi: 0, klatki: [
+    { tlo: 'pokoj', s: [70, 110, 'czyta'], z: null, r: [['💡', 40, 70]], t: 'Pewnej nocy Sówka czytała przy lampce, gdy coś zaszeleściło między stronami…' },
+    { tlo: 'pokoj', s: [70, 110, 'czeka'], z: [200, 100, 'macha'], r: [['✨', 190, 80]], t: '— Cześć! Jestem Zakładka. Pilnuję, żebyś nigdy nie zgubiła miejsca w książce.' },
+    { tlo: 'pokoj', s: [100, 110, 'zadowolona'], z: [190, 100, 'macha'], r: [['💛', 165, 70]], t: '— Hu-hu! Czyli od dziś czytamy razem? — zapytała Sówka.' },
+    { tlo: 'pokoj', s: [90, 110, 'czyta'], z: [170, 115, 'stoi'], r: [['⭐', 300, 50]], t: 'I tak zaczęła się ich przyjaźń. Strona po stronie.' }] },
+  { tytul: 'Zgubiona w księdze', progi: 50, klatki: [
+    { tlo: 'ksiazka', s: [40, 120, 'czeka'], z: [190, 70, 'stoi'], r: [], t: 'Pewnego dnia Zakładka zajrzała zbyt głęboko w ogromną, starą księgę…' },
+    { tlo: 'ksiazka', s: [40, 120, 'czeka'], z: [200, 120, 'lata'], r: [['💨', 230, 110]], t: 'Plusk! Wpadła między rozdziały i zniknęła.' },
+    { tlo: 'ksiazka', s: [120, 110, 'czeka'], z: null, r: [['❓', 200, 70], ['❓', 240, 90]], t: '— Zakładko?! Gdzie jesteś?! — zahuczała Sówka.' },
+    { tlo: 'ksiazka', s: [170, 60, 'zadowolona'], z: null, r: [['💫', 230, 60]], t: 'Nie było wyjścia. Sówka wzięła głęboki oddech i wskoczyła za nią.' }] },
+  { tytul: 'Kraina smoków', progi: 150, klatki: [
+    { tlo: 'smok', s: [40, 120, 'czeka'], z: null, r: [['🐉', 250, 90, 70]], t: 'Wylądowała w krainie smoków. Smok ziewnął tak, że zgasły wszystkie pochodnie.' },
+    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['🧦', 205, 85]], t: '— Szukam małej, czerwonej zakładki! — Takiej? — smok wyjął coś zza ucha. To była skarpetka.' },
+    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['👉', 180, 60]], t: '— Zakładki zawsze uciekają do kryminałów — mruknął smok. — Tam jest najwięcej tajemnic.' },
+    { tlo: 'smok', s: [150, 110, 'czeka'], z: null, r: [['📄', 240, 60, 40]], t: 'Sówka podziękowała i przewróciła stronę.' }] },
+  { tytul: 'Mroczny kryminał', progi: 300, klatki: [
+    { tlo: 'deszcz', s: [60, 120, 'czeka'], z: null, r: [['🕯️', 260, 70]], t: 'W mieście kryminałów padał deszcz. Czcionka 10 punktów.' },
+    { tlo: 'deszcz', s: [80, 115, 'zadowolona'], z: null, r: [['🎩', 103, 92], ['🔍', 150, 130]], t: 'Sówka założyła kapelusz detektywa. Trop: czerwona nitka na chodniku.' },
+    { tlo: 'deszcz', s: [60, 115, 'czeka'], z: null, r: [['🕵️', 230, 110, 50], ['*', 250, 80, 30]], t: 'Podejrzany numer jeden: Przypis. Zawsze kręci się na dole strony.' },
+    { tlo: 'deszcz', s: [60, 115, 'zadowolona'], z: null, r: [['⛵', 240, 120, 44]], t: '— Dobra, przyznam się! Widziałem ją! Popłynęła na morską przygodę!' }] },
+  { tytul: 'Morska przygoda', progi: 500, klatki: [
+    { tlo: 'morze', s: [130, 70, 'zadowolona'], z: null, r: [['⛵', 160, 150, 80]], t: 'Sówka wsiadła na papierowy statek złożony z rozdziału siódmego.' },
+    { tlo: 'morze', s: [130, 60, 'czeka'], z: null, r: [['🌊', 60, 150, 60], ['🌊', 280, 150, 60], ['⛈️', 70, 50]], t: 'Fale były tak wysokie, że sięgały aż do spisu treści.' },
+    { tlo: 'morze', s: [60, 110, 'zadowolona'], z: null, r: [['🍾', 200, 140, 44], ['📜', 240, 100, 36]], t: 'W butelce był list: „Jestem w kosmosie. Weź kanapki. Z.”' },
+    { tlo: 'morze', s: [110, 100, 'czeka'], z: null, r: [['🥪', 200, 120], ['🚀', 270, 60, 44]], t: '— Oczywiście, że w kosmosie — westchnęła Sówka i spakowała kanapki.' }] },
+  { tytul: 'Kosmiczna strona', progi: 800, klatki: [
+    { tlo: 'kosmos', s: [60, 90, 'zadowolona'], z: null, r: [['🪐', 270, 60, 60], ['🚀', 30, 40]], t: 'Na stronie 400 zaczynał się kosmos. Bez grawitacji, za to z przypisami.' },
+    { tlo: 'kosmos', s: [60, 100, 'czeka'], z: [240, 60, 'lata'], r: [['🪐', 290, 140, 50]], t: 'I tam była! Zakładka dryfowała obok planety Epilog.' },
+    { tlo: 'kosmos', s: [90, 90, 'zadowolona'], z: [200, 80, 'macha'], r: [], t: '— Zakładko! — Sówko! Zgubiłam się, bo ktoś przewrócił pięćdziesiąt stron naraz!' },
+    { tlo: 'kosmos', s: [120, 90, 'zadowolona'], z: [180, 95, 'stoi'], r: [['💛', 165, 60, 36], ['✨', 100, 50], ['✨', 260, 60]], t: 'Przytuliły się tak mocno, że wszystkie planety zrobiły „ooooo”.' }] },
+  { tytul: 'Droga powrotna', progi: 1200, klatki: [
+    { tlo: 'ksiazka', s: [60, 110, 'czeka'], z: [180, 105, 'smutna'], r: [], t: 'Ale jak wrócić? Księga miała 1300 stron, a one utknęły w samym środku.' },
+    { tlo: 'ksiazka', s: [60, 110, 'zadowolona'], z: [180, 100, 'macha'], r: [['💡', 205, 60]], t: '— Wiem! — krzyknęła Zakładka. — Trzeba czytać do przodu. Strona po stronie!' },
+    { tlo: 'las', s: [70, 110, 'czyta'], z: [170, 115, 'stoi'], r: [['🌲', 260, 80, 60], ['🌵', 20, 100]], t: 'Czytały przez lasy, pustynie i jeden bardzo, bardzo nudny wstęp.' },
+    { tlo: 'las', s: [70, 110, 'zadowolona'], z: [170, 105, 'macha'], r: [['🚪', 280, 90, 60]], t: 'Aż w oddali zaświeciła tylna okładka.' }] },
+  { tytul: 'Bibliotekarz Kurz', progi: 1700, klatki: [
+    { tlo: 'brama', s: [40, 120, 'czeka'], z: [110, 125, 'smutna'], r: [['🧓', 250, 100, 70]], t: 'Przy wyjściu stał Bibliotekarz Kurz. — Bez karty bibliotecznej nikt nie wyjdzie!' },
+    { tlo: 'brama', s: [60, 115, 'zadowolona'], z: [130, 120, 'stoi'], r: [['🍃', 120, 80, 36], ['🧓', 260, 100, 70]], t: '— Mamy coś lepszego! — Sówka pokazała listki za tysiące przeczytanych stron.' },
+    { tlo: 'brama', s: [60, 115, 'zadowolona'], z: [130, 120, 'macha'], r: [['🤧', 260, 100, 70], ['💨', 220, 90]], t: 'Bibliotekarz Kurz kichnął z wrażenia. Brama się otworzyła.' },
+    { tlo: 'brama', s: [200, 110, 'zadowolona'], z: [260, 110, 'lata'], r: [['✨', 300, 60]], t: '— Uciekamy, zanim zmieni zdanie!' }] },
+  { tytul: 'Dom', progi: 2300, klatki: [
+    { tlo: 'swit', s: [70, 110, 'zadowolona'], z: [170, 110, 'macha'], r: [['💡', 40, 70]], t: 'Wróciły do pokoju o świcie. Lampka wciąż się świeciła.' },
+    { tlo: 'swit', s: [70, 110, 'czeka'], z: [170, 105, 'stoi'], r: [], t: '— Wiesz co? — powiedziała Zakładka. — Najlepsze przygody są w książkach.' },
+    { tlo: 'swit', s: [80, 110, 'zadowolona'], z: [165, 105, 'stoi'], r: [['💛', 150, 60, 36]], t: '— A najlepsza przyjaciółka jest między stronami — dodała Sówka.' },
+    { tlo: 'pokoj', s: [80, 110, 'spi'], z: [165, 115, 'spi'], r: [['🌙', 290, 40]], t: 'I zasnęły, zanim zdążyły powiedzieć „jeszcze tylko jeden rozdział”.' }] },
+  { tytul: 'Nowa księga', progi: 3000, klatki: [
+    { tlo: 'pokoj', s: [60, 110, 'czeka'], z: [150, 110, 'stoi'], r: [['📕', 260, 100, 60]], t: 'Rano na półce pojawiła się nowa księga. Gruba. Tajemnicza. Pachniała wanilią.' },
+    { tlo: 'pokoj', s: [80, 110, 'zadowolona'], z: [160, 100, 'macha'], r: [['📕', 260, 100, 60], ['❓', 240, 60]], t: '— Czytamy? — zapytała Zakładka.' },
+    { tlo: 'pokoj', s: [80, 110, 'czyta'], z: [170, 110, 'stoi'], r: [['✨', 260, 60], ['⭐', 40, 40]], t: '— Czytamy! — zahuczała Sówka.' },
+    { tlo: 'swit', s: [90, 105, 'zadowolona'], z: [180, 100, 'macha'], r: [['📖', 260, 90, 50]], t: 'A ty? Jaką przygodę przeczytasz następną? Ciąg dalszy pisze się z każdą twoją stroną.' }] }
+];
+const stronyRazem = () => [...mapaDni().values()].reduce((a, b) => a + b, 0);
+function historiaStan() {
+  const s = stronyRazem();
+  const odbl = HISTORIA.filter(r => s >= r.progi).length;
+  const nastepny = HISTORIA[odbl] || null;
+  return { strony: s, odblokowane: odbl, nastepny, doNastepnego: nastepny ? nastepny.progi - s : 0 };
+}
+
+const TLA = {
+  pokoj: '<rect width="360" height="220" fill="#2a1f3d"/><rect y="170" width="360" height="50" fill="#4a3426"/><g fill="#5b3f2e"><rect x="250" y="40" width="90" height="8"/><rect x="250" y="90" width="90" height="8"/></g><g><rect x="256" y="14" width="10" height="26" fill="#a3233a"/><rect x="268" y="18" width="9" height="22" fill="#22385c"/><rect x="279" y="12" width="12" height="28" fill="#d9b66e"/><rect x="293" y="20" width="8" height="20" fill="#1f4a3d"/><rect x="258" y="64" width="12" height="26" fill="#1f4a3d"/><rect x="272" y="68" width="9" height="22" fill="#a3233a"/><rect x="283" y="62" width="10" height="28" fill="#7a5218"/></g><circle cx="60" cy="40" r="22" fill="#ffe9a3" opacity=".25"/><rect x="20" y="30" width="60" height="40" rx="4" fill="#1b2a52" stroke="#5b3f2e" stroke-width="4"/>',
+  ksiazka: '<rect width="360" height="220" fill="#efe6cf"/><path d="M0 200 Q180 150 360 200 V220 H0Z" fill="#d9caa0"/><g stroke="#c9b88a" stroke-width="1.5">' + Array.from({ length: 9 }, (_, i) => `<path d="M${20 + i * 12} ${40 + i * 4} h120" />`).join('') + Array.from({ length: 9 }, (_, i) => `<path d="M${200} ${40 + i * 12} h130" />`).join('') + '</g><path d="M180 20 V200" stroke="#b8a77a" stroke-width="3"/>',
+  smok: '<rect width="360" height="220" fill="#f3b07a"/><circle cx="300" cy="50" r="24" fill="#ffe08a"/><path d="M0 170 L60 90 L120 160 L190 70 L260 150 L320 100 L360 140 V220 H0Z" fill="#8a4b3b"/><path d="M0 200 Q180 170 360 200 V220 H0Z" fill="#5b2f2a"/>',
+  deszcz: '<rect width="360" height="220" fill="#1b2230"/><g fill="#2b3446"><rect x="10" y="60" width="60" height="160"/><rect x="80" y="30" width="50" height="190"/><rect x="290" y="50" width="70" height="170"/></g><g fill="#ffd34d" opacity=".7"><rect x="20" y="80" width="8" height="10"/><rect x="95" y="60" width="8" height="10"/><rect x="305" y="90" width="8" height="10"/></g><g class="krople" stroke="#7a8aa8" stroke-width="1.4">' + Array.from({ length: 22 }, (_, i) => `<path d="M${(i * 37) % 360} ${(i * 53) % 200} l-4 12"/>`).join('') + '</g><rect y="195" width="360" height="25" fill="#11161f"/>',
+  morze: '<rect width="360" height="220" fill="#9fd1ec"/><circle cx="60" cy="45" r="20" fill="#fff3b0"/><path class="fala" d="M0 150 Q30 135 60 150 T120 150 T180 150 T240 150 T300 150 T360 150 V220 H0Z" fill="#2c7fb8"/><path class="fala f2" d="M0 170 Q30 158 60 170 T120 170 T180 170 T240 170 T300 170 T360 170 V220 H0Z" fill="#1f5f8f"/>',
+  kosmos: '<rect width="360" height="220" fill="#0b1030"/>' + Array.from({ length: 40 }, (_, i) => `<circle class="gw" cx="${(i * 97) % 360}" cy="${(i * 61) % 220}" r="${1 + (i % 3) * .5}" fill="#fff" style="animation-delay:${(i % 7) * .4}s"/>`).join('') + '<circle cx="90" cy="180" r="70" fill="#3a2f7a" opacity=".5"/>',
+  las: '<rect width="360" height="220" fill="#cfe8c7"/><g fill="#2f6a53">' + Array.from({ length: 8 }, (_, i) => `<path d="M${i * 50 - 10} 190 l25 -70 l25 70z"/>`).join('') + '</g><rect y="185" width="360" height="35" fill="#7a9a5a"/>',
+  brama: '<rect width="360" height="220" fill="#3b3046"/><rect x="200" y="30" width="140" height="170" rx="70" fill="#1d1726" stroke="#d9b66e" stroke-width="6"/><g fill="#5b3f2e"><rect x="10" y="40" width="20" height="160"/><rect x="40" y="40" width="20" height="160"/></g><rect y="195" width="360" height="25" fill="#2a2233"/>',
+  swit: '<rect width="360" height="220" fill="#f6c6a8"/><circle cx="300" cy="140" r="34" fill="#ffd36a"/><rect y="170" width="360" height="50" fill="#4a3426"/><g fill="#5b3f2e"><rect x="20" y="60" width="90" height="8"/></g><g><rect x="26" y="34" width="10" height="26" fill="#a3233a"/><rect x="38" y="38" width="9" height="22" fill="#22385c"/><rect x="49" y="32" width="12" height="28" fill="#d9b66e"/></g>'
+};
+const postac = (svg, x, y, w, h) => `<g class="kl-postac"><svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="visible"${svg.replace(/^<svg class="[^"]*"/, '')}</g>`;
+function svgKlatki(kl) {
+  // współrzędne w klatkach to miejsce stóp; +55 stawia postacie na ziemi tła
+  const sowa = kl.s ? postac(svgSowki(kl.s[2], Z.ustawienia.gra.zalozone), kl.s[0], kl.s[1] - 85 + 55, 78, 85) : '';
+  const zakl = kl.z ? postac(svgZakladki(kl.z[2]), kl.z[0], kl.z[1] - 66 + 55, 44, 66) : '';
+  const rek = (kl.r || []).map(([e, x, y, rozm = 28]) => `<text x="${x}" y="${y}" font-size="${rozm}" class="kl-rekw">${e}</text>`).join('');
+  return `<svg class="klatka-svg tlo-${kl.tlo}" viewBox="0 0 360 220" role="img">${TLA[kl.tlo] || ''}${rek}${sowa}${zakl}</svg>`;
+}
+
+function arkuszHistorii(otworz = null) {
+  let rozdz = otworz, klatka = 0, auto = null;
+  const stop = () => { clearInterval(auto); auto = null; };
+  const a = arkusz({
+    tytul: 'Przygody Sówki i Zakładki', klasa: 'arkusz-historia', onZamknij: stop,
+    render: () => {
+      const st = historiaStan();
+      if (rozdz == null) {
+        return `<p class="cichy">Każdy rozdział odblokowujesz, czytając. Liczą się wszystkie przeczytane strony: masz ich <strong>${liczba(st.strony)}</strong>.</p>
+          ${st.nastepny ? `<div class="hist-postep"><span>Następny rozdział: „${esc(st.nastepny.tytul)}”</span><span class="poziom-pasek duzy"><span style="width:${Math.min(100, (st.strony - (HISTORIA[st.odblokowane - 1] || { progi: 0 }).progi) / (st.nastepny.progi - (HISTORIA[st.odblokowane - 1] || { progi: 0 }).progi) * 100).toFixed(1)}%"></span></span><small>za ${ile(st.doNastepnego, FORMY_STRON_D)}</small></div>` : '<p class="ok">Odblokowałeś całą historię! Jesteś legendą. 🦉🔖</p>'}
+          <ol class="hist-lista">${HISTORIA.map((r, i) => { const ok = i < st.odblokowane; return `<li><button type="button" class="hist-rozdz${ok ? '' : ' zamkniety'}" ${ok ? `data-rozdz="${i}"` : 'disabled'}>
+            <span class="hist-mini">${ok ? svgKlatki(r.klatki[0]) : '<span class="hist-klodka">🔒</span>'}</span>
+            <span class="hist-tekst"><strong>${i + 1}. ${esc(r.tytul)}</strong><small>${ok ? ((Z.ustawienia.gra.historiaWidziane || 0) > i ? 'obejrzane' : '<b class="nowy-znak">nowy!</b>') : `od ${liczba(r.progi)} stron`}</small></span></button></li>`; }).join('')}</ol>`;
+      }
+      const r = HISTORIA[rozdz], kl = r.klatki[klatka];
+      return `<div class="hist-widok">
+        <p class="hist-naglowek"><button type="button" class="btn-tekst" data-wroc>‹ Rozdziały</button><span>Rozdział ${rozdz + 1}: ${esc(r.tytul)}</span></p>
+        <div class="klatka" data-klatka>${svgKlatki(kl)}<p class="klatka-tekst">${esc(kl.t)}</p></div>
+        <div class="hist-sterowanie"><button type="button" class="btn-ikona" data-kl="-1" aria-label="Poprzednia klatka"${klatka ? '' : ' disabled'}>${I.wstecz}</button>
+          <span class="hist-kropki">${r.klatki.map((_, i) => `<i class="${i === klatka ? 'akt' : ''}"></i>`).join('')}</span>
+          <button type="button" class="btn-ikona" data-auto aria-label="${auto ? 'Pauza' : 'Odtwarzaj'}">${auto ? I.pauza : I.graj}</button>
+          <button type="button" class="btn-ikona" data-kl="1" aria-label="Następna klatka">${I.dalej}</button></div>
+        ${klatka === r.klatki.length - 1 ? `<div class="przyciski przyciski-srodek">${rozdz + 1 < historiaStan().odblokowane ? `<button type="button" class="btn btn-glowny" data-rozdz="${rozdz + 1}">Następny rozdział ›</button>` : historiaStan().nastepny ? `<p class="cichy">Ciąg dalszy za ${ile(historiaStan().doNastepnego, FORMY_STRON_D)}… 📖</p>` : ''}</div>` : ''}
+      </div>`;
+    }
+  });
+  const pokaz = () => {
+    const g = Z.ustawienia.gra;
+    if (rozdz != null && (g.historiaWidziane || 0) < rozdz + 1 && klatka === HISTORIA[rozdz].klatki.length - 1) { g.historiaWidziane = rozdz + 1; utrwalUstawienia(); }
+    a.rysuj();
+  };
+  const dalej = kier => {
+    const r = HISTORIA[rozdz];
+    const n = klatka + kier;
+    if (n < 0 || n >= r.klatki.length) { stop(); a.rysuj(); return; }
+    const el = $('[data-klatka]', a.tresc);
+    if (el && !bezRuchu()) { el.classList.add(kier > 0 ? 'wyjscie-l' : 'wyjscie-p'); setTimeout(() => { klatka = n; pokaz(); $('[data-klatka]', a.tresc)?.classList.add(kier > 0 ? 'wejscie-p' : 'wejscie-l'); }, 180); }
+    else { klatka = n; pokaz(); }
+  };
+  a.tresc.addEventListener('click', e => {
+    const r = e.target.closest('[data-rozdz]');
+    if (r) { stop(); rozdz = +r.dataset.rozdz; klatka = 0; pokaz(); a.el.scrollTop = 0; return; }
+    if (e.target.closest('[data-wroc]')) { stop(); rozdz = null; a.rysuj(); return; }
+    const k = e.target.closest('[data-kl]');
+    if (k) { stop(); dalej(+k.dataset.kl); return; }
+    if (e.target.closest('[data-klatka]')) { stop(); dalej(1); return; }
+    if (e.target.closest('[data-auto]')) {
+      if (auto) { stop(); a.rysuj(); return; }
+      auto = setInterval(() => { if (klatka >= HISTORIA[rozdz].klatki.length - 1) { stop(); a.rysuj(); } else dalej(1); }, 3200);
+      a.rysuj();
+    }
+  });
+}
+
+/** Powiadomienie o nowym rozdziale historii. */
+function sprawdzHistorie() {
+  const st = historiaStan(), zap = lsGet('zakladka-historia-odbl');
+  if (zap == null) { lsSet('zakladka-historia-odbl', String(st.odblokowane)); return; }
+  if (st.odblokowane > +zap) {
+    lsSet('zakladka-historia-odbl', String(st.odblokowane));
+    const r = HISTORIA[st.odblokowane - 1];
+    setTimeout(() => { toast(`🎬 Nowy rozdział historii: „${r.tytul}”!`, { czas: 7000, akcja: 'Oglądaj', onAkcja: () => arkuszHistorii(st.odblokowane - 1) }); konfetti({ ile: 60 }); }, 1200);
+  }
+}
+
+
+/* ---------- rozmowa z Sówką i Zakładką ---------- */
+function pokazDymek(tekst, { puenta = false, klasa = '' } = {}) {
+  const t = $('[data-sowka-tekst]');
+  if (!t) return;
+  t.classList.remove('nowy'); void t.offsetWidth;
+  t.innerHTML = esc(tekst) + (puenta ? ' <button type="button" class="btn btn-maly sowka-puenta" data-puenta>No i? 😄</button>' : '');
+  t.classList.add('nowy');
+  const karta = t.closest('.sowka-karta');
+  if (karta && klasa) { karta.classList.remove(klasa); void karta.offsetWidth; karta.classList.add(klasa); setTimeout(() => karta.classList.remove(klasa), 1400); }
+}
+function dymekZakladki(tekst) {
+  const d = $('[data-zakl-dymek]');
+  if (!d) return;
+  d.textContent = tekst; d.hidden = false;
+  d.classList.remove('nowy'); void d.offsetWidth; d.classList.add('nowy');
+  clearTimeout(U.zaklTimer); U.zaklTimer = setTimeout(() => { d.hidden = true; }, 5000);
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  const o = t.closest('[data-sowka-opcja]');
+  if (o) {
+    U.sowkaN = (U.sowkaN || 0) + 1;
+    const co = o.dataset.sowkaOpcja;
+    if (co === 'zart') {
+      const lista = ZARTY.map((z, i) => i).filter(i => !(U.zartyUzyte || []).includes(i));
+      const i = (lista.length ? lista : ZARTY.map((z, j) => j))[Math.floor(Math.random() * (lista.length || ZARTY.length))];
+      U.zartyUzyte = [...(U.zartyUzyte || []), i].slice(-15);
+      U.zart = i;
+      pokazDymek(ZARTY[i][0], { puenta: true, klasa: 'mysli' });
+    }
+    if (co === 'motywacja') pokazDymek(motywacja(), { klasa: 'skacze' });
+    if (co === 'co') pokazDymek(coCzytac(), { klasa: 'mysli' });
+    if (co === 'historia') arkuszHistorii();
+    return;
+  }
+  if (t.closest('[data-puenta]')) {
+    const z = ZARTY[U.zart] || ZARTY[0];
+    pokazDymek(`${z[0]} ${z[1]}`, { klasa: 'smieje' });
+    if (Math.random() < .6) setTimeout(() => dymekZakladki(['Ha! Dobre! 😂', 'Hahaha, zapiszę to sobie na marginesie!', 'Ten był lepszy niż wstęp do „Chłopów”.', 'Słyszałam lepsze… ale nie dziś. 😄'][Math.floor(Math.random() * 4)]), 700);
+    if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
+    return;
+  }
+  const zk = t.closest('[data-zakl]');
+  if (zk) {
+    zk.classList.remove('skok'); void zk.offsetWidth; zk.classList.add('skok');
+    dymekZakladki(KWESTIE_ZAKLADKI[(U.zaklN = (U.zaklN || 0) + 1) % KWESTIE_ZAKLADKI.length]);
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+});
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -4496,6 +5136,10 @@ const AKCJE = {
   'opis-pobierz': d => uzupelnijOpis(znajdz(d.id)),
   'sprawdz-ceny': d => sprawdzCeny(znajdz(d.id)),
   worker: () => arkuszWorkera(),
+  sklepik: () => arkuszSklepiku(),
+  aktualizuj: () => wymusAktualizacje(),
+  'co-nowego': () => arkuszCoNowego(),
+  historia: () => arkuszHistorii(),
   'sprawdz-ceny-wszystkie': () => sprawdzCenyListy({ wymus: true }),
   'opis-edytuj': d => arkuszOpisu(d.id),
   podobne: d => zaladujPodobne(d.id),
@@ -4510,7 +5154,7 @@ const AKCJE = {
   passa: () => arkuszSerii(),
   'na-pozniej': d => { const k = znajdz(d.id), przed = { status: k.status, bazowa: k.bazowa, odlozono: k.odlozono }; utrwal(odlozNaPozniej(k)); odswiez(); toast(`„${k.tytul}” odłożona na później.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, przed); utrwal(k); odswiez(); } }); },
   'do-kolejki': d => { const k = znajdz(d.id); utrwal(doKolejki(k, !!d.poczatek)); odswiez(); toast(`„${k.tytul}” wraca do kolejki${d.poczatek ? ' na początek' : ''}.`); },
-  zyczenia: d => { const k = znajdz(d.id); utrwal(naListeZyczen(k)); odswiez(); toast(`„${k.tytul}” na liście życzeń. Sprawdzam ceny…`); sprawdzCeny(k, { cicho: true }); },
+  zyczenia: d => arkuszNaListe(d.id),
   'mam-ja': d => arkuszZakupu(d.id),
   'powiadomienia-zgoda': async () => {
     try {
@@ -4708,6 +5352,8 @@ async function start() {
   sprawdzCele();
   sprawdzPrzypomnienie();
   zarejestrujSprawdzanieWTle();
+  if (Z.ksiazki.length && lsGet('zakladka-widziana-wersja') !== WERSJA) setTimeout(() => arkuszCoNowego(), 900);
+  else lsSet('zakladka-widziana-wersja', WERSJA);
   setInterval(sprawdzPrzypomnienie, 60 * 1000);
   setTimeout(() => sprawdzCenyListy(), 6000);
   setInterval(() => {
@@ -4729,7 +5375,9 @@ async function start() {
     if (navigator.storage && navigator.storage.persist && !(await navigator.storage.persisted())) await navigator.storage.persist();
   } catch { /* nieobsługiwane */ }
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-    navigator.serviceWorker.register('sw.js').catch(e => console.warn('Service worker:', e));
+    const mialKontroler = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (mialKontroler && !U.przeladowano) { U.przeladowano = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js').then(r => r.update()).catch(e => console.warn('Service worker:', e));
   }
 }
 

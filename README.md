@@ -81,6 +81,34 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.16: świat Sówki i Zakładki
+
+- **Zakładka**: nowa animowana postać obok Sówki. Czerwona zakładka z buzią, która się kołysze, mruga i macha ręką. Dotknięta podskakuje i mówi swoje kwestie, np. „Przeleżałam pół roku na stronie 37. To już nie zakładka, to lokatorka”. Wtrąca się też do żartów Sówki.
+- **Sówka gada**, czyli przyciski rozmowy na karcie:
+  - 😂 **Żart**: 23 żarty o książkach i czytaniu. Najpierw wstęp, a po „No i? 😄” puenta. Sówka się śmieje, a Zakładka komentuje.
+  - 💪 **Zmotywuj**: personalnie, np. „Do końca «Lalki» zostało 280 stron, to ok. 10 wieczorów po 30”, tempo czytania, passa, ile stron do kolejnego rozdziału historii. Zawsze łagodnie, bez presji.
+  - 📚 **Co czytać?**: następna zaplanowana książka albo coś krótkiego na weekend.
+  - 🎬 **Historia** (w nocy: „Bajka na dobranoc”).
+- **„Przygody Sówki i Zakładki”**: pokładkowa historia w 10 rozdziałach po 4 klatki (40 animowanych scen). Zakładka wpada do ogromnej księgi, a Sówka szuka jej w krainie smoków, w kryminale, na morzu i w kosmosie, potem obie wracają przez Bibliotekarza Kurza do domu. Rozdziały **odblokowujesz, czytając**: 0, 50, 150, 300, 500, 800, 1200, 1700, 2300 i 3000 przeczytanych stron.
+  - Animacje: postacie się kołyszą, pada deszcz, fale falują, gwiazdy migają, a klatki przesuwają się przy przewijaniu. Jest też automatyczne odtwarzanie ▶.
+  - Gdy odblokujesz rozdział, pojawia się powiadomienie z konfetti i przyciskiem „Oglądaj”.
+
+## Wersja 2.15: Sówka, listki za czytanie, menu po przytrzymaniu
+
+- **Sówka 🦉** na ekranie Dziś: animowana sowa, która mruga, kołysze się i podskakuje po dotknięciu. Mówi łagodnie, bez presji, zależnie od pory dnia i tego, ile przeczytałeś, np. „Może kilka stron do kawy? Bez pośpiechu”. W nocy śpi (z „Zzz”), po zrobieniu celu czyta własną książeczkę, a po przerwie mówi „tęskniłam, nic się nie stało”. Można ją wyłączyć w sklepiku.
+- **Listki 🍃 za czytanie:** 1 za 10 stron, 5 za dzień czytania, 30 za skończoną książkę, 3 za cytat, bonusy za passę (7, 30, 100, 365 dni) i za zadania dnia. Liczą się z twoich danych, więc nigdy nie przepadają. Z sumy wynika **poziom** (od „Nowy czytelnik” do „Legenda czytelnictwa”) z paskiem postępu.
+- **Zadania dnia:** codziennie 3 inne, np. „Przeczytaj 10 stron”, „Sesja 15 minut”, „Zapisz cytat”, „Skończ rozdział”. Za każde odbierasz listki z animacją.
+- **Sklepik Sówki:** okulary, szalik, kakao, kwiatek, czapka czarodzieja, lampka, korona. Sówka nosi je na sobie i można je zakładać i zdejmować. W sklepiku jest też **zamrożenie passy 🧊**, które ratuje passę w danym miesiącu.
+- **Przytrzymaj książkę** (palcem; na komputerze prawy przycisk), a pojawi się menu z akcjami zależnymi od półki: zapisz postęp, zacznij, skończona, na później, do kolejki, na listę życzeń, **usuń z tej listy życzeń**, listy, mam ją, sprawdź ceny, do puli losowania, pożycz, edytuj, usuń. Każda zmiana ma animację (książka znika albo odlatuje) i „Cofnij”.
+- **Listy przy dodawaniu książki:** po wybraniu „Lista życzeń” w formularzu zaznaczasz listy. Jest gotowy przycisk „+ 🛒 Warto kupić” i pole do utworzenia nowej listy od ręki.
+
+## Wersja 2.14: duże niebo, listy wszędzie, pewna aktualizacja
+
+- **Niebo pory dnia na ekranie Dziś** w nowej, dużej wersji. Słońce wędruje po łuku zależnie od godziny. Rano jest różowy świt, w dzień niebieskie niebo z chmurami i ptakami, wieczorem fioletowy zachód, a w nocy granat z księżycem, migającymi gwiazdami i spadającą gwiazdą. Na dole są wzgórza w kolorze pory dnia.
+- **Listy życzeń wszędzie:** w Odkrywaj wybierasz, na którą listę trafia ♥. Przy „Na listę życzeń” w książce pojawia się wybór list. Nowa lista powstaje z każdego z tych miejsc.
+- **Pewna aktualizacja na telefonie:** gdy pobierze się nowa wersja, aplikacja sama się przeładuje. W Ustawieniach → Wersja aplikacji widać numer wersji i jest przycisk **„Wymuś aktualizację”** (czyści pamięć podręczną aplikacji, książki zostają).
+- **„Co nowego”:** po aktualizacji pojawia się okno z nowościami i przyciskami „Pokaż”, które prowadzą prosto do każdej funkcji.
+
 ## Wersja 2.13: kategorie, listy życzeń, kilka bazowych, pora dnia, muzyka, ciekawostki, cytat ze zdjęcia
 
 - **Kategorie:** fantasy, sci-fi, kryminał, thriller, horror, romans, komedia, obyczajowa, historyczna, przygodowa, reportaż, biografia, popularnonaukowa, poradnik, młodzieżowa, dla dzieci, poezja, klasyka, techniczna. Rozpoznają się same z tagów i gatunku z Wikidata. Możesz je też wybrać ręcznie w formularzu książki. W Bibliotece jest pasek filtrów kategorii z liczbą książek.

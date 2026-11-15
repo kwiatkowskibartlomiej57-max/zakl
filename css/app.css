@@ -1330,3 +1330,196 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .urodziny a { color: var(--tusz); }
 /* OCR */
 .ocr { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 8px; font-size: 13.5px; }
+
+/* ================= wersja 2.14: duże niebo pory dnia ================= */
+.powitanie { min-height: 190px; display: flex; flex-direction: column; justify-content: flex-end; padding: 18px 18px 20px; margin: 4px 0 10px; box-shadow: 0 14px 30px -20px rgba(0, 0, 0, .55); }
+.powitanie h1 { font-size: 30px; text-shadow: 0 1px 12px rgba(0, 0, 0, .18); position: relative; }
+.powitanie-data { position: relative; font-weight: 600; }
+.niebo .cialo { right: auto; transform: translate(-50%, -50%); transition: left 1s, top 1s; }
+.niebo-dzien .cialo { width: 58px; height: 58px; }
+.niebo-noc .cialo { width: 44px; height: 44px; transform: translate(-50%, -50%) rotate(-20deg); }
+.niebo-noc .cialo { animation: ksiezyc2 8s ease-in-out infinite; }
+@keyframes ksiezyc2 { 50% { transform: translate(-50%, -54%) rotate(-12deg); } }
+.niebo-swit .cialo, .niebo-zmierzch .cialo { width: 64px; height: 64px; animation: none; }
+.niebo .gwiazda { width: var(--r, 2px); height: var(--r, 2px); }
+.niebo .c3 { width: 110px; top: 40%; left: -120px; animation: chmura 64s linear infinite 25s; opacity: .55; }
+.niebo .chmura { height: 22px; }
+.wzgorza { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 42%; }
+.niebo-dzien .w1 { fill: #9cc79a; } .niebo-dzien .w2 { fill: #6fa57a; }
+.niebo-swit .w1 { fill: #d9a08c; } .niebo-swit .w2 { fill: #b77d74; }
+.niebo-zmierzch .w1 { fill: #5a3a6b; } .niebo-zmierzch .w2 { fill: #3a2750; }
+.niebo-noc .w1 { fill: #18223f; } .niebo-noc .w2 { fill: #0e1529; }
+.niebo-dzien ~ *, .niebo-swit ~ * { color: #14201b !important; }
+.niebo-dzien ~ h1, .niebo-swit ~ h1 { text-shadow: 0 1px 10px rgba(255, 255, 255, .6); }
+.pora-etykieta { position: absolute; top: 12px; left: 16px; padding: 2px 10px; border-radius: 999px; background: rgba(255, 255, 255, .22); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff; }
+.niebo-dzien .pora-etykieta, .niebo-swit .pora-etykieta { color: #14201b; background: rgba(255, 255, 255, .5); }
+.ptaki { position: absolute; top: 28%; left: -60px; animation: chmura 30s linear infinite; }
+.ptaki i { position: absolute; width: 14px; height: 6px; border-top: 2px solid rgba(30, 40, 50, .65); border-radius: 50% 50% 0 0; animation: skrzydla .5s ease-in-out infinite alternate; }
+.ptaki i::after { content: ''; position: absolute; left: 12px; top: -2px; width: 14px; height: 6px; border-top: 2px solid rgba(30, 40, 50, .65); border-radius: 50% 50% 0 0; }
+.ptaki i:nth-child(2) { left: 30px; top: 10px; animation-delay: .15s; }
+.ptaki i:nth-child(3) { left: 14px; top: 22px; animation-delay: .3s; transform: scale(.8); }
+@keyframes skrzydla { to { transform: scaleY(.4); } }
+.spadajaca { position: absolute; top: 12%; left: 20%; width: 90px; height: 2px; background: linear-gradient(90deg, rgba(255,255,255,0), #fff); border-radius: 2px; opacity: 0; transform: rotate(-18deg); animation: spada 7s ease-in 2s infinite; }
+@keyframes spada { 0%, 88% { opacity: 0; transform: translate(0, 0) rotate(-18deg); } 90% { opacity: 1; } 100% { opacity: 0; transform: translate(220px, 70px) rotate(-18deg); } }
+/* Odkrywaj: wybór listy */
+.odk-cel-listy { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin: 12px 0 0; font-size: 13px; color: var(--cichy); }
+/* co nowego */
+.nowosci { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.nowosci li { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--pole); border: 1px solid var(--linia); animation: wjazd .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 60ms); }
+.nowosc-e { font-size: 26px; flex: none; }
+.nowosc-t { flex: 1; display: flex; flex-direction: column; font-size: 13.5px; color: var(--cichy); }
+.nowosc-t strong { color: var(--tusz); font-size: 15px; }
+
+/* ================= wersja 2.15: Sówka, listki, menu po przytrzymaniu ================= */
+.sowka-karta { position: relative; display: grid; grid-template-columns: 104px 1fr; gap: 4px 12px; align-items: center; padding: 12px 14px 10px; margin: 0 0 14px; border-radius: 20px; background: var(--powierzchnia); border: 1px solid var(--linia); box-shadow: 0 10px 26px -20px rgba(0,0,0,.5); }
+.sowka { background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sowka-svg { width: 104px; height: 114px; overflow: visible; animation: kolysanie 4s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes kolysanie { 50% { transform: rotate(2.5deg) translateY(-2px); } }
+.sowka.skok .sowka-svg { animation: skok .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes skok { 30% { transform: translateY(-16px) scale(1.04, .96); } 60% { transform: translateY(0) scale(.96, 1.04); } }
+.sowka.skok .s-skrz-p { animation: machanie .5s ease-in-out 2; transform-origin: 88px 60px; }
+@keyframes machanie { 50% { transform: rotate(-35deg); } }
+.s-cialo { fill: #8a5a3b; } .s-brzuch { fill: #e9d3b0; } .s-ucho { fill: #6e4630; } .s-skrz { fill: #6e4630; }
+.s-piorka { fill: none; stroke: #b58d68; stroke-width: 1.6; stroke-linecap: round; }
+.s-bialko { fill: #fff; stroke: #5a3a28; stroke-width: 1.2; } .s-zrenica { fill: #1e1712; }
+.s-dziob { fill: #f2a43a; } .s-nozki { stroke: #f2a43a; stroke-width: 2.5; stroke-linecap: round; fill: none; }
+.s-powieka { fill: #8a5a3b; transform-origin: center; transform-box: fill-box; transform: scaleY(0); animation: mrug 5s infinite; }
+@keyframes mrug { 0%, 92%, 100% { transform: scaleY(0); } 95% { transform: scaleY(1); } }
+.s-zamk { fill: none; stroke: #3a2618; stroke-width: 2.5; stroke-linecap: round; }
+.s-zzz text { font: 700 11px var(--font-ui); fill: var(--cichy); animation: zzz 2.4s ease-in-out infinite; }
+.s-zzz text:nth-child(2) { animation-delay: .5s; font-size: 13px; } .s-zzz text:nth-child(3) { animation-delay: 1s; font-size: 15px; }
+@keyframes zzz { 0% { opacity: 0; transform: translateY(6px); } 40% { opacity: 1; } 100% { opacity: 0; transform: translateY(-8px); } }
+.tryb-spi .sowka-svg { animation-duration: 6s; }
+.s-okulary circle { fill: rgba(255,255,255,.12); stroke: #2b2b2b; stroke-width: 2.4; } .s-okulary path { stroke: #2b2b2b; stroke-width: 2.4; }
+.s-szalik path { fill: #a3233a; }
+.s-kwiat circle:not(:first-child) { fill: #ff8fb3; }
+.s-czapka path, .s-czapka ellipse { fill: #3b2f8f; }
+.s-korona { fill: #f5c542; stroke: #c99a1c; stroke-width: 1.5; }
+.s-ks-l { fill: #1f4a3d; } .s-ks-p { fill: #2a6150; }
+.s-ksiazka { animation: kartkowanie 3s ease-in-out infinite; transform-origin: 55px 92px; }
+@keyframes kartkowanie { 50% { transform: rotate(-2deg); } }
+.s-kubek rect { fill: #f1ede0; stroke: #7a5218; stroke-width: 1.5; } .s-kubek path { stroke: #7a5218; }
+.s-para { stroke: var(--cichy); stroke-width: 1.4; stroke-linecap: round; animation: para 2.5s ease-in-out infinite; }
+@keyframes para { 50% { opacity: .3; transform: translateY(-3px); } }
+.s-swiatlo { fill: #ffe9a3; opacity: .55; filter: blur(4px); animation: puls 3s ease-in-out infinite; }
+.sowka-dymek { position: relative; padding: 10px 12px; border-radius: 16px 16px 16px 4px; background: var(--pole); border: 1px solid var(--linia); }
+.sowka-dymek::before { content: ''; position: absolute; left: -7px; bottom: 14px; width: 12px; height: 12px; background: var(--pole); border-left: 1px solid var(--linia); border-bottom: 1px solid var(--linia); transform: rotate(45deg); }
+.sowka-tekst { font-size: 14.5px; line-height: 1.45; }
+.sowka-tekst.nowy { animation: wjazd .35s cubic-bezier(.2, .8, .2, 1); }
+.sowka-akcje { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.sowka-pasek { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr auto; gap: 2px 10px; align-items: center; margin-top: 6px; padding: 8px 4px 0; border: 0; border-top: 1px dashed var(--linia); background: none; color: var(--tusz); text-align: left; cursor: pointer; font-size: 13px; }
+.listki { font-size: 15px; } .listki strong { font-family: var(--font-ksiazka); font-size: 18px; }
+.poziom-tekst { font-weight: 600; color: var(--cichy); }
+.sowka-zad { font-weight: 700; color: var(--plotno); display: inline-flex; gap: 6px; align-items: center; }
+.kropka { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--wstazka); color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; animation: puls 1.6s ease-in-out infinite; }
+.poziom-pasek { grid-column: 1 / -1; display: block; height: 6px; border-radius: 3px; background: var(--linia); overflow: hidden; }
+.poziom-pasek span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7fa48e, #d9b66e); }
+.poziom-pasek.duzy { height: 9px; margin: 6px 0 2px; }
+/* sklepik */
+.sklep-gora { display: grid; grid-template-columns: 96px 1fr; gap: 14px; align-items: center; }
+.sklep-sowka .sowka-svg { width: 96px; height: 104px; }
+.sklep-saldo { font-size: 18px; } .sklep-saldo strong { font-family: var(--font-ksiazka); font-size: 26px; }
+.maly { font-size: 12px; }
+.zadania { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.zadania li { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--pole); border: 1px solid var(--linia); }
+.zadania li.zrobione { border-color: var(--zloto); box-shadow: inset 3px 0 0 var(--zloto); }
+.zadania li.odebrane { opacity: .6; }
+.zad-znak { width: 22px; text-align: center; font-weight: 700; color: var(--zloto); }
+.zad-nazwa { flex: 1; font-weight: 600; font-size: 14.5px; }
+.zad-nagroda { font-size: 13px; color: var(--cichy); }
+.sklep { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.sklep li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--pole); border: 1px solid var(--linia); }
+.sklep-e { font-size: 26px; } .sklep-n { flex: 1; display: flex; flex-direction: column; font-weight: 600; font-size: 14.5px; } .sklep-n small { font-weight: 500; color: var(--cichy); font-size: 12px; }
+.listek-lot { position: fixed; z-index: 220; pointer-events: none; font-size: 20px; animation: lot-listka 1.2s cubic-bezier(.2, .8, .3, 1) both; animation-delay: var(--d); }
+@keyframes lot-listka { 0% { transform: translate(-50%, 0) scale(.4); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(calc(-50% + var(--dx)), -180px) rotate(200deg) scale(1); opacity: 0; } }
+/* formularz: listy życzeń */
+.f-listy { padding: 12px; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); display: grid; gap: 8px; animation: wjazd .3s ease both; }
+.f-listy-tytul { font-weight: 600; }
+.f-nowa-lista { display: flex; gap: 8px; }
+.f-nowa-lista input { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); font: inherit; }
+/* menu po przytrzymaniu */
+#widok [data-akcja="ksiazka"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.wcisk { transition: transform .45s ease !important; transform: scale(.93) !important; }
+.wcisk .okl { box-shadow: 0 0 0 3px var(--zloto), 0 12px 24px -10px rgba(0,0,0,.5); }
+.arkusz-menu .arkusz-gora { min-height: 0; }
+.menu-ks { display: flex; gap: 12px; align-items: center; padding: 0 0 10px; border-bottom: 1px solid var(--linia); }
+.menu-lista { list-style: none; margin: 6px 0 0; padding: 0; }
+.menu-lista li { animation: wjazd .28s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 25ms); }
+.menu-poz { width: 100%; display: flex; align-items: center; gap: 14px; padding: 13px 6px; border: 0; border-bottom: 1px solid var(--linia); background: none; color: var(--tusz); font: inherit; font-size: 16px; text-align: left; cursor: pointer; border-radius: 8px; }
+.menu-poz:active { background: var(--pole); }
+.menu-ik { width: 26px; text-align: center; font-size: 19px; }
+.menu-poz.ryzyko { color: var(--zle); font-weight: 600; }
+.menu-poz.ryzyko-lekkie { color: var(--zle); }
+/* znikanie i przenoszenie */
+.znika { animation: znika .26s ease forwards; }
+@keyframes znika { to { opacity: 0; transform: scale(.7); } }
+.odlatuje { animation: odlatuje .26s ease-in forwards; }
+@keyframes odlatuje { to { opacity: 0; transform: translate(40px, -30px) rotate(8deg) scale(.8); } }
+@media (max-width: 360px) { .sowka-karta { grid-template-columns: 84px 1fr; } .sowka-svg { width: 84px; height: 92px; } }
+
+/* ================= wersja 2.16: świat Sówki i Zakładki ================= */
+.sowka-karta { grid-template-columns: 128px 1fr; }
+.sowka-scena { position: relative; width: 128px; height: 120px; }
+.sowka-scena .sowka { position: absolute; left: 0; top: 4px; }
+.zakl-postac { position: absolute; right: -4px; bottom: 0; width: 34px; height: 58px; padding: 0; border: 0; background: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.zakladka-svg { width: 34px; height: 58px; overflow: visible; animation: zakl-kolys 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
+@keyframes zakl-kolys { 50% { transform: rotate(-5deg); } }
+.zakl-postac.skok .zakladka-svg { animation: zakl-skok .6s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes zakl-skok { 35% { transform: translateY(-18px) rotate(10deg); } 70% { transform: translateY(0) rotate(-6deg); } }
+.z-cialo { fill: #c8283f; } .z-polysk { stroke: rgba(255,255,255,.35); stroke-width: 3; stroke-linecap: round; }
+.z-oko { fill: #1e1712; } .z-usta, .z-brew, .z-zamk { fill: none; stroke: #1e1712; stroke-width: 2; stroke-linecap: round; }
+.z-rumieniec { fill: #ff9ab0; opacity: .7; } .z-reka { fill: none; stroke: #c8283f; stroke-width: 4; stroke-linecap: round; }
+.z-reka-mach { transform-origin: 4px 46px; animation: zakl-mach .7s ease-in-out infinite alternate; }
+@keyframes zakl-mach { to { transform: rotate(-30deg); } }
+.z-oczy { animation: zakl-mrug 4.5s infinite; transform-origin: 20px 30px; transform-box: view-box; }
+@keyframes zakl-mrug { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+.zakl-dymek { position: absolute; right: -6px; bottom: 64px; z-index: 3; width: max-content; max-width: 190px; padding: 7px 10px; border-radius: 12px 12px 4px 12px; background: #c8283f; color: #fff; font-size: 12.5px; font-weight: 600; line-height: 1.35; box-shadow: 0 8px 18px -10px rgba(0,0,0,.6); }
+.zakl-dymek.nowy { animation: wjazd .3s cubic-bezier(.2, .8, .2, 1); }
+.sowka-opcje { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip-m { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: transform .12s; }
+.chip-m:active { transform: scale(.93); }
+.chip-m .kropka { min-width: 16px; height: 16px; font-size: 10px; }
+.sowka-puenta { margin-left: 4px; vertical-align: 1px; }
+.sowka-karta.smieje .sowka-svg { animation: smiech .14s linear 7; }
+@keyframes smiech { 50% { transform: rotate(-4deg) translateY(-2px); } }
+.sowka-karta.mysli .sowka-svg { animation: mysli 1.2s ease-in-out; }
+@keyframes mysli { 40% { transform: rotate(-8deg); } }
+.sowka-karta.skacze .sowka-svg { animation: skok .6s cubic-bezier(.3, 1.6, .5, 1) 2; }
+@media (max-width: 360px) { .sowka-karta { grid-template-columns: 104px 1fr; } .sowka-scena { width: 104px; } }
+/* historia */
+.hist-postep { display: grid; gap: 4px; margin: 10px 0 14px; padding: 12px; border-radius: 14px; background: var(--pole); border: 1px solid var(--linia); font-weight: 600; font-size: 14px; }
+.hist-postep small { color: var(--cichy); font-weight: 500; }
+.hist-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hist-rozdz { width: 100%; display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; padding: 8px; border-radius: 14px; border: 1px solid var(--linia); background: var(--pole); color: var(--tusz); text-align: left; cursor: pointer; }
+.hist-rozdz.zamkniety { opacity: .6; cursor: default; }
+.hist-mini { width: 120px; aspect-ratio: 360 / 220; border-radius: 10px; overflow: hidden; background: var(--hm0); display: grid; place-items: center; }
+.hist-mini svg { width: 100%; height: 100%; display: block; }
+.hist-klodka { font-size: 26px; }
+.hist-tekst { display: flex; flex-direction: column; gap: 2px; font-size: 15px; }
+.hist-tekst small { color: var(--cichy); font-size: 12.5px; }
+.nowy-znak { color: var(--wstazka); }
+.hist-naglowek { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 8px; }
+.klatka { border-radius: 16px; overflow: hidden; background: #000; cursor: pointer; box-shadow: 0 14px 30px -18px rgba(0,0,0,.7); }
+.klatka-svg { display: block; width: 100%; height: auto; }
+.klatka-tekst { margin: 0; padding: 12px 14px 14px; background: #fbf6e9; color: #2a1f16; font-family: var(--font-ksiazka); font-size: 16px; line-height: 1.45; min-height: 4.4em; }
+.klatka.wyjscie-l { animation: kl-wyjscie-l .18s ease-in forwards; } .klatka.wyjscie-p { animation: kl-wyjscie-p .18s ease-in forwards; }
+.klatka.wejscie-p { animation: kl-wejscie-p .34s cubic-bezier(.2, .8, .2, 1); } .klatka.wejscie-l { animation: kl-wejscie-l .34s cubic-bezier(.2, .8, .2, 1); }
+@keyframes kl-wyjscie-l { to { opacity: 0; transform: translateX(-30px) scale(.97); } }
+@keyframes kl-wyjscie-p { to { opacity: 0; transform: translateX(30px) scale(.97); } }
+@keyframes kl-wejscie-p { from { opacity: 0; transform: translateX(30px) scale(.97); } }
+@keyframes kl-wejscie-l { from { opacity: 0; transform: translateX(-30px) scale(.97); } }
+.kl-postac { animation: kl-bob 2.6s ease-in-out infinite; }
+.kl-postac + .kl-postac { animation-delay: .6s; }
+@keyframes kl-bob { 50% { transform: translateY(-4px); } }
+.kl-rekw { animation: kl-rekw 3s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes kl-rekw { 50% { transform: translateY(-3px) rotate(4deg); } }
+.krople path { animation: deszcz .7s linear infinite; }
+@keyframes deszcz { to { transform: translate(-6px, 24px); opacity: .2; } }
+.fala { animation: fala 4s ease-in-out infinite; } .fala.f2 { animation-duration: 3s; animation-direction: reverse; }
+@keyframes fala { 50% { transform: translateX(-14px); } }
+.gw { animation: migotanie 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.hist-sterowanie { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0; }
+.hist-kropki { display: flex; gap: 6px; }
+.hist-kropki i { width: 8px; height: 8px; border-radius: 50%; background: var(--linia); transition: background .2s, transform .2s; }
+.hist-kropki i.akt { background: var(--wstazka); transform: scale(1.3); }
+@media (prefers-reduced-motion: reduce) { .kl-postac, .kl-rekw, .krople path, .fala, .gw, .zakladka-svg { animation: none !important; } }
