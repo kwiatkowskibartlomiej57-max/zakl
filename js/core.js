@@ -1,9 +1,9 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.12.0';
+const WERSJA = '2.13.0';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
-const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true };
+const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [] };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
 
@@ -90,6 +90,8 @@ function normalizujKsiazke(k = {}) {
     tom: +k.tom > 0 ? Math.round(+k.tom * 10) / 10 : null,
     odlozono: poprawnaData(k.odlozono) ? k.odlozono : null,
     pula: !!k.pula,
+    kategorie: (Array.isArray(k.kategorie) ? k.kategorie : []).map(String).filter(x => KATEGORIE.some(c => c.id === x)).slice(0, 4),
+    listy: (Array.isArray(k.listy) ? k.listy : []).map(String).slice(0, 10),
     rodzaj: k.rodzaj === 'techniczna' ? 'techniczna' : 'zwykla',
     celRozdzialow: ogranicz(Math.round(+k.celRozdzialow) || 0, 0, 30),
     rozdzialy: (Array.isArray(k.rozdzialy) ? k.rozdzialy : []).filter(r => r && String(r.tytul || '').trim()).slice(0, 200)
@@ -163,6 +165,8 @@ function normalizujUstawienia(u = {}) {
   w.losIle = ogranicz(Math.round(+u.losIle) || 3, 1, 8);
   w.budzet = +u.budzet > 0 ? Math.round(+u.budzet) : 0;
   w.cenyAuto = u.cenyAuto !== false;
+  w.listyZyczen = (Array.isArray(u.listyZyczen) ? u.listyZyczen : []).filter(l => l && String(l.nazwa || '').trim()).slice(0, 20)
+    .map(l => ({ id: String(l.id || noweId()), nazwa: String(l.nazwa).trim().slice(0, 40), emoji: String(l.emoji || '📚').slice(0, 4) }));
   const od = u.odkrywaj || {};
   w.odkrywaj = { tak: (Array.isArray(od.tak) ? od.tak : []).map(String).slice(-500), nie: (Array.isArray(od.nie) ? od.nie : []).map(String).slice(-1000) };
   w.losowania = {};
@@ -254,7 +258,9 @@ function ustawStrone(k, wartosc, data = dzisISO()) {
 
 function ustawBazowa(k, celData) {
   const zmienione = [k];
-  for (const b of Z.ksiazki) if (b.bazowa && b !== k) { b.bazowa = false; zmienione.push(b); }
+  // można mieć kilka bazowych (np. dwie grube książki naraz); powyżej limitu zdejmujemy najstarszą
+  const inne = bazowe().filter(b => b !== k);
+  if (inne.length >= MAKS_BAZOWYCH) { const naj = inne.sort((a, b) => (a.planOd ? a.planOd.data : '').localeCompare(b.planOd ? b.planOd.data : ''))[0]; naj.bazowa = false; zmienione.push(naj); }
   zacznijCzytac(k);
   k.bazowa = true;
   k.celData = celData;
@@ -301,7 +307,9 @@ function przesunWKolejce(k, kierunek) {
 }
 
 /* ---------- obliczenia ---------- */
-const bazowa = () => Z.ksiazki.find(k => k.bazowa && k.status === 'czytam') || null;
+const MAKS_BAZOWYCH = 3;
+const bazowe = () => Z.ksiazki.filter(k => k.bazowa && k.status === 'czytam').sort((a, b) => (a.celData || '').localeCompare(b.celData || ''));
+const bazowa = () => bazowe()[0] || null;
 
 function ostatniaAktywnosc(k) {
   return k.log.reduce((a, w) => (w.data > a ? w.data : a), k.start || k.dodano);
@@ -936,10 +944,8 @@ function normaBazowejDnia(k, d) {
 }
 /** Automatyczne wpisy książki bazowej na każdy dzień tygodnia. */
 function wpisyBazowej(pn) {
-  const k = bazowa();
-  if (!k) return [];
   const wyj = [];
-  for (let i = 0; i < 7; i++) {
+  for (const k of bazowe()) for (let i = 0; i < 7; i++) {
     const d = dodajDni(pn, i), n = normaBazowejDnia(k, d);
     if (n > 0) wyj.push({ id: k.id, dzien: d, strony: n, minuty: 0, auto: 'bazowa', k, i: -1 });
   }
@@ -947,8 +953,8 @@ function wpisyBazowej(pn) {
 }
 /** Plan tygodnia razem ze stałymi planami, automatyczną normą bazowej i stanem każdego wpisu. */
 function planTygodniaPelny(pn = poczatekTygodnia()) {
-  const b = bazowa();
-  return [...planTygodnia(pn).filter(e => !e.ukryty && !(b && e.id === b.id)), ...wpisyStale(pn).filter(e => !(b && e.id === b.id)), ...wpisyBazowej(pn)]
+  const bz = new Set(bazowe().map(b => b.id));
+  return [...planTygodnia(pn).filter(e => !e.ukryty && !bz.has(e.id)), ...wpisyStale(pn).filter(e => !bz.has(e.id)), ...wpisyBazowej(pn)]
     .map(e => ({ ...e, ...stanWpisuPelny(e, pn) }));
 }
 
@@ -995,8 +1001,9 @@ function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkla
   const dni = [];
   for (let d = start; d <= nd; d = dodajDni(d, 1)) dni.push(d);
   // czas zajęty przez książkę bazową (jej norma liczy się sama) odejmujemy od czasu dnia
-  const baz = bazowa();
-  const rezerwa = dni.map(d => baz ? minutZeStron(normaBazowejDnia(baz, d)) : 0);
+  const bz = bazowe(), baz = bz[0] || null;
+  const normaDnia = d => bz.reduce((s, b) => s + normaBazowejDnia(b, d), 0);
+  const rezerwa = dni.map(d => minutZeStron(normaDnia(d)));
   const czasDnia0 = dni.map(d => czasy[dzienTygodnia(d)] || 0);
   let wagi = czasDnia0.map((c, i) => Math.max(0, c - rezerwa[i]));
   const bazowaZjada = czasDnia0.some(v => v > 0) && !wagi.some(v => v > 0);
@@ -1006,7 +1013,7 @@ function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkla
   const sumaW = wagi.reduce((a, b) => a + b, 0);
   const ksiazki = ids.map(znajdz).filter(k => k && zostaloStron(k) > 0 && !k.bazowa);
   const razem = ksiazki.reduce((s, k) => s + zostaloStron(k), 0);
-  const bazInfo = baz ? { k: baz, strony: dni.reduce((s, d) => s + normaBazowejDnia(baz, d), 0), min: rezerwa.reduce((a, b) => a + b, 0) } : null;
+  const bazInfo = baz ? { k: baz, lista: bz, strony: dni.reduce((s, d) => s + normaDnia(d), 0), min: rezerwa.reduce((a, b) => a + b, 0) } : null;
   if (!razem) return { ...pusty, dni, baz: bazInfo, rezerwa };
   const naDzien = [];
   let nar = 0;
@@ -1047,7 +1054,7 @@ function obliczRozklad(pn, ids, { od = dzisISO(), tryb = Z.ustawienia.trybRozkla
     wpisy, dni, strony: razem, zaplanowane, potrzebaMin, maszMin, bezCzasu, dniAktywne, limit: limit && !bezCzasu,
     za_duzo: maszMin > 0 && potrzebaMin > maszMin * 1.1,
     minutDziennie: Math.ceil(potrzebaMin / Math.max(1, dniAktywne)),
-    naDzien: dni.map((d, i) => ({ d, strony: naDzien[i], min: czasDnia0[i], rezerwa: rezerwa[i], baz: baz ? normaBazowejDnia(baz, d) : 0 })),
+    naDzien: dni.map((d, i) => ({ d, strony: naDzien[i], min: czasDnia0[i], rezerwa: rezerwa[i], baz: normaDnia(d) })),
     koniec, czesc, baz: bazInfo, bazowaZjada, rezerwa
   };
 }
@@ -1218,4 +1225,36 @@ function nastepnaKsiazka() {
   if (mies) return { k: mies, powod: 'w planie miesiąca' };
   const k = kolejka().find(x => !czyTechniczna(x));
   return k ? { k, powod: 'pierwsza w kolejce' } : null;
+}
+
+/* ---------- kategorie (wersja 2.13) ---------- */
+const KATEGORIE = [
+  { id: 'fantasy', nazwa: 'Fantasy', emoji: '🐉', wz: /fantasy|fantastyk(?!a naukowa)|baśń|magi|wiedźmin|smok|elf/, ol: 'fantasy' },
+  { id: 'scifi', nazwa: 'Sci-fi', emoji: '🚀', wz: /science fiction|sci-?fi|fantastyka naukowa|kosm|cyberpunk|space/, ol: 'science fiction' },
+  { id: 'kryminal', nazwa: 'Kryminał', emoji: '🔍', wz: /kryminał|kryminal|detekty|mystery|crime|zbrodni|śledztw/, ol: 'detective and mystery stories' },
+  { id: 'thriller', nazwa: 'Thriller', emoji: '🔪', wz: /thriller|sensacj|suspense|szpieg/, ol: 'thriller' },
+  { id: 'horror', nazwa: 'Horror', emoji: '👻', wz: /horror|groza|grozy|nadprzyrodz/, ol: 'horror' },
+  { id: 'romans', nazwa: 'Romans', emoji: '💕', wz: /romans|romance|miłos|love stor/, ol: 'love stories' },
+  { id: 'humor', nazwa: 'Komedia', emoji: '😂', wz: /humor|komedi|satyr|humorystycz|zabawn/, ol: 'humor' },
+  { id: 'obyczaj', nazwa: 'Obyczajowa', emoji: '🏡', wz: /obyczaj|domestic|społeczn|social fiction|rodzin/, ol: 'domestic fiction' },
+  { id: 'historia', nazwa: 'Historyczna', emoji: '🏰', wz: /histor/, ol: 'historical fiction' },
+  { id: 'przygoda', nazwa: 'Przygodowa', emoji: '🧭', wz: /przygod|adventure/, ol: 'adventure stories' },
+  { id: 'reportaz', nazwa: 'Reportaż', emoji: '📰', wz: /reportaż|reportaz|literatura faktu|non-?fiction|dziennikarst/, ol: 'reportage' },
+  { id: 'biografia', nazwa: 'Biografia', emoji: '👤', wz: /biograf|wspomnien|memoir|pamiętnik/, ol: 'biography' },
+  { id: 'nauka', nazwa: 'Popularnonaukowa', emoji: '🔬', wz: /popularnonauk|nauka|popular science|psycholog(?!iczn)|ekonomi|filozof/, ol: 'popular science' },
+  { id: 'poradnik', nazwa: 'Poradnik', emoji: '💡', wz: /poradnik|rozwój|self-?help|produktywn|zdrow/, ol: 'self-help' },
+  { id: 'mlodziez', nazwa: 'Młodzieżowa', emoji: '🎒', wz: /młodzież|mlodziez|young adult|nastolat/, ol: 'young adult fiction' },
+  { id: 'dzieci', nazwa: 'Dla dzieci', emoji: '🧸', wz: /dziecię|dla dzieci|children|juvenile/, ol: 'juvenile fiction' },
+  { id: 'poezja', nazwa: 'Poezja', emoji: '🪶', wz: /poezj|wiersz|poetry|poemat/, ol: 'poetry' },
+  { id: 'klasyka', nazwa: 'Klasyka', emoji: '🏛️', wz: /klasyk|lektur|classic|powieść polska|literatura polska/, ol: 'classic literature' },
+  { id: 'techniczna', nazwa: 'Techniczna', emoji: '💻', wz: /programow|informatyk|technicz|inżynier|kod/, ol: 'computer programming' }
+];
+const kategoria = id => KATEGORIE.find(c => c.id === id) || null;
+/** Kategorie książki: wybrane ręcznie albo rozpoznane z tagów, gatunku z Wikidata i rodzaju. */
+function kategorieKsiazki(k) {
+  if (k.kategorie && k.kategorie.length) return k.kategorie;
+  const tekst = [...(k.tagi || []), ...((k.fakty && k.fakty.gatunek) || []), ...((k.fakty && k.fakty.temat) || [])].join(' ').toLowerCase();
+  const wyn = KATEGORIE.filter(c => c.wz.test(tekst)).map(c => c.id);
+  if (k.rodzaj === 'techniczna' && !wyn.includes('techniczna')) wyn.push('techniczna');
+  return wyn.slice(0, 3);
 }

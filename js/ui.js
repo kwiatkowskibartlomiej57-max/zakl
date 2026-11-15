@@ -362,7 +362,7 @@ function widokDzis() {
     ? `<div class="baner baner-seria"><p>${I.plomien}<span>Twoja seria <strong>${ile(seria, FORMY_DNI)}</strong> skończy się o północy. Wystarczy jedna strona, żeby ją utrzymać.</span></p>
       ${doZapisu ? `<div class="przyciski"><button type="button" class="btn btn-glowny" data-akcja="postep" data-id="${doZapisu.id}">Zapisz postęp</button><button type="button" class="btn" data-akcja="sesja" data-id="${doZapisu.id}">${I.zegar}Sesja</button></div>` : ''}</div>` : '';
   return `${stosBanerow([banerPozyczek(), zagrozona, banery(), banerLosowania()])}
-  <section class="powitanie">
+  <section class="powitanie">${scenaPory()}
     <p class="powitanie-data">${dataDzis()}</p>
     <h1>${powitanie()}</h1>
   </section>
@@ -375,7 +375,7 @@ function widokDzis() {
       <p class="cichy">${brak <= 0 ? 'Dzienny cel zrobiony.' : `Do dziennego celu brakuje ${ile(brak, FORMY_STRON_D)}.`}</p>
     </div>
   </section>
-  ${baz ? blokBazowej(baz) : blokBezBazowej()}
+  ${blokiBazowych()}
   ${blokPlanuDnia()}
   <section class="sekcja">
     <div class="sekcja-gora"><h2>Czytam też</h2>${pob.length ? `<span class="licznik">${pob.length}</span>` : ''}</div>
@@ -391,7 +391,9 @@ function widokDzis() {
       <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(nast.tytul)}</span><span class="wiersz-autor">${esc(nast.autor)}${nast.autor ? ', ' : ''}${ile(nast.strony, FORMY_STRON)}</span><span class="wiersz-info">${esc(nastI.powod)}</span></span></button>
       <button type="button" class="btn" data-akcja="zacznij" data-id="${nast.id}">Zacznij</button></div>
   </section>` : ''}
-  ${cytatDnia()}`;
+  ${cytatDnia()}
+  ${htmlCiekawostki()}
+  ${htmlMuzyki()}`;
 }
 
 /* ================= widok: Biblioteka ================= */
@@ -421,6 +423,8 @@ function htmlSiatki() {
   let lista = U.pozyczone ? pozyczoneKsiazki() : Z.ksiazki.filter(k => k.status === U.polka);
   if (q) lista = lista.filter(k => `${k.tytul} ${k.autor} ${k.tagi.join(' ')} ${k.isbn} ${k.seria}`.toLowerCase().includes(q));
   if (U.tag) lista = lista.filter(k => k.tagi.includes(U.tag));
+  if (U.kategoria) lista = lista.filter(k => kategorieKsiazki(k).includes(U.kategoria));
+  if (U.polka === 'zyczenia' && U.listaZ && !U.pozyczone) lista = lista.filter(k => k.listy.includes(U.listaZ));
   if (!U.pozyczone) lista = sortuj(lista);
   if (!lista.length) {
     if (q || U.tag) return '<p class="pusto">Nic nie pasuje do wyszukiwania.</p>';
@@ -457,6 +461,8 @@ function widokBiblioteka() {
     <label class="pole-szukaj">${I.szukaj}<input type="search" id="szukaj-bib" placeholder="Szukaj: tytuł, autor, tag" value="${esc(U.szukaj)}" aria-label="Szukaj w bibliotece"></label>
     <select id="sort-bib" aria-label="Sortowanie">${Object.entries(SORTY).map(([v, n]) => `<option value="${v}"${U.sort === v ? ' selected' : ''}>${n}</option>`).join('')}</select>
   </div>
+  ${U.polka === 'zyczenia' && !U.pozyczone ? htmlListZyczen() : ''}
+  ${htmlFiltraKategorii(U.pozyczone ? pozyczoneKsiazki() : Z.ksiazki.filter(k => k.status === U.polka))}
   ${tagi.length ? `<div class="tagi-filtr">${tagi.map(t => `<button type="button" class="tag${U.tag === t ? ' wybrany' : ''}" data-akcja="tag" data-tag="${esc(t)}" aria-pressed="${U.tag === t}">${esc(t)}</button>`).join('')}</div>` : ''}
   ${pozyczoneKsiazki().length ? `<div class="tagi-filtr"><button type="button" class="tag tag-pozyczone${U.pozyczone ? ' wybrany' : ''}" data-akcja="pozyczone-filtr" aria-pressed="${!!U.pozyczone}">${I.reka}Pożyczone (${pozyczoneKsiazki().length})</button></div>` : ''}
   ${U.pozyczone ? '<p class="cichy pozyczone-info">Wszystkie pożyczone książki, z każdej półki. Najdłużej pożyczone są pierwsze.</p>' : ''}
@@ -697,7 +703,7 @@ function widokUstawienia() {
       <p>Serwer Biblioteki Narodowej nie odpowiada aplikacjom w przeglądarce bezpośrednio, więc potrzebny jest mały pośrednik.</p>
       <ul><li><strong>Twój serwer z PHP (np. Apache):</strong> plik <code>bn.php</code> leży już obok aplikacji i działa sam. To pole zostaw puste.</li>
         <li><strong>GitHub Pages:</strong> załóż darmowy Cloudflare Worker z pliku <code>proxy/cloudflare-worker.js</code> (instrukcja jest na górze pliku) i wklej tu jego adres.</li></ul></details>
-    <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz</button><button type="button" class="btn" data-akcja="test-zrodel">Sprawdź źródła</button></div>
+    <div class="przyciski"><button type="submit" class="btn btn-glowny">Zapisz</button><button type="button" class="btn" data-akcja="test-zrodel">Sprawdź źródła</button><button type="button" class="btn" data-akcja="worker">Zaktualizuj workera (ceny)</button></div>
     <ul id="stan-zrodel" class="stan-zrodel" hidden></ul>
   </form>
   <section class="grupa"><h2>Cele na poszczególne miesiące</h2>${htmlCelowMiesiecy()}</section>
@@ -945,6 +951,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       <p class="podpowiedz f-audio"${k.format === 'audio' ? '' : ' hidden'}>Przy audiobooku wpisz liczbę stron wydania papierowego, a postęp zapisuj w stronach albo procentach tej liczby.</p>
       <label>Tagi<input name="tagi" value="${esc(k.tagi.join(', '))}" placeholder="np. historia, reportaż" autocomplete="off"></label>
       <p class="podpowiedz">Oddziel przecinkami.</p>
+      ${htmlWyboruKategorii(k)}
       ${edytowana ? '' : `<fieldset class="segment"><legend>Gdzie odłożyć</legend>
         ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}${radio('gdzie', 'zyczenia', 'Lista życzeń', jako === 'zyczenia')}${radio('gdzie', 'pozniej', 'Na później', jako === 'pozniej')}</fieldset>
         <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>`}
@@ -1062,6 +1069,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       tytul, autor: el('autor').value.trim(), strony, isbn: el('isbn').value.replace(/[^\dXx]/g, ''),
       format: f.elements.format.value, tagi: el('tagi').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), okladka: okl,
       rodzaj: f.elements.techniczna.checked ? 'techniczna' : 'zwykla',
+      kategorie: $$('[name="kat"]:checked', f).map(x => x.value).slice(0, 3),
       seria: el('seria').value.trim().slice(0, 80), tom: +el('tom').value > 0 ? Math.round(+el('tom').value * 10) / 10 : null
     };
     if (edytowana) {
@@ -1081,7 +1089,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     let zmienione = [nowa];
     const gdzie = f.elements.gdzie.value;
     if (gdzie === 'czytam') zacznijCzytac(nowa);
-    if (gdzie === 'zyczenia') naListeZyczen(nowa);
+    if (gdzie === 'zyczenia') { naListeZyczen(nowa); if (U.listaZ) nowa.listy = [U.listaZ]; }
     if (gdzie === 'pozniej') odlozNaPozniej(nowa);
     if (gdzie === 'bazowa') {
       const mies = Math.max(0.5, parseFloat(String(el('miesiace').value).replace(',', '.')) || 2);
@@ -1288,7 +1296,7 @@ function arkuszBazowej(id) {
       <fieldset class="segment"><legend>Na ile czasu</legend>${[1, 2, 3, 4, 6].map(m => radio('okres', m, `${m} mies.`, !k.bazowa && m === 2)).join('')}${radio('okres', 'data', 'Data', k.bazowa)}</fieldset>
       <label class="f-data"${k.bazowa ? '' : ' hidden'}>Skończyć do<input type="date" name="data" min="${dzis}" value="${domyslna}"></label>
       <p class="podsumowanie" aria-live="polite"></p>
-      ${k.bazowa ? '' : (bazowa() ? `<p class="podpowiedz">Obecna bazowa, „${esc(bazowa().tytul)}”, zostanie zwykłą czytaną książką.</p>` : '')}
+      ${k.bazowa ? '' : (bazowe().length ? `<p class="podpowiedz">${bazowe().length >= MAKS_BAZOWYCH ? `Masz już ${MAKS_BAZOWYCH} bazowe, więc „${esc(bazowe().slice().sort((a, b) => (a.planOd ? a.planOd.data : '').localeCompare(b.planOd ? b.planOd.data : ''))[0].tytul)}” stanie się zwykłą czytaną.` : `Będzie to twoja ${bazowe().length + 1}. książka bazowa. Normy wszystkich sumują się w planie dnia.`}</p>` : '')}
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">${k.bazowa ? 'Zapisz termin' : 'Ustaw jako bazową'}</button></div>
     </form>`
   });
@@ -1327,9 +1335,9 @@ function arkuszWyboruBazowej() {
   const lista = Z.ksiazki.filter(k => (k.status === 'czytam' && !k.bazowa) || k.status === 'doPrzeczytania').sort((a, b) => b.strony - a.strony);
   const a = arkusz({
     tytul: 'Wybierz książkę bazową', klasa: 'arkusz-maly',
-    render: () => lista.length ? `<p class="cichy">Najlepiej sprawdza się długa książka, którą chcesz czytać po trochu każdego dnia.</p>
+    render: () => lista.length ? `<p class="cichy">Bazowa to gruba książka czytana po trochu każdego dnia przez dłuższy czas, np. 500+ stron na 1–3 miesiące. Możesz mieć do ${MAKS_BAZOWYCH} naraz.</p>
       <ul class="lista">${lista.map(k => `<li class="wiersz"><button type="button" class="wiersz-glowny" data-wybierz="${k.id}">${okladka(k, 's')}
-        <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor)}${k.autor ? ', ' : ''}${ile(k.strony, FORMY_STRON)}${k.status === 'czytam' ? ', czytasz' : ''}</span></span></button></li>`).join('')}</ul>`
+        <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor)}${k.autor ? ', ' : ''}${ile(k.strony, FORMY_STRON)}${k.status === 'czytam' ? ', czytasz' : ''}${k.strony >= 500 ? ' · <span class="ok">gruba, idealna na bazową</span>' : ''}</span></span></button></li>`).join('')}</ul>`
       : `<p>Nie masz jeszcze książek do wyboru.</p><div class="przyciski"><button type="button" class="btn btn-glowny" data-akcja="dodaj" data-jako="bazowa">Dodaj książkę</button></div>`
   });
   a.tresc.addEventListener('click', e => {
@@ -1350,12 +1358,31 @@ function arkuszCytatu(id, cid = null) {
       <p class="cichy">${esc(k.tytul)}</p>
       <fieldset class="segment"><legend class="sr">Rodzaj</legend>${radio('rodzaj', 'cytat', 'Cytat', !c || !c.notatka)}${radio('rodzaj', 'notatka', 'Moja notatka', !!(c && c.notatka))}</fieldset>
       <label>Treść<textarea name="tekst" rows="5" required autofocus placeholder="Przepisz zdanie albo zapisz swoją myśl">${esc(c ? c.tekst : '')}</textarea></label>
+      <div class="ocr"><label class="btn btn-maly">📷 Tekst ze zdjęcia strony<input type="file" accept="image/*" capture="environment" data-ocr hidden></label><span class="cichy" data-ocr-stan></span></div>
       <label class="pole-waskie">Strona<input name="strona" type="number" inputmode="numeric" min="1" max="${k.strony}" value="${c ? (c.strona || '') : (k.strona || '')}"></label>
       <div class="przyciski przyciski-koniec">${c ? '<button type="button" class="btn btn-ryzyko" data-usun-cytat>Usuń</button>' : ''}
         <button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
     </form>`
   });
   const f = $('form', a.tresc);
+  $('[data-ocr]', f).addEventListener('change', async e => {
+    const plik = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!plik) return;
+    const st = $('[data-ocr-stan]', f);
+    st.classList.add('ladowanie');
+    st.textContent = 'Pobieram czytnik tekstu (tylko za pierwszym razem)…';
+    try {
+      const w = await tekstZeZdjecia(plik, (proc, status) => { st.textContent = proc != null ? `Czytam stronę… ${proc}%` : status && /load|init/.test(status) ? 'Przygotowuję polski słownik…' : st.textContent; });
+      const pole = f.elements.namedItem('tekst');
+      pole.value = w.tekst;
+      if (w.strona && !+f.elements.namedItem('strona').value) f.elements.namedItem('strona').value = w.strona;
+      st.textContent = `Gotowe (pewność ${w.pewnosc}%). Usuń to, czego nie chcesz w cytacie.`;
+      pole.focus();
+      if (navigator.vibrate) navigator.vibrate(20);
+    } catch (err) { st.textContent = err.message || 'Nie udało się odczytać tekstu.'; }
+    st.classList.remove('ladowanie');
+  });
   f.addEventListener('submit', e => {
     e.preventDefault();
     const tekst = f.elements.namedItem('tekst').value.trim();
@@ -3484,6 +3511,7 @@ function htmlZyczenia(k) {
   const okaz = czyOkazja(k);
   const min = k.ceny.length ? Math.min(...k.ceny.map(c => c.cena)) : null;
   return `<section class="kd-sekcja kd-zyczenia"><div class="sekcja-gora"><h3>Lista życzeń</h3>${okaz ? '<span class="znacznik-okazja">okazja!</span>' : ''}</div>
+    ${htmlListKsiazki(k)}
     <div class="f-rzad"><label>Aktualna cena (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cena" data-id="${k.id}" value="${k.cena ?? ''}" placeholder="np. 39,90"></label>
       <label>Kupię za max. (zł)<input type="number" inputmode="decimal" min="0" step="0.01" data-pole-zycz="cenaDocelowa" data-id="${k.id}" value="${k.cenaDocelowa ?? ''}" placeholder="cena docelowa"></label></div>
     <div class="f-rzad"><label>Priorytet<select data-pole-zycz="priorytet" data-id="${k.id}">${[[0, 'zwykły'], [1, '♥ chcę'], [2, '♥♥ bardzo chcę'], [3, '♥♥♥ muszę mieć']].map(([v, n]) => `<option value="${v}"${k.priorytet === v ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
@@ -3521,8 +3549,9 @@ function naglowekPolki() {
 }
 
 function tekstListyZyczen() {
-  const l = listaZyczen();
-  return ['Moja lista życzeń książkowych 📚', '', ...l.map(k => `• ${k.tytul}${k.autor ? ` — ${k.autor}` : ''}${k.cena ? ` (ok. ${zl(k.cena)})` : ''}${k.okazja && k.okazja !== 'kupię sam' ? ` [${k.okazja}]` : ''}${k.link ? `\n  ${k.link}` : ''}`), '', '— z aplikacji Zakładka'].join('\n');
+  const lz = U.listaZ && Z.ustawienia.listyZyczen.find(x => x.id === U.listaZ);
+  const l = listaZyczen().filter(k => !lz || k.listy.includes(lz.id));
+  return [lz ? `${lz.emoji} ${lz.nazwa}` : 'Moja lista życzeń książkowych 📚', '', ...l.map(k => `• ${k.tytul}${k.autor ? ` — ${k.autor}` : ''}${k.cena ? ` (ok. ${zl(k.cena)})` : ''}${k.okazja && k.okazja !== 'kupię sam' ? ` [${k.okazja}]` : ''}${k.link ? `\n  ${k.link}` : ''}`), '', '— z aplikacji Zakładka'].join('\n');
 }
 
 function arkuszZakupu(id) {
@@ -3792,8 +3821,8 @@ async function uzupelnijOpis(k, { cicho = false } = {}) {
     const w = await Wyszukiwarka.opisPro(k);
     if (w) {
       if (w.opis && (k.opisZrodlo !== 'własny' || !k.opis)) { k.opis = w.opis; k.opisZrodlo = w.zrodlo; }
-      k.fabula = w.fabula || k.fabula;
-      k.fakty = { ...k.fakty, ...w.fakty };
+      k.fabula = w.fabula || '';
+      k.fakty = { ...w.fakty }; // zastępujemy, żeby zniknęły fakty z błędnie dopasowanego artykułu
       k.opisLinki = w.zrodla;
       // gatunek z Wikidata jako tag, cykl jako seria — jeśli ich jeszcze nie ma
       if (!k.tagi.length && w.fakty.gatunek) k.tagi = w.fakty.gatunek.slice(0, 2).map(t => t.toLowerCase()).filter(t => t.length < 30);
@@ -3803,6 +3832,14 @@ async function uzupelnijOpis(k, { cicho = false } = {}) {
       return true;
     }
   } catch (e) { console.warn(e); }
+  if (!cicho && k.opisZrodlo !== 'własny' && (Object.keys(k.fakty || {}).length || k.fabula)) {
+    // ręczne odświeżenie bez wyniku: usuń stare (prawdopodobnie błędne) dane z internetu
+    k.fakty = {}; k.fabula = ''; k.opisLinki = [];
+    if (k.opisZrodlo === 'Wikipedia') { k.opis = ''; k.opisZrodlo = ''; }
+    utrwal(k); odswiez();
+    toast('Nie znalazłem pewnego opisu tej książki, więc usunąłem poprzedni (mógł dotyczyć innej książki o tym tytule).', { czas: 6000 });
+    return false;
+  }
   if (stan) { stan.textContent = 'Nie znalazłem opisu w Wikipedii, Google Books ani Open Library.'; stan.classList.remove('ladowanie'); }
   return false;
 }
@@ -3835,7 +3872,7 @@ async function sprawdzCeny(k, { cicho = false } = {}) {
     else if (!cicho) toast(naj ? `„${k.tytul}”: najtaniej ${zl(naj.cena)}${tanszej ? `, o ${zl(tanszej)} taniej niż ostatnio` : ''}.` : `Brak ofert „${k.tytul}” w Ceneo.`);
     return { k, naj, tanszej };
   } catch (e) {
-    if (!cicho) toast(e.message, { typ: 'blad', czas: 7000 });
+    if (!cicho) bladCen(e);
     return { k, blad: e };
   } finally { if (box) box.classList.remove('ladowanie'); }
 }
@@ -3851,7 +3888,7 @@ async function sprawdzCenyListy({ wymus = false } = {}) {
   const wyniki = [];
   for (const k of lista) { wyniki.push(await sprawdzCeny(k, { cicho: true })); await new Promise(r => setTimeout(r, 700)); }
   const blad = wyniki.find(w => w && w.blad);
-  if (blad && wyniki.every(w => !w || w.blad)) { if (wymus) toast(blad.blad.message, { typ: 'blad', czas: 8000 }); return; }
+  if (blad && wyniki.every(w => !w || w.blad)) { if (wymus) bladCen(blad.blad); return; }
   const tansze = wyniki.filter(w => w && w.tanszej > 0), okazje = lista.filter(czyOkazja);
   if (tansze.length || okazje.length || wymus) {
     toast([`Sprawdziłem ceny ${ile(lista.length, FORMY_KSIAZEK_D)}.`, tansze.length ? `Taniej: ${tansze.map(w => `„${w.k.tytul}” (−${zl(w.tanszej)})`).join(', ')}.` : '', okazje.length ? `Okazje: ${okazje.length}!` : ''].filter(Boolean).join(' '),
@@ -3869,7 +3906,7 @@ async function zbierzPropozycje({ odNowa = false } = {}) {
   const zrodla = zrodlaGustu(6);
   const odrzucone = new Set([...Z.ustawienia.odkrywaj.nie, ...Z.ustawienia.odkrywaj.tak, ...Z.ksiazki.map(k => kluczKsiazki(k.tytul, k.autor))]);
   const tylkoTytul = new Set(Z.ksiazki.map(k => kluczKsiazki(k.tytul).split('|')[0]));
-  const listy = await Promise.all(zrodla.map(async s => {
+  const listy = U.odk.kat ? [await Wyszukiwarka.wKategorii(U.odk.kat, Z.ksiazki, U.odk.strona = odNowa ? 0 : (U.odk.strona || 0) + 1).catch(() => [])] : await Promise.all(zrodla.map(async s => {
     let p = U.podobne[s.id];
     if (!Array.isArray(p)) { try { p = await Wyszukiwarka.podobne(s, Z.ksiazki); U.podobne[s.id] = p; } catch { p = []; } }
     return p.map(x => ({ ...x, powod: s.ocena >= 4 ? `Bo ${'★'.repeat(s.ocena)} dla „${s.tytul}”` : `Podobne do „${s.tytul}”`, rodzaj: x.powod }));
@@ -3905,7 +3942,12 @@ function widokOdkrywaj() {
   const polubione = Z.ksiazki.filter(k => Z.ustawienia.odkrywaj.tak.includes(kluczKsiazki(k.tytul, k.autor))).slice(-12).reverse();
   const kl = x && kluczKsiazki(x.tytul, x.autor);
   return `<section class="naglowek-widoku"><h1>Odkrywaj</h1><button type="button" class="btn btn-maly" data-odk-odswiez${U.odk.laduje ? ' disabled' : ''}>${I.kostka}Nowe propozycje</button></section>
-  <p class="cichy odk-podstawa">${zr.length ? `Na podstawie: ${zr.slice(0, 4).map(k => `„${esc(k.tytul)}”`).join(', ')}${zr.length > 4 ? ' i innych' : ''}. Oceń więcej książek na 4–5 ★, a propozycje będą trafniejsze.` : 'Oceń kilka przeczytanych książek, a podsunę podobne.'}</p>
+  <div class="kat-filtr odk-kat" role="group" aria-label="Szukaj w kategorii">
+    <button type="button" class="kat-chip${!U.odk.kat ? ' wybrany' : ''}" data-odk-kat=""><span>♥</span>Dla ciebie</button>
+    ${KATEGORIE.filter(c => c.id !== 'techniczna').map(c => `<button type="button" class="kat-chip${U.odk.kat === c.id ? ' wybrany' : ''}" data-odk-kat="${c.id}"><span>${c.emoji}</span>${c.nazwa}</button>`).join('')}
+  </div>
+  ${U.odk.kat ? `<p class="cichy odk-podstawa">${kategoria(U.odk.kat).emoji} ${kategoria(U.odk.kat).nazwa}: polskie wydania, od najpopularniejszych. Polub ♥ to, co cię ciekawi.</p>` : ''}
+  <p class="cichy odk-podstawa"${U.odk.kat ? ' hidden' : ''}>${zr.length ? `Na podstawie: ${zr.slice(0, 4).map(k => `„${esc(k.tytul)}”`).join(', ')}${zr.length > 4 ? ' i innych' : ''}. Oceń więcej książek na 4–5 ★, a propozycje będą trafniejsze.` : 'Oceń kilka przeczytanych książek, a podsunę podobne.'}</p>
   <div class="odk-scena">
     ${x ? `${nast ? `<div class="odk-karta odk-nastepna" aria-hidden="true">${okladka({ tytul: nast.tytul, autor: nast.autor, okladka: nast.okladka }, 'l')}</div>` : ''}
       <article class="odk-karta" data-odk-karta tabindex="0" aria-label="${esc(x.tytul)}">
@@ -4011,6 +4053,10 @@ document.addEventListener('click', e => {
   const tr = t.closest('[data-los-tryb]');
   if (tr) { U.losTryb = tr.dataset.losTryb; lsSet('zakladka-los-tryb', U.losTryb); renderWidok(); return; }
   if (t.closest('[data-odk-odswiez]')) { U.odk.kolejka = []; U.podobne = {}; zbierzPropozycje({ odNowa: true }); return; }
+  const ok = t.closest('[data-odk-kat]');
+  if (ok) { U.odk.kat = ok.dataset.odkKat || null; U.odk.kolejka = []; U.odk.strona = 0; zbierzPropozycje({ odNowa: true }); return; }
+  const pl = t.closest('[data-przypisz-liste]');
+  if (pl) { const k = znajdz(pl.dataset.id), id = pl.dataset.przypiszListe; k.listy = k.listy.includes(id) ? k.listy.filter(x => x !== id) : [...k.listy, id]; utrwal(k); odswiez(); return; }
   const o = t.closest('[data-odk]');
   if (o) {
     const r = o.dataset.odk;
@@ -4036,6 +4082,263 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') decyzjaOdkrywaj('tak');
   if (e.key === 'ArrowLeft') decyzjaOdkrywaj('nie');
 });
+
+/* ---------- pomoc: aktualizacja workera Cloudflare (ceny) ---------- */
+function bladCen(e) {
+  const stary = /starą wersję|stara wersja/i.test(e.message);
+  toast(stary ? 'Ceny potrzebują nowej wersji twojego workera Cloudflare. To 2 minuty.' : e.message,
+    { typ: 'blad', czas: 9000, ...(stary ? { akcja: 'Jak naprawić', onAkcja: () => arkuszWorkera() } : {}) });
+}
+
+function arkuszWorkera() {
+  const adres = (Z.ustawienia.posrednik || POSREDNIK_BN).replace(/\/+$/, '');
+  const nazwa = (adres.match(/^https:\/\/([^.]+)\./) || [])[1] || 'twój worker';
+  const a = arkusz({
+    tytul: 'Zaktualizuj workera', klasa: 'arkusz-maly',
+    render: () => `<p>Ceny z Ceneo przechodzą przez twojego workera Cloudflare (<strong>${esc(nazwa)}</strong>). Trzeba raz wkleić do niego nowy kod. Da się to zrobić z telefonu:</p>
+      <ol class="kroki">
+        <li><button type="button" class="btn btn-glowny btn-maly" data-kopiuj-kod>${I.kopiuj}Skopiuj nowy kod</button></li>
+        <li>Otwórz <a href="https://dash.cloudflare.com/?to=/:account/workers-and-pages" target="_blank" rel="noopener">panel Cloudflare</a> i zaloguj się.</li>
+        <li>Wejdź w <strong>Workers &amp; Pages</strong>, potem <strong>${esc(nazwa)}</strong>, a następnie <strong>Edit code</strong>.</li>
+        <li>Zaznacz cały stary kod, usuń go i wklej skopiowany.</li>
+        <li>Kliknij <strong>Deploy</strong>. Adres się nie zmienia.</li>
+        <li>Wróć tutaj i kliknij: <button type="button" class="btn btn-maly" data-test-workera>Sprawdź, czy działa</button></li>
+      </ol>
+      <p class="cichy" data-wynik-workera></p>`
+  });
+  a.tresc.addEventListener('click', async e => {
+    if (e.target.closest('[data-kopiuj-kod]')) {
+      try {
+        const r = await fetch('proxy/cloudflare-worker.js', { cache: 'no-store' });
+        if (!r.ok) throw new Error();
+        await navigator.clipboard.writeText(await r.text());
+        toast('Skopiowano kod workera. Teraz wklej go w Cloudflare.');
+      } catch { toast('Nie udało się skopiować. Otwórz plik proxy/cloudflare-worker.js z repozytorium i skopiuj go ręcznie.', { typ: 'blad', czas: 8000 }); }
+    }
+    if (e.target.closest('[data-test-workera]')) {
+      const w = $('[data-wynik-workera]', a.tresc);
+      w.textContent = 'Sprawdzam…'; w.classList.add('ladowanie');
+      try {
+        const r = await fetch(`${adres}?ceny=${encodeURIComponent('Lalka Prus')}`);
+        const j = await r.json();
+        w.classList.remove('ladowanie');
+        if (Array.isArray(j.wyniki)) { w.innerHTML = `<span class="ok">${I.check}Działa! Ceneo zwróciło ${ile(j.wyniki.length, ['ofertę', 'oferty', 'ofert'])}.</span>`; konfetti({ ile: 60 }); lsSet('zakladka-ceny-dzien', null); }
+        else w.innerHTML = '<span class="zle">Worker wciąż ma starą wersję. Sprawdź, czy kliknąłeś Deploy po wklejeniu kodu.</span>';
+      } catch { w.classList.remove('ladowanie'); w.innerHTML = '<span class="zle">Worker nie odpowiada. Sprawdź adres w Ustawieniach → Wyszukiwanie książek.</span>'; }
+    }
+  });
+}
+
+/* ================= kategorie w Bibliotece (2.13) ================= */
+function htmlFiltraKategorii(lista) {
+  const licz = {};
+  for (const k of lista) for (const c of kategorieKsiazki(k)) licz[c] = (licz[c] || 0) + 1;
+  const dostepne = KATEGORIE.filter(c => licz[c.id]);
+  if (!dostepne.length) return '';
+  if (U.kategoria && !licz[U.kategoria]) U.kategoria = null;
+  return `<div class="kat-filtr" role="group" aria-label="Kategorie">${dostepne.map(c => `<button type="button" class="kat-chip${U.kategoria === c.id ? ' wybrany' : ''}" data-akcja="kategoria" data-kat="${c.id}" aria-pressed="${U.kategoria === c.id}"><span>${c.emoji}</span>${c.nazwa}<small>${licz[c.id]}</small></button>`).join('')}</div>`;
+}
+function htmlWyboruKategorii(k) {
+  const wyb = kategorieKsiazki(k);
+  return `<fieldset class="kat-wybor"><legend>Kategorie <span class="cichy">(do 3; puste = rozpoznam same z gatunku)</span></legend>
+    ${KATEGORIE.map(c => `<label class="kat-opcja"><input type="checkbox" name="kat" value="${c.id}"${wyb.includes(c.id) ? ' checked' : ''}><span>${c.emoji} ${c.nazwa}</span></label>`).join('')}</fieldset>`;
+}
+
+/* ================= wiele list życzeń (2.13) ================= */
+const EMOJI_LIST = ['📚', '🎁', '🎄', '🎂', '💸', '⭐', '🐉', '🔍', '❤️', '🏖️', '🎓', '🧸'];
+function htmlListZyczen() {
+  const listy = Z.ustawienia.listyZyczen, wszystkie = listaZyczen();
+  if (U.listaZ && !listy.some(l => l.id === U.listaZ)) U.listaZ = null;
+  return `<div class="listy-zycz" role="tablist" aria-label="Listy życzeń">
+    <button type="button" class="lista-chip${!U.listaZ ? ' wybrany' : ''}" data-akcja="lista-zycz" data-lista="">Wszystkie <small>${wszystkie.length}</small></button>
+    ${listy.map(l => `<button type="button" class="lista-chip${U.listaZ === l.id ? ' wybrany' : ''}" data-akcja="lista-zycz" data-lista="${l.id}">${l.emoji} ${esc(l.nazwa)} <small>${wszystkie.filter(k => k.listy.includes(l.id)).length}</small></button>`).join('')}
+    <button type="button" class="lista-chip lista-nowa" data-akcja="lista-edytuj">+ Nowa lista</button>
+    ${U.listaZ ? `<button type="button" class="btn-tekst" data-akcja="lista-edytuj" data-id="${U.listaZ}">Zmień listę</button>` : ''}
+  </div>`;
+}
+function arkuszListyZyczen(id = null) {
+  const l = id ? Z.ustawienia.listyZyczen.find(x => x.id === id) : null;
+  let emoji = l ? l.emoji : '🎁';
+  const a = arkusz({
+    tytul: l ? 'Zmień listę' : 'Nowa lista życzeń', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <label>Nazwa<input name="nazwa" value="${esc(l ? l.nazwa : '')}" maxlength="40" placeholder="np. Prezent na urodziny, Fantasy do kupienia" required autofocus></label>
+      <fieldset class="emoji-wybor"><legend>Ikona</legend>${EMOJI_LIST.map(e => `<button type="button" class="emoji-opcja${e === emoji ? ' wybrany' : ''}" data-emoji="${e}">${e}</button>`).join('')}</fieldset>
+      <div class="przyciski przyciski-koniec">${l ? '<button type="button" class="btn btn-ryzyko" data-usun-liste>Usuń listę</button>' : ''}<button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div></form>`
+  });
+  const f = $('form', a.tresc);
+  f.addEventListener('click', e => { const b = e.target.closest('[data-emoji]'); if (b) { emoji = b.dataset.emoji; $$('.emoji-opcja', f).forEach(x => x.classList.toggle('wybrany', x === b)); } });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const nazwa = f.elements.nazwa.value.trim();
+    if (!nazwa) { f.elements.nazwa.focus(); return; }
+    if (l) Object.assign(l, { nazwa, emoji });
+    else { const n = { id: noweId(), nazwa, emoji }; Z.ustawienia.listyZyczen.push(n); U.listaZ = n.id; }
+    utrwalUstawienia(); a.zamknij(); odswiez();
+  });
+  $('[data-usun-liste]', f)?.addEventListener('click', async () => {
+    if (!(await potwierdz(`Usunąć listę „${esc(l.nazwa)}”? Książki zostaną na liście życzeń.`, { tak: 'Usuń listę', niebezpieczne: true }))) return;
+    Z.ustawienia.listyZyczen = Z.ustawienia.listyZyczen.filter(x => x.id !== id);
+    const zm = Z.ksiazki.filter(k => k.listy.includes(id)); zm.forEach(k => { k.listy = k.listy.filter(x => x !== id); });
+    utrwal(zm); utrwalUstawienia(); U.listaZ = null; a.zamknij(); odswiez();
+  });
+}
+function htmlListKsiazki(k) {
+  const listy = Z.ustawienia.listyZyczen;
+  return `<div class="ksiazka-listy"><span class="cichy">Na listach:</span>${listy.map(l => `<button type="button" class="lista-chip maly${k.listy.includes(l.id) ? ' wybrany' : ''}" data-przypisz-liste="${l.id}" data-id="${k.id}" aria-pressed="${k.listy.includes(l.id)}">${l.emoji} ${esc(l.nazwa)}</button>`).join('')}
+    <button type="button" class="lista-chip maly lista-nowa" data-akcja="lista-edytuj">+ nowa</button></div>`;
+}
+
+/* ================= kilka książek bazowych (2.13) ================= */
+function blokiBazowych() {
+  const bz = bazowe();
+  if (!bz.length) return blokBezBazowej();
+  return bz.map(blokBazowej).join('') + (bz.length < MAKS_BAZOWYCH
+    ? `<p class="bazowa-dodaj"><button type="button" class="btn-tekst" data-akcja="wybierz-bazowa">+ Dodaj kolejną książkę bazową</button> <span class="cichy">(np. druga gruba książka czytana równolegle; maks. ${MAKS_BAZOWYCH})</span></p>` : '');
+}
+
+/* ================= Dziś: pora dnia, muzyka, ciekawostki (2.13) ================= */
+function poraDnia(h = new Date().getHours()) { return h < 5 ? 'noc' : h < 9 ? 'swit' : h < 17 ? 'dzien' : h < 21 ? 'zmierzch' : 'noc'; }
+function scenaPory() {
+  const p = poraDnia();
+  const gwiazdy = p === 'noc' || p === 'zmierzch' ? Array.from({ length: 14 }, (_, i) => `<i class="gwiazda" style="--x:${(hash('g' + i) % 100)}%;--y:${(hash('h' + i) % 70)}%;--d:${(i % 5) * .6}s"></i>`).join('') : '';
+  return `<div class="niebo niebo-${p}" aria-hidden="true">${gwiazdy}<span class="cialo"></span><span class="chmura c1"></span><span class="chmura c2"></span></div>`;
+}
+
+const MUZYKA = {
+  fantasy: [['Wiedźmin 3 – soundtrack', 'The Witcher 3 soundtrack'], ['Muzyka celtycka do czytania', 'celtic fantasy music for reading'], ['Epickie fantasy ambient', 'fantasy ambient music']],
+  scifi: [['Blade Runner 2049 ambient', 'Blade Runner ambient'], ['Space ambient', 'space ambient music'], ['Interstellar – Hans Zimmer', 'Interstellar soundtrack']],
+  kryminal: [['Noir jazz', 'noir jazz for reading'], ['Deszczowy jazz w kawiarni', 'rainy jazz cafe'], ['Sherlock – soundtrack', 'Sherlock BBC soundtrack']],
+  thriller: [['Mroczny ambient', 'dark ambient music'], ['Suspense – soundtracki', 'suspense film score'], ['Noir jazz', 'noir jazz']],
+  horror: [['Dark ambient', 'dark ambient horror'], ['Burza i deszcz', 'thunderstorm sounds'], ['Stranger Things synth', 'stranger things synthwave']],
+  romans: [['Romantyczne pianino', 'romantic piano'], ['Acoustic love songs', 'acoustic love songs'], ['Paryska kawiarnia', 'paris cafe music']],
+  humor: [['Swing i big band', 'swing music'], ['Wesoły jazz', 'happy jazz'], ['Lo-fi pogodne', 'happy lofi']],
+  historia: [['Muzyka średniowieczna', 'medieval music'], ['Barok – Bach, Vivaldi', 'baroque music for reading'], ['Chopin – nokturny', 'Chopin nocturnes']],
+  klasyka: [['Chopin – nokturny', 'Chopin nocturnes'], ['Muzyka klasyczna do czytania', 'classical music for reading'], ['Satie – Gymnopédies', 'Erik Satie Gymnopedies']],
+  reportaz: [['Lo-fi do skupienia', 'lofi study'], ['Ambient do pracy', 'ambient focus'], ['Szum kawiarni', 'coffee shop ambience']],
+  nauka: [['Lo-fi do nauki', 'lofi study'], ['Muzyka alfa do koncentracji', 'focus music alpha'], ['Ambient do pracy', 'deep focus ambient']],
+  techniczna: [['Lo-fi do programowania', 'lofi coding'], ['Synthwave do kodowania', 'synthwave coding'], ['Deep focus', 'deep focus music']],
+  poezja: [['Pianino solo', 'solo piano'], ['Ludovico Einaudi', 'Ludovico Einaudi'], ['Szum deszczu', 'rain sounds']],
+  domyslne: [['Lo-fi do czytania', 'lofi reading'], ['Pianino do czytania', 'piano music for reading'], ['Szum deszczu i kominek', 'rain fireplace sounds']]
+};
+function htmlMuzyki() {
+  const czyt = czytane();
+  const kat = czyt.map(kategorieKsiazki).flat().find(c => MUZYKA[c]) || null;
+  const pora = poraDnia();
+  let lista = [...(MUZYKA[kat] || MUZYKA.domyslne)];
+  if (pora === 'noc') lista = [['Spokojne pianino na noc', 'calm night piano'], ...lista.slice(0, 2)];
+  const ks = kat ? czyt.find(k => kategorieKsiazki(k).includes(kat)) : czyt[0];
+  return `<section class="sekcja muzyka"><div class="sekcja-gora"><h2>🎧 Muzyka do czytania</h2></div>
+    <p class="cichy">${ks ? `Pasuje do tego, co czytasz: „${esc(ks.tytul)}”${kat ? ` (${kategoria(kat).nazwa.toLowerCase()})` : ''}` : 'Na dobry początek'}${pora === 'noc' ? '. Wieczorem trochę spokojniej' : ''}.</p>
+    <ul class="muzyka-lista">${lista.map(([n, q], i) => `<li style="--i:${i}"><span class="muzyka-nazwa">${esc(n)}</span>
+      <a class="btn btn-maly" href="https://open.spotify.com/search/${encodeURIComponent(q)}" target="_blank" rel="noopener">Spotify</a>
+      <a class="btn btn-maly" href="https://www.youtube.com/results?search_query=${encodeURIComponent(q)}" target="_blank" rel="noopener">YouTube</a></li>`).join('')}</ul></section>`;
+}
+
+const CIEKAWOSTKI = [
+  'Henryk Sienkiewicz pisał „Trylogię” w odcinkach do gazet. Czytelnicy pisali do niego listy z prośbą, żeby nie uśmiercał Podbipięty.',
+  'Wisława Szymborska opublikowała za życia tylko ok. 350 wierszy. Była bardzo surowa wobec własnych tekstów.',
+  'Stanisław Lem przewidział e-booki: w „Powrocie z gwiazd” (1961) opisał „optony”, czyli kryształowe książki czytane na ekranie.',
+  'Najdłuższa powieść świata według Księgi Rekordów Guinnessa to „W poszukiwaniu straconego czasu” Prousta, ok. 1,2 miliona słów.',
+  '„Pan Tadeusz” to ostatni wielki epos szlachecki. Mickiewicz pisał go na emigracji w Paryżu, tęskniąc za Litwą.',
+  'Polska ma pięcioro literackich noblistów: Sienkiewicza (1905), Reymonta (1924), Miłosza (1980), Szymborską (1996) i Tokarczuk (2018).',
+  'Andrzej Sapkowski napisał pierwsze opowiadanie o Wiedźminie na konkurs „Fantastyki” w 1986 roku. Zajęło 3. miejsce.',
+  'Bolesław Prus naprawdę nazywał się Aleksander Głowacki. „Lalka” ukazywała się w odcinkach w „Kurierze Codziennym” w latach 1887–1889.',
+  'Czytanie przez 6 minut może obniżyć poziom stresu nawet o 68%. Tak wyszło w badaniu Uniwersytetu w Sussex z 2009 roku.',
+  'Słowo „bibliofil” oznacza miłośnika książek, a „bibliotaf” to ktoś, kto chowa książki i nikomu ich nie pożycza.',
+  'Japończycy mają słowo „tsundoku”: kupowanie książek i odkładanie ich na stos bez czytania. Pewnie znasz to uczucie.',
+  'Najstarsza zachowana drukowana książka z datą to buddyjska „Diamentowa Sutra” z 868 roku.',
+  'Gutenberg wydrukował ok. 180 egzemplarzy swojej Biblii. Do dziś przetrwało 49, z czego 1 jest w Pelplinie.',
+  'J.R.R. Tolkien wymyślił języki elfów, zanim napisał „Hobbita”. Mówił, że historie powstały, żeby języki miały w czym żyć.',
+  'Agatha Christie to najczęściej tłumaczona autorka na świecie. Jej książki sprzedały się w ok. 2 miliardach egzemplarzy.',
+  'Stephen King codziennie pisze ok. 2000 słów, także w święta i urodziny.',
+  'Przeciętny czytelnik czyta ok. 200–250 słów na minutę, czyli mniej więcej 30–40 stron na godzinę.',
+  'Dostojewski napisał „Gracza” w 26 dni, żeby nie stracić praw do swoich książek. Dyktował go stenotypistce, z którą potem się ożenił.',
+  'Mary Shelley miała 18 lat, gdy zaczęła pisać „Frankensteina”, uważanego za jedną z pierwszych powieści science fiction.',
+  '„Kordian” Słowackiego jest polemiką z III częścią „Dziadów” Mickiewicza. Rywalizacja obu poetów była legendarna.',
+  '„Ferdydurke” Gombrowicza wydano w 1937 roku. Słowo „gęba” w znaczeniu narzuconej nam roli pochodzi właśnie stamtąd.',
+  'Ryszard Kapuściński był najczęściej tłumaczonym polskim reporterem. „Cesarz” ukazał się w ponad 20 językach.',
+  'Joanna Chmielewska napisała ponad 60 kryminałów i jest uważana za matkę polskiego kryminału z humorem.',
+  'Badania sugerują, że czytanie powieści może zwiększać empatię: czytelnicy fikcji lepiej odczytują emocje innych.',
+  'Pierwszą powieścią napisaną na maszynie do pisania były prawdopodobnie „Przygody Tomka Sawyera” Marka Twaina.',
+  'Hemingway napisał 47 wersji zakończenia „Pożegnania z bronią”. Wszystkie wydano w 2012 roku.',
+  'W Islandii co dziesiąta osoba wyda w życiu książkę. Islandczycy mają nawet „Jólabókaflóð”, czyli świąteczną powódź książek.',
+  'Biblioteka Kongresu w Waszyngtonie ma ponad 170 milionów pozycji i jest największą biblioteką świata.',
+  'Witkacy podpisywał portrety symbolami informującymi, co pił lub zażywał podczas malowania. Pisał też awangardowe powieści.',
+  'Zapach starych książek ma nazwę: to wanilina i benzaldehyd z rozkładającego się papieru. Stare książki pachną lekko wanilią i migdałami.',
+  '„Zły” Leopolda Tyrmanda (1955) to kultowy kryminał, w którym jednym z bohaterów jest powojenna Warszawa.',
+  'Najkrótsze opowiadanie świata przypisywane Hemingwayowi ma 6 słów: „For sale: baby shoes, never worn”.',
+  'Bruno Schulz zostawił po sobie tylko dwa zbiory opowiadań. Jego zaginiona powieść „Mesjasz” do dziś jest szukana.',
+  'Harry Potter został odrzucony przez 12 wydawnictw, zanim przyjęło go Bloomsbury.',
+  '„Quo vadis” przetłumaczono na ponad 50 języków. Właśnie za nią i za całokształt Sienkiewicz dostał Nobla w 1905 roku.',
+  'Szacuje się, że od wynalezienia druku wydano ok. 130 milionów różnych tytułów książek.',
+  'Czytanie przed snem z papierowej książki pomaga zasnąć szybciej niż czytanie z ekranu, bo nie ma niebieskiego światła.',
+  'Słowo „książka” to dawne zdrobnienie od „księga”.',
+  'Najdroższą sprzedaną książką jest „Codex Leicester” Leonarda da Vinci. Bill Gates kupił go w 1994 roku za 30,8 mln dolarów.',
+  '„Lód” Jacka Dukaja ma ponad 1000 stron. To idealny kandydat na książkę bazową.'
+];
+function htmlCiekawostki() {
+  const n = (hash(dzisISO()) + (U.ciekawostkaPrzes || 0)) % CIEKAWOSTKI.length;
+  const ur = U.urodziny;
+  if (ur === undefined) wczytajUrodziny();
+  return `<section class="sekcja ciekawostki"><div class="sekcja-gora"><h2>✨ Ze świata książek</h2><button type="button" class="btn-tekst" data-akcja="ciekawostka">Kolejna</button></div>
+    <blockquote class="ciekawostka" data-ciekawostka>${esc(CIEKAWOSTKI[n])}</blockquote>
+    ${ur && ur.length ? `<div class="urodziny"><h3>🎂 Urodzili się ${dataDluga(dzisISO(), false)}</h3><ul>${ur.slice(0, 4).map(x => `<li><a href="https://pl.wikipedia.org/wiki/${encodeURIComponent(x.nazwa.replace(/ /g, '_'))}" target="_blank" rel="noopener"><strong>${esc(x.nazwa)}</strong></a> <span class="cichy">(${x.rok}) ${esc(x.opis)}</span></li>`).join('')}</ul></div>` : ''}
+  </section>`;
+}
+/** Pisarze i poeci urodzeni tego dnia — z polskiej Wikipedii, raz dziennie. */
+async function wczytajUrodziny() {
+  U.urodziny = null;
+  const dzis = dzisISO(), klucz = 'zakladka-urodziny';
+  try { const z = JSON.parse(lsGet(klucz) || 'null'); if (z && z.dzien === dzis) { U.urodziny = z.lista; return; } } catch { /* brak */ }
+  if (!navigator.onLine) { U.urodziny = []; return; }
+  try {
+    const d = new Date();
+    const tytul = `${d.getDate()} ${['stycznia', 'lutego', 'marca', 'kwietnia', 'maja', 'czerwca', 'lipca', 'sierpnia', 'września', 'października', 'listopada', 'grudnia'][d.getMonth()]}`;
+    const r = await fetch(`https://pl.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&titles=${encodeURIComponent(tytul)}&format=json&origin=*`);
+    const t = Object.values((await r.json()).query.pages)[0].extract || '';
+    const i = t.indexOf('Urodzili się'), j = t.indexOf('Zmarli', i);
+    const linie = t.slice(i, j > 0 ? j : undefined).split('\n');
+    const lista = [];
+    let rok = '';
+    for (const l of linie) {
+      const m = l.match(/^(\d{3,4})\s*[–-]\s*(.+?),\s*(.+?)\s*\(zm\./) || l.match(/^()(.+?),\s*(.+?)\s*\(zm\./);
+      const mr = l.match(/^(\d{3,4})\s*[–-]/); if (mr) rok = mr[1];
+      if (!m) continue;
+      const opis = m[3];
+      if (!/pisar|poet|prozai|dramatopis|powieściopis|eseist|reportaż|tłumacz literat/.test(opis)) continue;
+      lista.push({ rok: m[1] || rok, nazwa: m[2].trim(), opis: opis.trim(), polski: /polsk/.test(opis) });
+    }
+    lista.sort((a, b) => b.polski - a.polski || (+b.rok) - (+a.rok));
+    U.urodziny = lista.slice(0, 6);
+    lsSet(klucz, JSON.stringify({ dzien: dzis, lista: U.urodziny }));
+  } catch { U.urodziny = []; }
+  if (U.widok === 'dzis') renderWidok();
+}
+
+/* ================= niespodzianka: cytat ze zdjęcia strony (OCR) ================= */
+let tesseractLadowanie = null;
+function zaladujTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (!tesseractLadowanie) tesseractLadowanie = new Promise((ok, nie) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    s.onload = () => ok(window.Tesseract);
+    s.onerror = () => { tesseractLadowanie = null; nie(new Error('Nie udało się pobrać czytnika tekstu. Sprawdź internet.')); };
+    document.head.append(s);
+  });
+  return tesseractLadowanie;
+}
+/** Rozpoznaje tekst ze zdjęcia strony: łączy przeniesienia, wyłapuje numer strony. */
+async function tekstZeZdjecia(plik, naPostep) {
+  const T = await zaladujTesseract();
+  const { data } = await T.recognize(plik, 'pol', { logger: m => { if (m.status === 'recognizing text') naPostep(Math.round(m.progress * 100)); else naPostep(null, m.status); } });
+  const linie = data.text.split('\n').map(l => l.trim()).filter(Boolean);
+  let strona = null;
+  const bezNumeru = linie.filter((l, i) => { if (/^\d{1,4}$/.test(l) && (i === 0 || i === linie.length - 1)) { strona = +l; return false; } return true; });
+  const tekst = bezNumeru.join('\n').replace(/(\p{L})[-­]\n(\p{L})/gu, '$1$2').replace(/\n(?!\n)/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  return { tekst, strona, pewnosc: Math.round(data.confidence) };
+}
 
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
@@ -4192,6 +4495,7 @@ const AKCJE = {
   },
   'opis-pobierz': d => uzupelnijOpis(znajdz(d.id)),
   'sprawdz-ceny': d => sprawdzCeny(znajdz(d.id)),
+  worker: () => arkuszWorkera(),
   'sprawdz-ceny-wszystkie': () => sprawdzCenyListy({ wymus: true }),
   'opis-edytuj': d => arkuszOpisu(d.id),
   podobne: d => zaladujPodobne(d.id),
@@ -4243,7 +4547,11 @@ const AKCJE = {
   'plan-ksiazki': d => arkuszPlanuKsiazki(d.id),
   'miesiace-wiecej': () => { U.wszystkieMiesiace = !U.wszystkieMiesiace; renderWidok(); },
   'odznaki-wiecej': () => { U.wszystkieOdznaki = !U.wszystkieOdznaki; renderWidok(); },
-  polka: d => { U.pozyczone = false; U.polka = d.polka; U.tag = null; U.sort = 'domyslnie'; renderWidok(); },
+  kategoria: d => { U.kategoria = U.kategoria === d.kat ? null : d.kat; renderWidok(); },
+  'lista-zycz': d => { U.listaZ = d.lista || null; renderWidok(); },
+  'lista-edytuj': d => arkuszListyZyczen(d.id || null),
+  ciekawostka: () => { U.ciekawostkaPrzes = (U.ciekawostkaPrzes || 0) + 1; const el = $('[data-ciekawostka]'); if (el) { el.classList.remove('nowa'); void el.offsetWidth; el.textContent = CIEKAWOSTKI[(hash(dzisISO()) + U.ciekawostkaPrzes) % CIEKAWOSTKI.length]; el.classList.add('nowa'); } },
+  polka: d => { U.pozyczone = false; U.kategoria = null; U.polka = d.polka; U.tag = null; U.sort = 'domyslnie'; renderWidok(); },
   tag: d => { U.tag = U.tag === d.tag ? null : d.tag; renderWidok(); },
   kopia: () => eksportujKopie(),
   'kopia-pozniej': () => { lsSet('zakladka-kopia-odloz', dodajDni(dzisISO(), 3)); renderWidok(); },

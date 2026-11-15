@@ -1253,3 +1253,80 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .serduszka { position: fixed; left: 50%; bottom: 140px; pointer-events: none; z-index: 210; }
 .serduszka span { position: absolute; color: var(--wstazka); font-size: calc(26px * var(--s)); animation: serce 1.3s cubic-bezier(.2, .8, .3, 1) both; animation-delay: var(--d); }
 @keyframes serce { 0% { transform: translate(0, 0) scale(.3); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--x), -260px) scale(1); opacity: 0; } }
+/* poprawki 2.12.1 */
+.fakt dd { margin: 2px 0 0; padding: 0; }
+.kd-zyczenia label + .podpowiedz, .kd-zyczenia .podpowiedz { margin-top: 8px; }
+.kd-zyczenia > label { display: block; margin-bottom: 4px; }
+.kroki { margin: 10px 0; padding-left: 22px; display: grid; gap: 10px; }
+.kroki a { color: var(--plotno); font-weight: 600; }
+
+/* ================= wersja 2.13 ================= */
+/* kategorie */
+.kat-filtr { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 2px 16px 4px; }
+.kat-filtr::-webkit-scrollbar { display: none; }
+.kat-chip { flex: none; display: inline-flex; align-items: center; gap: 5px; min-height: 36px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font-weight: 600; font-size: 14px; cursor: pointer; }
+.kat-chip small { font-size: 11.5px; color: var(--cichy); font-weight: 700; }
+.kat-chip.wybrany { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); }
+.kat-chip.wybrany small { color: var(--plotno-cichy); }
+.kat-wybor { display: flex; flex-wrap: wrap; gap: 6px; }
+.kat-wybor legend { width: 100%; font-weight: 600; margin-bottom: 4px; }
+.kat-opcja input { position: absolute; opacity: 0; pointer-events: none; }
+.kat-opcja span { display: inline-flex; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--linia); background: var(--pole); font-size: 13.5px; cursor: pointer; }
+.kat-opcja input:checked + span { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); }
+.kat-opcja input:focus-visible + span { outline: 2px solid var(--zloto); }
+/* listy życzeń */
+.listy-zycz { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 0 10px; }
+.lista-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 34px; padding: 4px 12px; border-radius: 10px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font-weight: 600; font-size: 14px; cursor: pointer; }
+.lista-chip small { color: var(--cichy); font-weight: 700; }
+.lista-chip.wybrany { background: var(--wstazka); border-color: var(--wstazka); color: #fff; }
+.lista-chip.wybrany small { color: rgba(255,255,255,.8); }
+.lista-chip.maly { min-height: 30px; font-size: 13px; padding: 3px 10px; }
+.lista-nowa { border-style: dashed; color: var(--cichy); }
+.ksiazka-listy { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; font-size: 13.5px; }
+.emoji-wybor { display: flex; flex-wrap: wrap; gap: 6px; }
+.emoji-wybor legend { width: 100%; font-weight: 600; margin-bottom: 4px; }
+.emoji-opcja { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--linia); background: var(--pole); font-size: 22px; cursor: pointer; }
+.emoji-opcja.wybrany { border-color: var(--wstazka); box-shadow: 0 0 0 2px var(--wstazka); }
+/* kilka bazowych */
+.bazowa + .bazowa { margin-top: 12px; }
+.bazowa-dodaj { margin: 8px 0 4px; font-size: 14px; }
+/* niebo pory dnia */
+.powitanie { position: relative; overflow: hidden; border-radius: 20px; padding: 16px 18px 18px; margin-bottom: 6px; isolation: isolate; }
+.niebo { position: absolute; inset: 0; z-index: -1; }
+.niebo-swit { background: linear-gradient(160deg, #ffd9b8 0%, #f6b7a3 45%, #c9d8ef 100%); }
+.niebo-dzien { background: linear-gradient(170deg, #bfe0f5 0%, #e3f1f8 60%, #f7f1dc 100%); }
+.niebo-zmierzch { background: linear-gradient(170deg, #3b2f63 0%, #a2507a 55%, #f0a35e 100%); }
+.niebo-noc { background: linear-gradient(170deg, #0b1630 0%, #1b2a52 60%, #2a3466 100%); }
+.niebo-swit ~ *, .niebo-dzien ~ * { color: #1a2420 !important; }
+.niebo-zmierzch ~ *, .niebo-noc ~ * { color: #f4efe2 !important; }
+.niebo .cialo { position: absolute; right: 22px; top: 16px; width: 46px; height: 46px; border-radius: 50%; }
+.niebo-dzien .cialo { background: radial-gradient(circle, #fff6c9 0%, #ffd34d 55%, #ffb72b 100%); box-shadow: 0 0 34px 10px rgba(255, 205, 80, .55); animation: slonce 6s ease-in-out infinite; }
+.niebo-swit .cialo { top: 46px; background: radial-gradient(circle, #fff1c4, #ff9a5a); box-shadow: 0 0 40px 14px rgba(255, 150, 90, .55); animation: wschod 3s cubic-bezier(.2, .8, .2, 1) both; }
+.niebo-zmierzch .cialo { top: 52px; background: radial-gradient(circle, #ffe0a3, #ff7b52); box-shadow: 0 0 40px 14px rgba(255, 110, 80, .5); animation: zachod 3s cubic-bezier(.2, .8, .2, 1) both; }
+.niebo-noc .cialo { width: 38px; height: 38px; background: transparent; box-shadow: -10px 6px 0 0 #f3edd2; transform: rotate(-20deg); animation: ksiezyc 8s ease-in-out infinite; }
+.niebo .gwiazda { position: absolute; left: var(--x); top: var(--y); width: 2px; height: 2px; border-radius: 50%; background: #fff; box-shadow: 0 0 4px #fff; animation: migotanie 2.6s ease-in-out infinite; animation-delay: var(--d); }
+.niebo .chmura { position: absolute; height: 18px; border-radius: 999px; background: rgba(255, 255, 255, .75); filter: blur(.3px); }
+.niebo .chmura::before { content: ''; position: absolute; left: 22%; top: -10px; width: 46%; height: 22px; border-radius: 50%; background: inherit; }
+.niebo .c1 { width: 80px; top: 22px; left: -90px; animation: chmura 38s linear infinite; }
+.niebo .c2 { width: 56px; top: 60px; left: -70px; animation: chmura 52s linear infinite 12s; opacity: .7; }
+.niebo-noc .chmura, .niebo-zmierzch .chmura { background: rgba(255, 255, 255, .12); }
+@keyframes slonce { 50% { transform: scale(1.06); box-shadow: 0 0 44px 14px rgba(255, 205, 80, .65); } }
+@keyframes wschod { from { transform: translateY(40px); opacity: .3; } }
+@keyframes zachod { from { transform: translateY(-30px); } }
+@keyframes ksiezyc { 50% { transform: rotate(-12deg) translateY(-3px); } }
+@keyframes migotanie { 50% { opacity: .2; transform: scale(.6); } }
+@keyframes chmura { to { transform: translateX(calc(100vw + 200px)); } }
+@media (prefers-reduced-motion: reduce) { .niebo * { animation: none !important; } }
+/* muzyka i ciekawostki */
+.muzyka-lista { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.muzyka-lista li { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--powierzchnia); border: 1px solid var(--linia); animation: wjazd .4s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 70ms); }
+.muzyka-nazwa { flex: 1; font-weight: 600; font-size: 14.5px; }
+.muzyka-lista a.btn { text-decoration: none; }
+.ciekawostka { margin: 6px 0 0; padding: 14px 16px; border-radius: 14px; background: var(--powierzchnia); border-left: 4px solid var(--zloto); font-family: var(--font-ksiazka); font-size: 16px; line-height: 1.5; }
+.ciekawostka.nowa { animation: wjazd .45s cubic-bezier(.2, .8, .2, 1); }
+.urodziny { margin-top: 14px; }
+.urodziny h3 { font-size: 15px; margin-bottom: 6px; }
+.urodziny ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.urodziny a { color: var(--tusz); }
+/* OCR */
+.ocr { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: -4px 0 8px; font-size: 13.5px; }

@@ -165,6 +165,7 @@ const Wyszukiwarka = (() => {
     const streszczenie = podpole(pole(marc, '520')[0], 'a')[0] || '';
     return {
       opis: streszczenie ? czysc(streszczenie) : '',
+      jezyk: String(b.language || ''),
       seria, tom: seria ? tom : null,
       tytul,
       autor: autorzy.join(', '),
@@ -402,7 +403,8 @@ const Wyszukiwarka = (() => {
     const p = await s.json();
     const tekst = p.extract || '';
     // pilnuj, żeby to był artykuł o książce, a nie o czymś o tej samej nazwie
-    const oKsiazce = /powieść|książk|zbiór|opowiada|reportaż|tom |cykl|esej|poradnik|wydan|autorstwa|literat|dramat|poemat/i.test(tekst) || (naz && bezOgonkow(tekst).includes(naz));
+    const gatunkowe = /powieść|książk|zbiór|opowiada|reportaż|tom |cykl|esej|poradnik|wydan|autorstwa|literat|dramat|poemat/i.test(tekst);
+    const oKsiazce = naz && naz.length > 2 ? bezOgonkow(tekst).includes(naz) : gatunkowe; // ten sam tytuł, inny autor = inna książka
     if (!oKsiazce || tekst.length < 60) return null;
     return { tekst, zrodlo: 'Wikipedia', link: p.content_urls && p.content_urls.desktop && p.content_urls.desktop.page };
   }
@@ -441,37 +443,54 @@ const Wyszukiwarka = (() => {
     return null;
   }
 
-  /* ----- podobne książki: ten sam autor, ten sam temat ----- */
+  /* ----- podobne książki — tylko polskie wydania (2.13) ----- */
+  const okladkaIsbn = isbn => isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false` : null;
+  /** Open Library z filtrem polskich wydań: tytuł bierzemy z polskiego wydania, nie z angielskiego dzieła. */
+  async function olPolskie(zap, limit = 20, offset = 0) {
+    const r = await zTimeoutem(`https://openlibrary.org/search.json?q=${encodeURIComponent(zap + ' language:pol')}&limit=${limit}&offset=${offset}&fields=key,title,author_name,cover_i,number_of_pages_median,first_publish_year,editions`);
+    if (!r.ok) return [];
+    const j = await r.json();
+    return (j.docs || []).map(d => {
+      const wyd = d.editions && d.editions.docs && d.editions.docs[0];
+      return { tytul: (wyd && wyd.title) || d.title, autor: (d.author_name || [])[0] || '', okladka: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : null, strony: d.number_of_pages_median || null, rok: d.first_publish_year || '', polski: !!wyd, isbn: '' };
+    }).filter(x => x.tytul && x.polski);
+  }
   async function podobne(k, posiadane = []) {
     const mam = new Set(posiadane.map(x => bezOgonkow(x.tytul).split(/[:.(]/)[0].trim()));
-    const nazwisko = k.autor ? k.autor.split(',')[0].trim() : '';
-    const pola = 'title,author_name,cover_i,isbn,number_of_pages_median,subject,language,first_publish_year';
-    const zapyt = [];
-    if (nazwisko) zapyt.push(['autor', `https://openlibrary.org/search.json?author=${encodeURIComponent(nazwisko)}&limit=20&fields=${pola}`]);
-    const temat = (k.tagi || []).find(t => t.length > 3) || null;
-    if (temat) zapyt.push(['temat', `https://openlibrary.org/search.json?q=${encodeURIComponent(`subject:"${temat}"`)}&limit=15&fields=${pola}`]);
-    if (!temat) zapyt.push(['temat', `https://openlibrary.org/search.json?title=${encodeURIComponent(k.tytul)}&limit=1&fields=subject`]);
-    const wyniki = await Promise.allSettled(zapyt.map(([, u]) => zTimeoutem(u).then(r => r.ok ? r.json() : { docs: [] })));
-    let lista = [];
-    let tematy = [];
+    const nazwisko = k.autor ? k.autor.split(',')[0].trim().split(' ').pop() : '';
+    // „Norman Davies” ≠ „P. C. W. Davies”: imię (albo jego inicjał) też musi się zgadzać
+    const imie = k.autor ? bezOgonkow(k.autor.split(',')[0].trim().split(' ')[0]) : '';
+    const zgodneImie = a => !imie || imie === bezOgonkow(nazwisko) || bezOgonkow(a).includes(imie) || new RegExp(`(^|\\s)${imie[0]}\\.`).test(bezOgonkow(a));
+    const zadania = [];
+    if (nazwisko) {
+      zadania.push(['autor', bnZapytanie({ author: nazwisko }).then(l => l.filter(x => bezOgonkow(x.autor).includes(bezOgonkow(nazwisko)) && zgodneImie(x.autor) && (!x.jezyk || /polski/i.test(x.jezyk))).map(x => ({ tytul: x.tytul, autor: x.autor, strony: x.strony, isbn: x.isbn, okladka: okladkaIsbn(x.isbn), opis: x.opis })))]);
+      zadania.push(['autor', olPolskie(`author:"${k.autor.split(',')[0].trim()}"`, 15)]);
+    }
+    const kat = typeof kategorieKsiazki === 'function' ? kategorieKsiazki(k)[0] : null;
+    const kk = kat && typeof kategoria === 'function' ? kategoria(kat) : null;
+    if (kk) zadania.push(['kategoria', olPolskie(`subject:"${kk.ol}"`, 25)]);
+    const wyniki = await Promise.allSettled(zadania.map(([, z]) => z));
+    const lista = [];
     wyniki.forEach((r, i) => {
       if (r.status !== 'fulfilled') return;
-      const [rodzaj] = zapyt[i];
-      const docs = r.value.docs || [];
-      if (rodzaj === 'temat' && !temat) { tematy = (docs[0] && docs[0].subject || []).filter(s => s.length < 30 && !/fiction, general|^fiction$/i.test(s)).slice(0, 3); return; }
-      lista.push(...docs.map(d => ({ tytul: d.title, autor: (d.author_name || [])[0] || '', okladka: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : null, isbn: (d.isbn || []).find(x => x.startsWith('97883')) || (d.isbn || []).find(x => x.length === 13) || '', strony: d.number_of_pages_median || null, polski: (d.language || []).includes('pol'), powod: rodzaj === 'autor' ? `Inna książka: ${nazwisko}` : `Temat: ${temat}` })));
+      const [rodzaj] = zadania[i];
+      lista.push(...r.value.map(x => ({ ...x, polski: true, powod: rodzaj === 'autor' ? `Inna książka: ${k.autor.split(',')[0]}` : `Kategoria: ${kk.nazwa}` })));
     });
-    if (tematy.length) {
-      try {
-        const r = await zTimeoutem(`https://openlibrary.org/search.json?q=${encodeURIComponent(`subject:"${tematy[0]}"`)}&limit=15&fields=${pola}`);
-        if (r.ok) { const j = await r.json(); lista.push(...(j.docs || []).map(d => ({ tytul: d.title, autor: (d.author_name || [])[0] || '', okladka: d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : null, isbn: (d.isbn || []).find(x => x.length === 13) || '', strony: d.number_of_pages_median || null, polski: (d.language || []).includes('pol'), powod: `Podobny temat: ${tematy[0]}` }))); }
-      } catch { /* bez tematu */ }
-    }
     const widziane = new Set();
     return lista.filter(x => x.tytul && !mam.has(bezOgonkow(x.tytul).split(/[:.(]/)[0].trim()) && bezOgonkow(x.tytul) !== bezOgonkow(k.tytul))
-      .filter(x => { const kl = bezOgonkow(x.tytul).split(/[:.(]/)[0].trim(); if (widziane.has(kl)) return false; widziane.add(kl); return true; })
-      .sort((a, b) => (b.polski - a.polski) || (!!b.okladka - !!a.okladka))
-      .slice(0, 12);
+      // bez duplikatów, także tych różniących się literówką („Boze igrysko” = „Boże igrzysko”)
+      .filter(x => { const kl = bezOgonkow(x.tytul).split(/[:.(]/)[0].trim(); if (!kl || [...widziane].some(w => w === kl || (kl.length > 6 && lev(w, kl) <= 2))) return false; widziane.add(kl); return true; })
+      .filter(x => !/'s |\b(the|of|and|legacy)\b/i.test(x.tytul)) // angielskie tytuły odpadają
+      .sort((a, b) => (!!b.okladka - !!a.okladka))
+      .slice(0, 14);
+  }
+  /** Propozycje z kategorii (fantasy, kryminał, komedia…), tylko polskie wydania. */
+  async function wKategorii(katId, posiadane = [], strona = 0) {
+    const kk = kategoria(katId);
+    if (!kk) return [];
+    const mam = new Set(posiadane.map(x => bezOgonkow(x.tytul).split(/[:.(]/)[0].trim()));
+    const l = await olPolskie(`subject:"${kk.ol}"`, 30, strona * 30);
+    return l.filter(x => !mam.has(bezOgonkow(x.tytul).split(/[:.(]/)[0].trim())).map(x => ({ ...x, powod: `${kk.emoji} ${kk.nazwa}` }));
   }
 
   /* ----- cena e-booka w Google Play (gdy Google udostępnia ją dla Polski) ----- */
@@ -552,7 +571,9 @@ const Wyszukiwarka = (() => {
           const p = Object.values((await r.json()).query.pages || {})[0] || {};
           const { wstep, sekcje } = sekcjeWiki(p.extract || '');
           const naz = k.autor ? bezOgonkow(k.autor.split(',')[0]).split(' ').pop() : '';
-          const oKsiazce = /powieść|książk|zbiór|opowiada|reportaż|tom |cykl|esej|poradnik|wydan|autorstwa|literat|dramat|poemat|fantasy|kryminał/i.test(wstep) || (naz && bezOgonkow(wstep).includes(naz));
+          const gatunkowe = /powieść|książk|zbiór|opowiada|reportaż|tom |cykl|esej|poradnik|wydan|autorstwa|literat|dramat|poemat|fantasy|kryminał/i.test(wstep);
+          // gdy znamy autora, artykuł musi o nim wspominać — inaczej to inna książka o tym samym tytule
+          const oKsiazce = naz && naz.length > 2 ? bezOgonkow(wstep).includes(naz) : gatunkowe;
           if (oKsiazce && wstep.length > 60) {
             w.opis = przytnij(wstep, 1800);
             const tlo = sekcje.find(s => /^(tło|geneza|okoliczności powstania|historia powstania)/i.test(s.tytul));
@@ -619,7 +640,7 @@ const Wyszukiwarka = (() => {
     };
   }
 
-  return { szukaj, szukajMadrze, podpowiedzi, opis, opisPro, ceny, podobne, cenaEbooka, podobienstwo, bezOgonkow, czyIsbn, test, stan, isbn10na13 };
+  return { szukaj, szukajMadrze, podpowiedzi, opis, opisPro, ceny, podobne, wKategorii, cenaEbooka, podobienstwo, bezOgonkow, czyIsbn, test, stan, isbn10na13 };
 })();
 
 /* ---------- skaner kodów kreskowych ----------

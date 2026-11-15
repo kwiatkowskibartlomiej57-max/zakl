@@ -81,6 +81,18 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.13: kategorie, listy życzeń, kilka bazowych, pora dnia, muzyka, ciekawostki, cytat ze zdjęcia
+
+- **Kategorie:** fantasy, sci-fi, kryminał, thriller, horror, romans, komedia, obyczajowa, historyczna, przygodowa, reportaż, biografia, popularnonaukowa, poradnik, młodzieżowa, dla dzieci, poezja, klasyka, techniczna. Rozpoznają się same z tagów i gatunku z Wikidata. Możesz je też wybrać ręcznie w formularzu książki. W Bibliotece jest pasek filtrów kategorii z liczbą książek.
+- **Wiele list życzeń:** np. „🎂 Prezent na urodziny”, „🐉 Fantasy do kupienia”. Każda lista ma nazwę i ikonę. Książkę przypisujesz do jednej albo kilku list w jej szczegółach. Półka „Lista życzeń” filtruje się po wybranej liście, a „Udostępnij listę” wysyła tylko ją.
+- **Kilka książek bazowych (do 3):** dwie albo trzy grube książki czytane równolegle, każda z własnym terminem i normą. Normy sumują się w planie dnia, a kreator rezerwuje na nie czas. Przy wyborze bazowej książki od 500 stron są oznaczone jako „gruba, idealna na bazową”.
+- **Odkrywaj po polsku i po kategoriach:** propozycje to tylko polskie wydania. Tytuły bierze z Biblioteki Narodowej albo z polskich wydań w Open Library, zamiast angielskich nazw dzieł. Inny autor o tym samym nazwisku już nie trafia do propozycji. Na górze są kategorie, np. „🔍 Kryminał” daje polskie wydania kryminałów.
+- **Ekran Dziś:**
+  - **animowane niebo** zależne od pory dnia: wschód, słońce i chmury, zachód, księżyc i migające gwiazdy;
+  - **🎧 Muzyka do czytania** dopasowana do kategorii czytanej książki i pory dnia, z linkami do Spotify i YouTube;
+  - **✨ Ze świata książek:** codzienna ciekawostka literacka (przycisk „Kolejna”) i pisarze urodzeni tego dnia, z polskiej Wikipedii.
+- **Niespodzianka: cytat ze zdjęcia strony.** W oknie dodawania cytatu przycisk „📷 Tekst ze zdjęcia strony” odczytuje tekst ze zdjęcia (OCR, polski słownik). Łączy przeniesienia wyrazów i sam wpisuje numer strony. Przy pierwszym użyciu pobiera czytnik tekstu (kilka MB).
+
 ## Wersja 2.12: opisy pro, ceny z Ceneo, Odkrywaj
 
 - **Opisy pro:** pełny wstęp i tło z polskiej Wikipedii, osobna **fabuła** zasłonięta przed spoilerami (dotknij, żeby odsłonić) i **fakty z Wikidata**: gatunek, pierwsze wydanie, wydawca, cykl, poprzednia i następna część, kraj, język, miejsce akcji, nagrody, tłumacz. Do tego linki do źródeł. Gatunek trafia do tagów, a cykl do serii. Przy przeczytanej książce jest przycisk „Następna część → na listę życzeń”.
