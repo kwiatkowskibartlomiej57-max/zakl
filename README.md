@@ -81,6 +81,25 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.17: historia jak w grach, Sówka z zaskoczenia
+
+- **Kinowe przerywniki:** rozdziały „Przygód Sówki i Zakładki” odtwarzają się same, na pełnym ekranie.
+  - Pasy kinowe wjeżdżają, a plansza tytułowa („Rozdział 3 · Kraina smoków”) pojawia się z głosem narratora.
+  - Kamera powoli najeżdża na każdą scenę (efekt Kena Burnsa, 4 kierunki). Kadry przenikają się przez ciemność, a postacie wchodzą z animacją.
+  - Za sceną jest rozmyte, przyciemnione tło na cały ekran, także w pionie na telefonie.
+  - Pasek postępu u góry. Dotknięcie przyspiesza, a w rogu są pauza, wyciszenie głosu i muzyki oraz zamknięcie.
+  - Na końcu jest plansza „Ciąg dalszy” z przyciskiem „Następny rozdział”.
+- **Głosy postaci** z syntezy mowy w telefonie (polski głos). Narrator, Sówka, Zakładka, Smok, Przypis i Bibliotekarz Kurz mają różną wysokość i tempo głosu, a gdy telefon ma kilka polskich głosów, także różne głosy. Dialogi są rozpoznawane automatycznie: kto mówi, a co jest narracją. Napisy pojawiają się litera po literze, z kolorowym imieniem mówiącego, a postać, która mówi, „podskakuje”.
+- **Muzyka w tle** generowana na żywo (bez plików): spokojne akordy dopasowane do sceny, inne w pokoju, w krainie smoków, w deszczowym kryminale, na morzu i w kosmosie.
+- **Sówka z zaskoczenia, bez przycisków:**
+  - raz dziennie przywitanie z żartem albo ciekawostką;
+  - co jakiś czas sama wyskakuje z dołu ekranu z żartem, a puenta pojawia się po chwili;
+  - po zapisaniu stron chwali („Brawo! 15 stron więcej przygód”), czasem z żartem na deser;
+  - na karcie na ekranie Dziś sama zmienia teksty co ok. 20 sekund: żart, motywacja, „co czytać”.
+  
+  Na karcie został tylko przycisk „🎬 Przygody Sówki i Zakładki” (w nocy „Bajka na dobranoc”).
+- **Ustawienia** (Zadania i sklepik → Sówka i dźwięk): żarty z zaskoczenia, czytanie żartów na głos (domyślnie wyłączone, żeby nie zaskoczyć w autobusie), głosy i muzyka w historii.
+
 ## Wersja 2.16: świat Sówki i Zakładki
 
 - **Zakładka**: nowa animowana postać obok Sówki. Czerwona zakładka z buzią, która się kołysze, mruga i macha ręką. Dotknięta podskakuje i mówi swoje kwestie, np. „Przeleżałam pół roku na stronie 37. To już nie zakładka, to lokatorka”. Wtrąca się też do żartów Sówki.

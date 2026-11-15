@@ -210,6 +210,9 @@ function odswiez() {
   sprawdzOdznaki();
   sprawdzCele();
   sprawdzHistorie();
+  const sr = stronyRazem();
+  if (U.stronyPoprz != null && sr > U.stronyPoprz) reakcjaNaStrony(sr - U.stronyPoprz);
+  U.stronyPoprz = sr;
 }
 
 /* ================= motyw ================= */
@@ -4407,6 +4410,8 @@ async function wymusAktualizacje() {
   setTimeout(() => location.reload(), 400);
 }
 const NOWOSCI = [
+  ['🎬', 'Historia jak w grach', 'Przygody Sówki i Zakładki lecą same: pełny ekran, pasy kinowe, głosy postaci, napisy i muzyka.', () => odtworzRozdzial(0)],
+  ['😂', 'Żarty z zaskoczenia', 'Sówka sama wyskakuje z żartem, puentą i pochwałą za zapisane strony. Bez klikania.', () => idz('dzis')],
   ['🎬', 'Przygody Sówki i Zakładki', 'Pokładkowa historia w 10 rozdziałach, które odblokowujesz, czytając. Pierwszy rozdział już czeka!', () => arkuszHistorii()],
   ['😂', 'Sówka gada', 'Żarty (całkiem śmieszne), motywacja i podpowiedź, co czytać. A Zakładka się wtrąca!', () => idz('dzis')],
   ['🦉', 'Sówka', 'Na ekranie Dziś: towarzyszka czytania, bez presji. Dotknij ją! Pod nią: listki 🍃, poziomy, zadania dnia i sklepik.', () => idz('dzis')],
@@ -4500,7 +4505,7 @@ function htmlSowki() {
       <p class="zakl-dymek" data-zakl-dymek hidden></p></div>
     <div class="sowka-dymek">
       <p class="sowka-tekst" data-sowka-tekst>${esc(wiadomoscSowki(st))}</p>
-      <div class="sowka-opcje">${st.tryb === 'spi' ? '<button type="button" class="chip-m" data-sowka-opcja="historia">🎬 Bajka na dobranoc</button>' : `<button type="button" class="chip-m" data-sowka-opcja="zart">😂 Żart</button><button type="button" class="chip-m" data-sowka-opcja="motywacja">💪 Zmotywuj</button><button type="button" class="chip-m" data-sowka-opcja="co">📚 Co czytać?</button><button type="button" class="chip-m" data-sowka-opcja="historia">🎬 Historia${historiaStan().odblokowane > (Z.ustawienia.gra.historiaWidziane || 0) ? ' <b class="kropka">!</b>' : ''}</button>`}</div>
+      <div class="sowka-opcje"><button type="button" class="chip-m chip-kino" data-sowka-opcja="historia">🎬 ${st.tryb === 'spi' ? 'Bajka na dobranoc' : 'Przygody Sówki i Zakładki'}${historiaStan().odblokowane > (Z.ustawienia.gra.historiaWidziane || 0) ? ' <b class="kropka">nowy!</b>' : ''}</button></div>
       ${st.tryb !== 'spi' && st.tryb !== 'czyta' && (bazowa() || czytane()[0]) ? `<div class="sowka-akcje"><button type="button" class="btn btn-maly" data-akcja="postep" data-id="${(bazowa() || czytane()[0]).id}">Zapisz strony</button><button type="button" class="btn-tekst" data-akcja="sesja" data-id="${(bazowa() || czytane()[0]).id}">10 minut?</button></div>` : ''}
     </div>
     <button type="button" class="sowka-pasek" data-akcja="sklepik">
@@ -4531,7 +4536,14 @@ function arkuszSklepiku() {
         <div><dt>Skończone książki (30)</dt><dd>${l.ksiazki}</dd></div><div><dt>Cytaty (3)</dt><dd>${l.cytaty}</dd></div>
         <div><dt>Bonusy za passę</dt><dd>${l.passa}</dd></div><div><dt>Zadania dnia</dt><dd>${l.zadania}</dd></div>
         <div><dt>Wydane w sklepiku</dt><dd>−${g.wydane}</dd></div></dl></section>
-      <label class="przelacznik maly"><input type="checkbox" data-sowka-wl${g.sowka ? ' checked' : ''}><span>Pokazuj Sówkę na ekranie Dziś</span></label>`;
+      <section class="kd-sekcja"><h3>Sówka i dźwięk</h3>
+      <label class="przelacznik maly"><input type="checkbox" data-sowka-wl${g.sowka ? ' checked' : ''}><span>Pokazuj Sówkę na ekranie Dziś</span></label>
+      <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="zarty"${g.zarty ? ' checked' : ''}><span>Żarty i teksty z zaskoczenia</span></label>
+      <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="glosZarty"${g.glosZarty ? ' checked' : ''}><span>Sówka czyta żarty na głos</span></label>
+      <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="glos"${g.glos ? ' checked' : ''}><span>Głosy w historii</span></label>
+      <label class="przelacznik maly"><input type="checkbox" data-gra-opcja="muzyka"${g.muzyka ? ' checked' : ''}><span>Muzyka w historii</span></label>
+      ${Glos.dostepny ? `<p class="cichy maly">Głosy: ${Glos.glosy().length ? Glos.glosy().slice(0, 3).map(v => esc(v.name)).join(', ') : 'systemowy polski głos'}.</p>` : '<p class="cichy maly">Ta przeglądarka nie ma syntezy mowy, historia pokaże same napisy.</p>'}
+      <div class="przyciski"><button type="button" class="btn btn-maly" data-test-zartu>😂 Opowiedz żart teraz</button></div></section>`;
     }
   });
   a.tresc.addEventListener('click', e => {
@@ -4553,7 +4565,11 @@ function arkuszSklepiku() {
     const z = e.target.closest('[data-zaloz]');
     if (z) { const g = Z.ustawienia.gra, id = z.dataset.zaloz; g.zalozone = g.zalozone.includes(id) ? g.zalozone.filter(x => x !== id) : [...g.zalozone, id]; utrwalUstawienia(); odswiez(); }
   });
-  a.tresc.addEventListener('change', e => { if (e.target.matches('[data-sowka-wl]')) { Z.ustawienia.gra.sowka = e.target.checked; utrwalUstawienia(); odswiez(); } });
+  a.tresc.addEventListener('change', e => {
+    if (e.target.matches('[data-sowka-wl]')) { Z.ustawienia.gra.sowka = e.target.checked; utrwalUstawienia(); odswiez(); }
+    if (e.target.dataset.graOpcja) { Z.ustawienia.gra[e.target.dataset.graOpcja] = e.target.checked; utrwalUstawienia(); if (e.target.dataset.graOpcja === 'glosZarty' && e.target.checked) { Glos.odblokuj(); Glos.mow('Hu-hu! Od teraz mówię na głos.', 's'); } }
+  });
+  a.tresc.addEventListener('click', e => { if (e.target.closest('[data-test-zartu]')) { Glos.odblokuj(); a.zamknij(); const [x, y] = losowyZart(); setTimeout(() => sowkaMowi(x, { puenta: y }), 350); } });
 }
 
 /** Listki lecą od przycisku do licznika. */
@@ -4788,53 +4804,53 @@ function svgZakladki(poza = 'stoi') {
 const HISTORIA = [
   { tytul: 'Spotkanie', progi: 0, klatki: [
     { tlo: 'pokoj', s: [70, 110, 'czyta'], z: null, r: [['💡', 40, 70]], t: 'Pewnej nocy Sówka czytała przy lampce, gdy coś zaszeleściło między stronami…' },
-    { tlo: 'pokoj', s: [70, 110, 'czeka'], z: [200, 100, 'macha'], r: [['✨', 190, 80]], t: '— Cześć! Jestem Zakładka. Pilnuję, żebyś nigdy nie zgubiła miejsca w książce.' },
-    { tlo: 'pokoj', s: [100, 110, 'zadowolona'], z: [190, 100, 'macha'], r: [['💛', 165, 70]], t: '— Hu-hu! Czyli od dziś czytamy razem? — zapytała Sówka.' },
+    { tlo: 'pokoj', s: [70, 110, 'czeka'], z: [200, 100, 'macha'], r: [['✨', 190, 80]], t: '— Cześć! Jestem Zakładka. Pilnuję, żebyś nigdy nie zgubiła miejsca w książce.', kto: ['z'] },
+    { tlo: 'pokoj', s: [100, 110, 'zadowolona'], z: [190, 100, 'macha'], r: [['💛', 165, 70]], t: '— Hu-hu! Czyli od dziś czytamy razem? — zapytała Sówka.', kto: ['s'] },
     { tlo: 'pokoj', s: [90, 110, 'czyta'], z: [170, 115, 'stoi'], r: [['⭐', 300, 50]], t: 'I tak zaczęła się ich przyjaźń. Strona po stronie.' }] },
   { tytul: 'Zgubiona w księdze', progi: 50, klatki: [
     { tlo: 'ksiazka', s: [40, 120, 'czeka'], z: [190, 70, 'stoi'], r: [], t: 'Pewnego dnia Zakładka zajrzała zbyt głęboko w ogromną, starą księgę…' },
     { tlo: 'ksiazka', s: [40, 120, 'czeka'], z: [200, 120, 'lata'], r: [['💨', 230, 110]], t: 'Plusk! Wpadła między rozdziały i zniknęła.' },
-    { tlo: 'ksiazka', s: [120, 110, 'czeka'], z: null, r: [['❓', 200, 70], ['❓', 240, 90]], t: '— Zakładko?! Gdzie jesteś?! — zahuczała Sówka.' },
+    { tlo: 'ksiazka', s: [120, 110, 'czeka'], z: null, r: [['❓', 200, 70], ['❓', 240, 90]], t: '— Zakładko?! Gdzie jesteś?! — zahuczała Sówka.', kto: ['s'] },
     { tlo: 'ksiazka', s: [170, 60, 'zadowolona'], z: null, r: [['💫', 230, 60]], t: 'Nie było wyjścia. Sówka wzięła głęboki oddech i wskoczyła za nią.' }] },
   { tytul: 'Kraina smoków', progi: 150, klatki: [
     { tlo: 'smok', s: [40, 120, 'czeka'], z: null, r: [['🐉', 250, 90, 70]], t: 'Wylądowała w krainie smoków. Smok ziewnął tak, że zgasły wszystkie pochodnie.' },
-    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['🧦', 205, 85]], t: '— Szukam małej, czerwonej zakładki! — Takiej? — smok wyjął coś zza ucha. To była skarpetka.' },
-    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['👉', 180, 60]], t: '— Zakładki zawsze uciekają do kryminałów — mruknął smok. — Tam jest najwięcej tajemnic.' },
+    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['🧦', 205, 85]], t: '— Szukam małej, czerwonej zakładki! — Takiej? — smok wyjął coś zza ucha. To była skarpetka.', kto: ['s', 'smok'] },
+    { tlo: 'smok', s: [60, 120, 'zadowolona'], z: null, r: [['🐉', 230, 90, 70], ['👉', 180, 60]], t: '— Zakładki zawsze uciekają do kryminałów — mruknął smok. — Tam jest najwięcej tajemnic.', kto: ['smok', 'smok'] },
     { tlo: 'smok', s: [150, 110, 'czeka'], z: null, r: [['📄', 240, 60, 40]], t: 'Sówka podziękowała i przewróciła stronę.' }] },
   { tytul: 'Mroczny kryminał', progi: 300, klatki: [
     { tlo: 'deszcz', s: [60, 120, 'czeka'], z: null, r: [['🕯️', 260, 70]], t: 'W mieście kryminałów padał deszcz. Czcionka 10 punktów.' },
     { tlo: 'deszcz', s: [80, 115, 'zadowolona'], z: null, r: [['🎩', 103, 92], ['🔍', 150, 130]], t: 'Sówka założyła kapelusz detektywa. Trop: czerwona nitka na chodniku.' },
     { tlo: 'deszcz', s: [60, 115, 'czeka'], z: null, r: [['🕵️', 230, 110, 50], ['*', 250, 80, 30]], t: 'Podejrzany numer jeden: Przypis. Zawsze kręci się na dole strony.' },
-    { tlo: 'deszcz', s: [60, 115, 'zadowolona'], z: null, r: [['⛵', 240, 120, 44]], t: '— Dobra, przyznam się! Widziałem ją! Popłynęła na morską przygodę!' }] },
+    { tlo: 'deszcz', s: [60, 115, 'zadowolona'], z: null, r: [['⛵', 240, 120, 44]], t: '— Dobra, przyznam się! Widziałem ją! Popłynęła na morską przygodę!', kto: ['przypis'] }] },
   { tytul: 'Morska przygoda', progi: 500, klatki: [
     { tlo: 'morze', s: [130, 70, 'zadowolona'], z: null, r: [['⛵', 160, 150, 80]], t: 'Sówka wsiadła na papierowy statek złożony z rozdziału siódmego.' },
     { tlo: 'morze', s: [130, 60, 'czeka'], z: null, r: [['🌊', 60, 150, 60], ['🌊', 280, 150, 60], ['⛈️', 70, 50]], t: 'Fale były tak wysokie, że sięgały aż do spisu treści.' },
     { tlo: 'morze', s: [60, 110, 'zadowolona'], z: null, r: [['🍾', 200, 140, 44], ['📜', 240, 100, 36]], t: 'W butelce był list: „Jestem w kosmosie. Weź kanapki. Z.”' },
-    { tlo: 'morze', s: [110, 100, 'czeka'], z: null, r: [['🥪', 200, 120], ['🚀', 270, 60, 44]], t: '— Oczywiście, że w kosmosie — westchnęła Sówka i spakowała kanapki.' }] },
+    { tlo: 'morze', s: [110, 100, 'czeka'], z: null, r: [['🥪', 200, 120], ['🚀', 270, 60, 44]], t: '— Oczywiście, że w kosmosie — westchnęła Sówka i spakowała kanapki.', kto: ['s'] }] },
   { tytul: 'Kosmiczna strona', progi: 800, klatki: [
     { tlo: 'kosmos', s: [60, 90, 'zadowolona'], z: null, r: [['🪐', 270, 60, 60], ['🚀', 30, 40]], t: 'Na stronie 400 zaczynał się kosmos. Bez grawitacji, za to z przypisami.' },
     { tlo: 'kosmos', s: [60, 100, 'czeka'], z: [240, 60, 'lata'], r: [['🪐', 290, 140, 50]], t: 'I tam była! Zakładka dryfowała obok planety Epilog.' },
-    { tlo: 'kosmos', s: [90, 90, 'zadowolona'], z: [200, 80, 'macha'], r: [], t: '— Zakładko! — Sówko! Zgubiłam się, bo ktoś przewrócił pięćdziesiąt stron naraz!' },
+    { tlo: 'kosmos', s: [90, 90, 'zadowolona'], z: [200, 80, 'macha'], r: [], t: '— Zakładko! — Sówko! Zgubiłam się, bo ktoś przewrócił pięćdziesiąt stron naraz!', kto: ['s', 'z'] },
     { tlo: 'kosmos', s: [120, 90, 'zadowolona'], z: [180, 95, 'stoi'], r: [['💛', 165, 60, 36], ['✨', 100, 50], ['✨', 260, 60]], t: 'Przytuliły się tak mocno, że wszystkie planety zrobiły „ooooo”.' }] },
   { tytul: 'Droga powrotna', progi: 1200, klatki: [
     { tlo: 'ksiazka', s: [60, 110, 'czeka'], z: [180, 105, 'smutna'], r: [], t: 'Ale jak wrócić? Księga miała 1300 stron, a one utknęły w samym środku.' },
-    { tlo: 'ksiazka', s: [60, 110, 'zadowolona'], z: [180, 100, 'macha'], r: [['💡', 205, 60]], t: '— Wiem! — krzyknęła Zakładka. — Trzeba czytać do przodu. Strona po stronie!' },
+    { tlo: 'ksiazka', s: [60, 110, 'zadowolona'], z: [180, 100, 'macha'], r: [['💡', 205, 60]], t: '— Wiem! — krzyknęła Zakładka. — Trzeba czytać do przodu. Strona po stronie!', kto: ['z', 'z'] },
     { tlo: 'las', s: [70, 110, 'czyta'], z: [170, 115, 'stoi'], r: [['🌲', 260, 80, 60], ['🌵', 20, 100]], t: 'Czytały przez lasy, pustynie i jeden bardzo, bardzo nudny wstęp.' },
     { tlo: 'las', s: [70, 110, 'zadowolona'], z: [170, 105, 'macha'], r: [['🚪', 280, 90, 60]], t: 'Aż w oddali zaświeciła tylna okładka.' }] },
   { tytul: 'Bibliotekarz Kurz', progi: 1700, klatki: [
-    { tlo: 'brama', s: [40, 120, 'czeka'], z: [110, 125, 'smutna'], r: [['🧓', 250, 100, 70]], t: 'Przy wyjściu stał Bibliotekarz Kurz. — Bez karty bibliotecznej nikt nie wyjdzie!' },
-    { tlo: 'brama', s: [60, 115, 'zadowolona'], z: [130, 120, 'stoi'], r: [['🍃', 120, 80, 36], ['🧓', 260, 100, 70]], t: '— Mamy coś lepszego! — Sówka pokazała listki za tysiące przeczytanych stron.' },
+    { tlo: 'brama', s: [40, 120, 'czeka'], z: [110, 125, 'smutna'], r: [['🧓', 250, 100, 70]], t: 'Przy wyjściu stał Bibliotekarz Kurz. — Bez karty bibliotecznej nikt nie wyjdzie!', kto: ['kurz'] },
+    { tlo: 'brama', s: [60, 115, 'zadowolona'], z: [130, 120, 'stoi'], r: [['🍃', 120, 80, 36], ['🧓', 260, 100, 70]], t: '— Mamy coś lepszego! — zawołała Sówka i pokazała listki za tysiące przeczytanych stron.', kto: ['s'] },
     { tlo: 'brama', s: [60, 115, 'zadowolona'], z: [130, 120, 'macha'], r: [['🤧', 260, 100, 70], ['💨', 220, 90]], t: 'Bibliotekarz Kurz kichnął z wrażenia. Brama się otworzyła.' },
-    { tlo: 'brama', s: [200, 110, 'zadowolona'], z: [260, 110, 'lata'], r: [['✨', 300, 60]], t: '— Uciekamy, zanim zmieni zdanie!' }] },
+    { tlo: 'brama', s: [200, 110, 'zadowolona'], z: [260, 110, 'lata'], r: [['✨', 300, 60]], t: '— Uciekamy, zanim zmieni zdanie!', kto: ['z'] }] },
   { tytul: 'Dom', progi: 2300, klatki: [
     { tlo: 'swit', s: [70, 110, 'zadowolona'], z: [170, 110, 'macha'], r: [['💡', 40, 70]], t: 'Wróciły do pokoju o świcie. Lampka wciąż się świeciła.' },
-    { tlo: 'swit', s: [70, 110, 'czeka'], z: [170, 105, 'stoi'], r: [], t: '— Wiesz co? — powiedziała Zakładka. — Najlepsze przygody są w książkach.' },
-    { tlo: 'swit', s: [80, 110, 'zadowolona'], z: [165, 105, 'stoi'], r: [['💛', 150, 60, 36]], t: '— A najlepsza przyjaciółka jest między stronami — dodała Sówka.' },
+    { tlo: 'swit', s: [70, 110, 'czeka'], z: [170, 105, 'stoi'], r: [], t: '— Wiesz co? — powiedziała Zakładka. — Najlepsze przygody są w książkach.', kto: ['z', 'z'] },
+    { tlo: 'swit', s: [80, 110, 'zadowolona'], z: [165, 105, 'stoi'], r: [['💛', 150, 60, 36]], t: '— A najlepsza przyjaciółka jest między stronami — dodała Sówka.', kto: ['s'] },
     { tlo: 'pokoj', s: [80, 110, 'spi'], z: [165, 115, 'spi'], r: [['🌙', 290, 40]], t: 'I zasnęły, zanim zdążyły powiedzieć „jeszcze tylko jeden rozdział”.' }] },
   { tytul: 'Nowa księga', progi: 3000, klatki: [
     { tlo: 'pokoj', s: [60, 110, 'czeka'], z: [150, 110, 'stoi'], r: [['📕', 260, 100, 60]], t: 'Rano na półce pojawiła się nowa księga. Gruba. Tajemnicza. Pachniała wanilią.' },
-    { tlo: 'pokoj', s: [80, 110, 'zadowolona'], z: [160, 100, 'macha'], r: [['📕', 260, 100, 60], ['❓', 240, 60]], t: '— Czytamy? — zapytała Zakładka.' },
-    { tlo: 'pokoj', s: [80, 110, 'czyta'], z: [170, 110, 'stoi'], r: [['✨', 260, 60], ['⭐', 40, 40]], t: '— Czytamy! — zahuczała Sówka.' },
+    { tlo: 'pokoj', s: [80, 110, 'zadowolona'], z: [160, 100, 'macha'], r: [['📕', 260, 100, 60], ['❓', 240, 60]], t: '— Czytamy? — zapytała Zakładka.', kto: ['z'] },
+    { tlo: 'pokoj', s: [80, 110, 'czyta'], z: [170, 110, 'stoi'], r: [['✨', 260, 60], ['⭐', 40, 40]], t: '— Czytamy! — zahuczała Sówka.', kto: ['s'] },
     { tlo: 'swit', s: [90, 105, 'zadowolona'], z: [180, 100, 'macha'], r: [['📖', 260, 90, 50]], t: 'A ty? Jaką przygodę przeczytasz następną? Ciąg dalszy pisze się z każdą twoją stroną.' }] }
 ];
 const stronyRazem = () => [...mapaDni().values()].reduce((a, b) => a + b, 0);
@@ -4856,11 +4872,11 @@ const TLA = {
   brama: '<rect width="360" height="220" fill="#3b3046"/><rect x="200" y="30" width="140" height="170" rx="70" fill="#1d1726" stroke="#d9b66e" stroke-width="6"/><g fill="#5b3f2e"><rect x="10" y="40" width="20" height="160"/><rect x="40" y="40" width="20" height="160"/></g><rect y="195" width="360" height="25" fill="#2a2233"/>',
   swit: '<rect width="360" height="220" fill="#f6c6a8"/><circle cx="300" cy="140" r="34" fill="#ffd36a"/><rect y="170" width="360" height="50" fill="#4a3426"/><g fill="#5b3f2e"><rect x="20" y="60" width="90" height="8"/></g><g><rect x="26" y="34" width="10" height="26" fill="#a3233a"/><rect x="38" y="38" width="9" height="22" fill="#22385c"/><rect x="49" y="32" width="12" height="28" fill="#d9b66e"/></g>'
 };
-const postac = (svg, x, y, w, h) => `<g class="kl-postac"><svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="visible"${svg.replace(/^<svg class="[^"]*"/, '')}</g>`;
+const postac = (svg, x, y, w, h, klasa = '') => `<g class="kl-postac ${klasa}"><svg x="${x}" y="${y}" width="${w}" height="${h}" overflow="visible"${svg.replace(/^<svg class="[^"]*"/, '')}</g>`;
 function svgKlatki(kl) {
   // współrzędne w klatkach to miejsce stóp; +55 stawia postacie na ziemi tła
-  const sowa = kl.s ? postac(svgSowki(kl.s[2], Z.ustawienia.gra.zalozone), kl.s[0], kl.s[1] - 85 + 55, 78, 85) : '';
-  const zakl = kl.z ? postac(svgZakladki(kl.z[2]), kl.z[0], kl.z[1] - 66 + 55, 44, 66) : '';
+  const sowa = kl.s ? postac(svgSowki(kl.s[2], Z.ustawienia.gra.zalozone), kl.s[0], kl.s[1] - 85 + 55, 78, 85, 'kl-sowa') : '';
+  const zakl = kl.z ? postac(svgZakladki(kl.z[2]), kl.z[0], kl.z[1] - 66 + 55, 44, 66, 'kl-zakl') : '';
   const rek = (kl.r || []).map(([e, x, y, rozm = 28]) => `<text x="${x}" y="${y}" font-size="${rozm}" class="kl-rekw">${e}</text>`).join('');
   return `<svg class="klatka-svg tlo-${kl.tlo}" viewBox="0 0 360 220" role="img">${TLA[kl.tlo] || ''}${rek}${sowa}${zakl}</svg>`;
 }
@@ -4873,7 +4889,7 @@ function arkuszHistorii(otworz = null) {
     render: () => {
       const st = historiaStan();
       if (rozdz == null) {
-        return `<p class="cichy">Każdy rozdział odblokowujesz, czytając. Liczą się wszystkie przeczytane strony: masz ich <strong>${liczba(st.strony)}</strong>.</p>
+        return `<p class="hist-intro">🎬 Animowane przerywniki z głosami i muzyką. Wybierz rozdział, a historia poleci sama.</p><p class="cichy">Każdy rozdział odblokowujesz, czytając. Liczą się wszystkie przeczytane strony: masz ich <strong>${liczba(st.strony)}</strong>.</p>
           ${st.nastepny ? `<div class="hist-postep"><span>Następny rozdział: „${esc(st.nastepny.tytul)}”</span><span class="poziom-pasek duzy"><span style="width:${Math.min(100, (st.strony - (HISTORIA[st.odblokowane - 1] || { progi: 0 }).progi) / (st.nastepny.progi - (HISTORIA[st.odblokowane - 1] || { progi: 0 }).progi) * 100).toFixed(1)}%"></span></span><small>za ${ile(st.doNastepnego, FORMY_STRON_D)}</small></div>` : '<p class="ok">Odblokowałeś całą historię! Jesteś legendą. 🦉🔖</p>'}
           <ol class="hist-lista">${HISTORIA.map((r, i) => { const ok = i < st.odblokowane; return `<li><button type="button" class="hist-rozdz${ok ? '' : ' zamkniety'}" ${ok ? `data-rozdz="${i}"` : 'disabled'}>
             <span class="hist-mini">${ok ? svgKlatki(r.klatki[0]) : '<span class="hist-klodka">🔒</span>'}</span>
@@ -4906,7 +4922,7 @@ function arkuszHistorii(otworz = null) {
   };
   a.tresc.addEventListener('click', e => {
     const r = e.target.closest('[data-rozdz]');
-    if (r) { stop(); rozdz = +r.dataset.rozdz; klatka = 0; pokaz(); a.el.scrollTop = 0; return; }
+    if (r) { stop(); a.zamknij(); odtworzRozdzial(+r.dataset.rozdz); return; }
     if (e.target.closest('[data-wroc]')) { stop(); rozdz = null; a.rysuj(); return; }
     const k = e.target.closest('[data-kl]');
     if (k) { stop(); dalej(+k.dataset.kl); return; }
@@ -4926,7 +4942,7 @@ function sprawdzHistorie() {
   if (st.odblokowane > +zap) {
     lsSet('zakladka-historia-odbl', String(st.odblokowane));
     const r = HISTORIA[st.odblokowane - 1];
-    setTimeout(() => { toast(`🎬 Nowy rozdział historii: „${r.tytul}”!`, { czas: 7000, akcja: 'Oglądaj', onAkcja: () => arkuszHistorii(st.odblokowane - 1) }); konfetti({ ile: 60 }); }, 1200);
+    setTimeout(() => { toast(`🎬 Nowy rozdział historii: „${r.tytul}”!`, { czas: 7000, akcja: 'Oglądaj', onAkcja: () => odtworzRozdzial(st.odblokowane - 1) }); konfetti({ ile: 60 }); }, 1200);
   }
 }
 
@@ -4980,6 +4996,303 @@ document.addEventListener('click', e => {
     if (navigator.vibrate) navigator.vibrate(10);
   }
 });
+/* ================= głosy postaci (2.17) ================= */
+const POSTACIE = {
+  n: { nazwa: 'Narrator', kolor: '#f1ede0', pitch: 1, rate: .96, glos: 0 },
+  s: { nazwa: 'Sówka', kolor: '#e9b98a', pitch: 1.25, rate: 1.02, glos: 1 },
+  z: { nazwa: 'Zakładka', kolor: '#ff8fa3', pitch: 1.65, rate: 1.1, glos: 2 },
+  smok: { nazwa: 'Smok', kolor: '#ffb067', pitch: .45, rate: .82, glos: 0 },
+  przypis: { nazwa: 'Przypis', kolor: '#b7c6bb', pitch: .85, rate: 1.2, glos: 0 },
+  kurz: { nazwa: 'Bibliotekarz Kurz', kolor: '#cfc3a6', pitch: .6, rate: .8, glos: 0 }
+};
+const Glos = {
+  get dostepny() { return 'speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined'; },
+  glosy() {
+    if (!this.dostepny) return [];
+    const pl = speechSynthesis.getVoices().filter(v => /^pl/i.test(v.lang));
+    // lepsze (naturalne/premium) głosy najpierw
+    return pl.sort((a, b) => (/natural|premium|enhanced|neural|online/i.test(b.name) - /natural|premium|enhanced|neural|online/i.test(a.name)));
+  },
+  /** iOS/Safari: synteza mowy musi zacząć się od dotknięcia, więc „odblokowujemy” ją cichym słowem. */
+  odblokuj() {
+    if (!this.dostepny || this.odblokowany) return;
+    try { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); this.odblokowany = true; } catch { /* brak mowy */ }
+  },
+  mow(tekst, kto = 'n', { naKoniec } = {}) {
+    if (!this.dostepny || !Z.ustawienia.gra.glos) { naKoniec && setTimeout(naKoniec, Math.min(9000, 900 + tekst.length * 55)); return; }
+    const p = POSTACIE[kto] || POSTACIE.n, gl = this.glosy();
+    const u = new SpeechSynthesisUtterance(tekst.replace(/[„”«»]/g, ''));
+    u.lang = 'pl-PL'; u.pitch = p.pitch; u.rate = p.rate; u.volume = 1;
+    if (gl.length) u.voice = gl[p.glos % gl.length];
+    let skonczone = false;
+    const koniec = () => { if (skonczone) return; skonczone = true; clearTimeout(zapas); naKoniec && naKoniec(); };
+    u.onend = koniec; u.onerror = koniec;
+    // gdy przeglądarka nie zgłosi końca mowy, i tak idziemy dalej
+    const zapas = setTimeout(koniec, 2500 + tekst.length * 110);
+    speechSynthesis.speak(u);
+  },
+  stop() { if (this.dostepny) speechSynthesis.cancel(); }
+};
+if (Glos.dostepny) speechSynthesis.onvoiceschanged = () => Glos.glosy();
+
+/* ================= muzyka w tle scen (generowana, bez plików) ================= */
+const AKORDY = {
+  pokoj: [261.6, 329.6, 392, 587.3], swit: [293.7, 370, 440, 659.3], ksiazka: [261.6, 311.1, 392, 466.2],
+  smok: [146.8, 220, 293.7, 349.2], deszcz: [220, 261.6, 329.6, 392], morze: [174.6, 220, 261.6, 349.2],
+  kosmos: [164.8, 246.9, 329.6, 493.9], las: [196, 246.9, 293.7, 392], brama: [123.5, 185, 246.9, 293.7]
+};
+const Muzyka = {
+  ctx: null, glosnosc: null, glosy: [],
+  start(tlo) {
+    if (!Z.ustawienia.gra.muzyka) return;
+    try {
+      this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      if (!this.glosnosc) { this.glosnosc = this.ctx.createGain(); this.glosnosc.gain.value = .0001; this.glosnosc.connect(this.ctx.destination); }
+      this.zmien(tlo);
+    } catch { /* bez dźwięku */ }
+  },
+  zmien(tlo) {
+    if (!this.ctx || !Z.ustawienia.gra.muzyka) return;
+    const t = this.ctx.currentTime, ak = AKORDY[tlo] || AKORDY.pokoj;
+    this.glosy.forEach(g => { g.g.gain.setTargetAtTime(0, t, .8); g.o.stop(t + 4); });
+    this.glosy = ak.map((f, i) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain(), lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+      o.type = i === 3 ? 'triangle' : 'sine'; o.frequency.value = f;
+      lfo.frequency.value = .08 + i * .03; lg.gain.value = f * .004; lfo.connect(lg); lg.connect(o.frequency);
+      g.gain.value = 0; g.gain.setTargetAtTime(i === 3 ? .12 : .22, t + i * .25, 1.2);
+      o.connect(g); g.connect(this.glosnosc); o.start(t); lfo.start(t);
+      return { o, g };
+    });
+    this.glosnosc.gain.setTargetAtTime(.07, t, 1.5);
+  },
+  stop() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.glosnosc && this.glosnosc.gain.setTargetAtTime(.0001, t, .6);
+    this.glosy.forEach(g => g.o.stop(t + 3));
+    this.glosy = [];
+  }
+};
+
+/* ================= kinowy odtwarzacz historii (2.17) ================= */
+/** Dzieli tekst klatki na kwestie: narracja i dialogi (z przypisanym mówcą). */
+function segmentyKlatki(kl) {
+  const czesci = kl.t.split(/\s—\s/);
+  const wyn = [];
+  let ki = 0;
+  czesci.forEach((c, i) => {
+    let tekst = c.trim(), dialog;
+    if (i === 0) { dialog = tekst.startsWith('— '); if (dialog) tekst = tekst.slice(2); }
+    else dialog = /^[A-ZĄĆĘŁŃÓŚŹŻ]/.test(tekst);
+    if (!dialog && i > 0) tekst = tekst[0].toUpperCase() + tekst.slice(1); // „mruknął smok.” → „Mruknął smok.”
+    if (tekst) wyn.push({ kto: dialog ? ((kl.kto && kl.kto[ki++]) || 's') : 'n', tekst });
+  });
+  return wyn;
+}
+const PORZADKOWE = ['pierwszy', 'drugi', 'trzeci', 'czwarty', 'piąty', 'szósty', 'siódmy', 'ósmy', 'dziewiąty', 'dziesiąty'];
+
+function odtworzRozdzial(nr) {
+  Glos.odblokuj();
+  const r = HISTORIA[nr];
+  if (!r) return;
+  const el = document.createElement('div');
+  el.className = 'kino';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', `Rozdział ${nr + 1}: ${r.tytul}`);
+  el.innerHTML = `<div class="kino-pasek kino-gora"></div><div class="kino-scena"></div><div class="kino-pasek kino-dol"></div>
+    <div class="kino-napis" aria-live="polite"><span class="kino-kto"></span><span class="kino-tekst"></span></div>
+    <div class="kino-postep"><span></span></div>
+    <div class="kino-ster">
+      <button type="button" class="kino-btn" data-k="glos" aria-label="Głos">${Z.ustawienia.gra.glos ? '🔊' : '🔇'}</button>
+      <button type="button" class="kino-btn" data-k="muzyka" aria-label="Muzyka">${Z.ustawienia.gra.muzyka ? '🎵' : '🔕'}</button>
+      <button type="button" class="kino-btn" data-k="pauza" aria-label="Pauza">⏸</button>
+      <button type="button" class="kino-btn" data-k="zamknij" aria-label="Zamknij">✕</button></div>
+    <p class="kino-podp">Dotknij, żeby przyspieszyć</p>`;
+  document.body.append(el);
+  document.body.classList.add('kino-otwarte');
+  requestAnimationFrame(() => el.classList.add('widoczne'));
+  const scena = $('.kino-scena', el), napis = $('.kino-napis', el), kto = $('.kino-kto', el), tekstEl = $('.kino-tekst', el), postep = $('.kino-postep span', el);
+  let klatka = -1, seg = 0, pauza = false, zamkniete = false, pisz = null, segmenty = [], czekaj = null;
+  const wszystkich = r.klatki.reduce((s, k) => s + segmentyKlatki(k).length, 0);
+  let zrobione = 0;
+
+  const zamknij = () => {
+    if (zamkniete) return;
+    zamkniete = true;
+    Glos.stop(); Muzyka.stop(); clearInterval(pisz); clearTimeout(czekaj);
+    el.classList.remove('widoczne');
+    document.body.classList.remove('kino-otwarte');
+    setTimeout(() => el.remove(), 500);
+    odswiez();
+  };
+  const plansza = (gora, dol, potem) => {
+    scena.innerHTML = `<div class="kino-plansza"><p class="kino-plansza-gora">${esc(gora)}</p><h2 class="kino-plansza-tytul">${esc(dol)}</h2></div>`;
+    napis.classList.remove('widoczny');
+    Glos.mow(`Rozdział ${PORZADKOWE[nr] || nr + 1}. ${r.tytul}.`, 'n', { naKoniec: () => { czekaj = setTimeout(potem, 500); } });
+  };
+  const nastepnaKlatka = () => {
+    if (zamkniete) return;
+    klatka++;
+    if (klatka >= r.klatki.length) { koniec(); return; }
+    const kl = r.klatki[klatka];
+    const nowa = document.createElement('div');
+    nowa.className = `kino-kadr kb-${(nr + klatka) % 4}`;
+    // tło: rozmyta kopia sceny na cały ekran (jak w grach), z przodu ostra scena
+    const sc = svgKlatki(kl);
+    nowa.innerHTML = `<div class="kadr-tlo">${sc.replace('<svg ', '<svg preserveAspectRatio="xMidYMid slice" ')}</div><div class="kadr-przod">${sc}</div>`;
+    scena.querySelectorAll('.kino-kadr, .kino-plansza').forEach(s => { s.classList.add('znika-kadr'); setTimeout(() => s.remove(), 900); });
+    scena.append(nowa);
+    if (klatka === 0) Muzyka.start(kl.tlo); else if (r.klatki[klatka - 1].tlo !== kl.tlo) Muzyka.zmien(kl.tlo);
+    segmenty = segmentyKlatki(kl); seg = 0;
+    czekaj = setTimeout(mowKwestie, 700);
+  };
+  const mowKwestie = () => {
+    if (zamkniete || pauza) return;
+    if (seg >= segmenty.length) { czekaj = setTimeout(nastepnaKlatka, 900); return; }
+    const s = segmenty[seg], p = POSTACIE[s.kto] || POSTACIE.n;
+    kto.textContent = s.kto === 'n' ? '' : p.nazwa;
+    kto.style.color = p.kolor;
+    napis.classList.toggle('narracja', s.kto === 'n');
+    napis.classList.add('widoczny');
+    // napis pojawia się litera po literze
+    clearInterval(pisz);
+    let i = 0;
+    tekstEl.textContent = '';
+    const tempo = Math.max(18, Math.min(45, 2600 / s.tekst.length));
+    pisz = setInterval(() => { i += 2; tekstEl.textContent = s.tekst.slice(0, i); if (i >= s.tekst.length) clearInterval(pisz); }, tempo);
+    const postac = scena.querySelector(`.kino-kadr:last-child`);
+    if (postac) { postac.classList.remove('mowi-s', 'mowi-z'); if (s.kto === 's' || s.kto === 'z') postac.classList.add(`mowi-${s.kto}`); }
+    Glos.mow(s.tekst, s.kto, {
+      naKoniec: () => {
+        clearInterval(pisz); tekstEl.textContent = s.tekst;
+        zrobione++; postep.style.width = `${(zrobione / wszystkich * 100).toFixed(1)}%`;
+        seg++;
+        czekaj = setTimeout(mowKwestie, s.kto === 'n' ? 450 : 650);
+      }
+    });
+  };
+  const koniec = () => {
+    const st = historiaStan();
+    napis.classList.remove('widoczny');
+    const dalej = nr + 1 < st.odblokowane;
+    if (Z.ustawienia.gra.historiaWidziane < nr + 1) { Z.ustawienia.gra.historiaWidziane = nr + 1; utrwalUstawienia(); }
+    scena.insertAdjacentHTML('beforeend', `<div class="kino-plansza kino-koniec"><p class="kino-plansza-gora">Koniec rozdziału ${nr + 1}</p>
+      <h2 class="kino-plansza-tytul">${dalej ? 'Ciąg dalszy czeka!' : st.nastepny ? `Następny za ${ile(st.doNastepnego, FORMY_STRON_D)}` : 'Koniec przygody… na razie! 🦉🔖'}</h2>
+      <div class="przyciski przyciski-srodek">${dalej ? '<button type="button" class="btn btn-zloty" data-k="dalej">Następny rozdział ›</button>' : ''}<button type="button" class="btn btn-na-plotnie" data-k="zamknij">Zamknij</button></div></div>`);
+    Glos.mow(dalej ? 'Ciąg dalszy nastąpi.' : st.nastepny ? 'Czytaj dalej, a przygoda będzie trwać.' : 'Koniec. Na razie!', 'n');
+  };
+  el.addEventListener('click', e => {
+    const b = e.target.closest('[data-k]');
+    if (b) {
+      const k = b.dataset.k;
+      if (k === 'zamknij') zamknij();
+      if (k === 'dalej') { zamknij(); setTimeout(() => odtworzRozdzial(nr + 1), 550); }
+      if (k === 'glos') { Z.ustawienia.gra.glos = !Z.ustawienia.gra.glos; utrwalUstawienia(); b.textContent = Z.ustawienia.gra.glos ? '🔊' : '🔇'; if (!Z.ustawienia.gra.glos) Glos.stop(); }
+      if (k === 'muzyka') { Z.ustawienia.gra.muzyka = !Z.ustawienia.gra.muzyka; utrwalUstawienia(); b.textContent = Z.ustawienia.gra.muzyka ? '🎵' : '🔕'; if (Z.ustawienia.gra.muzyka) Muzyka.start(r.klatki[Math.max(0, klatka)].tlo); else Muzyka.stop(); }
+      if (k === 'pauza') {
+        pauza = !pauza; b.textContent = pauza ? '▶' : '⏸'; el.classList.toggle('pauza', pauza);
+        if (pauza) { Glos.stop(); clearTimeout(czekaj); clearInterval(pisz); } else mowKwestie();
+      }
+      return;
+    }
+    // dotknięcie sceny: przeskocz do następnej kwestii
+    if (pauza || klatka < 0 || klatka >= r.klatki.length) return;
+    Glos.stop(); clearTimeout(czekaj); clearInterval(pisz);
+    if (segmenty[seg]) { tekstEl.textContent = segmenty[seg].tekst; zrobione++; seg++; }
+    czekaj = setTimeout(mowKwestie, 150);
+  });
+  document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { zamknij(); document.removeEventListener('keydown', esc); } });
+  plansza(`Rozdział ${nr + 1}`, r.tytul, nastepnaKlatka);
+}
+
+/* ================= Sówka z zaskoczenia: żarty i teksty same wyskakują (2.17) ================= */
+function sowkaMowi(tekst, { puenta = null, glosem = true, czas = 9000 } = {}) {
+  if (!Z.ustawienia.gra.sowka || document.body.classList.contains('kino-otwarte')) return;
+  let el = $('#sowka-wyskok');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'sowka-wyskok';
+    el.className = 'sowka-wyskok';
+    el.innerHTML = `<button type="button" class="wyskok-sowa" aria-label="Schowaj Sówkę">${svgSowki('zadowolona', Z.ustawienia.gra.zalozone)}</button><div class="wyskok-dymek"><p class="wyskok-tekst"></p><p class="wyskok-puenta"></p></div>`;
+    document.body.append(el);
+    el.addEventListener('click', () => schowaj());
+  }
+  const t = $('.wyskok-tekst', el), p = $('.wyskok-puenta', el);
+  t.textContent = tekst; p.textContent = ''; p.hidden = true;
+  $('.wyskok-sowa', el).innerHTML = svgSowki(puenta ? 'zadowolona' : 'czeka', Z.ustawienia.gra.zalozone);
+  el.classList.remove('widoczny'); void el.offsetWidth; el.classList.add('widoczny');
+  clearTimeout(U.wyskokTimer); clearTimeout(U.puentaTimer);
+  const pokazPuente = () => {
+    p.textContent = puenta; p.hidden = false; p.classList.add('nowy');
+    el.classList.add('smieje'); setTimeout(() => el.classList.remove('smieje'), 1200);
+    if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
+    if (glosem && Z.ustawienia.gra.glosZarty) Glos.mow(puenta, 's');
+    U.wyskokTimer = setTimeout(schowaj, 6500);
+  };
+  if (glosem && Z.ustawienia.gra.glosZarty) Glos.mow(tekst, 's');
+  if (puenta) U.puentaTimer = setTimeout(pokazPuente, Math.min(4200, 1600 + tekst.length * 35));
+  else U.wyskokTimer = setTimeout(schowaj, czas);
+  function schowaj() { clearTimeout(U.wyskokTimer); clearTimeout(U.puentaTimer); el.classList.remove('widoczny'); }
+  U.ostatniWyskok = Date.now();
+}
+function losowyZart() {
+  const wolne = ZARTY.map((z, i) => i).filter(i => !(U.zartyUzyte || []).includes(i));
+  const i = (wolne.length ? wolne : ZARTY.map((z, j) => j))[Math.floor(Math.random() * (wolne.length || ZARTY.length))];
+  U.zartyUzyte = [...(U.zartyUzyte || []), i].slice(-15);
+  return ZARTY[i];
+}
+/** Co jakiś czas, gdy jesteś w aplikacji, Sówka sama coś mówi: żart, motywację albo ciekawostkę. */
+function niespodziankaSowki(powod = 'losowo') {
+  const g = Z.ustawienia.gra;
+  if (!g.sowka || !g.zarty || otwarte.length || document.hidden || document.body.classList.contains('kino-otwarte')) return;
+  const h = new Date().getHours();
+  if (powod === 'losowo' && (h >= 23 || h < 6)) return;
+  if (powod === 'losowo' && U.ostatniWyskok && Date.now() - U.ostatniWyskok < 4 * 60 * 1000) return;
+  const los = Math.random();
+  if (los < .55) { const [a, b] = losowyZart(); sowkaMowi(a, { puenta: b }); }
+  else if (los < .8) sowkaMowi(motywacja());
+  else sowkaMowi(`Ciekawostka! ${CIEKAWOSTKI[Math.floor(Math.random() * CIEKAWOSTKI.length)]}`, { czas: 12000 });
+}
+/** Reakcja na zapisane strony: pochwała, czasem z żartem na deser. */
+function reakcjaNaStrony(roznica) {
+  if (!Z.ustawienia.gra.sowka || roznica <= 0) return;
+  const pochwaly = [`+${roznica} ${odmiana(roznica, FORMY_STRON)}! Hu-hu, pięknie!`, `Brawo! ${roznica} ${odmiana(roznica, FORMY_STRON)} więcej przygód.`, `Zakładka już się przesunęła o ${roznica} ${odmiana(roznica, FORMY_STRON)}. Lubi to!`, 'Każda strona się liczy. Ta też! 💛'];
+  if (Math.random() < .4 && Z.ustawienia.gra.zarty) { const [a, b] = losowyZart(); setTimeout(() => sowkaMowi(`${pochwaly[Math.floor(Math.random() * pochwaly.length)]} A teraz żart: ${a}`, { puenta: b }), 600); }
+  else setTimeout(() => sowkaMowi(pochwaly[Math.floor(Math.random() * pochwaly.length)], { czas: 5000 }), 600);
+}
+
+/* ================= teksty nagrane głosami (2.18) ================= */
+// Zakładka bez cenzury (18+, można wyłączyć w Sówka i dźwięk)
+const ZARTY_ZAKLADKI_18 = [
+  ['Najgorsze, co może spotkać zakładkę?', 'E-book. Kurwa, bezrobocie.'],
+  ['Ktoś mnie kiedyś użył jako wykałaczki.', 'Wykałaczki, do jasnej cholery! Mam maturę z polskiego!'],
+  ['Wiesz, jak się czuje zakładka w „Ulissesie”?', 'Jak w dupie. Siedzę tam trzeci rok i nadal nikt nie wie, o co chodzi.'],
+  ['Czytelnicy dzielą się na dwie grupy.', 'Tych z zakładkami i tych, co zaginają rogi. Tych drugich niech szlag trafi.'],
+  ['Pożyczyłaś kiedyś książkę ze mną w środku?', 'Wróciłam po roku. Z plamą po winie i traumą. Nie pytaj.'],
+  ['Wiesz, czemu jestem czerwona?', 'Bo widziałam, co ludzie czytają przed snem. Pięćdziesiąt twarzy… dobra, nie powiem.'],
+  ['Najlepsza scena erotyczna w literaturze?', 'Spis treści. Konkretnie, bez gadania i od razu wiesz, gdzie dojść.'],
+  ['Mój były był zakładką w Biblii.', 'Mówił, że to stały związek. Cholera, potem ktoś otworzył Apokalipsę.'],
+  ['Co krzyczy zakładka, gdy książka spada z półki?', 'O kurwa, strona trzydzieści siedem! Trzymam się jak małpa!'],
+  ['Sówka mówi, że czytanie to przygoda.', 'Przygoda to jest, jak ktoś zaśnie na książce twarzą. Cała w ślinie byłam, do cholery.'],
+  ['Wiesz, jaki jest mój ulubiony gatunek?', 'Opowiadania. Szybko wchodzę, szybko wychodzę i nikt mnie nie zostawia na pół roku jak ostatnią sierotę.'],
+  ['Sówka jest mądra, bo czyta.', 'Ja czytam razem z nią i co? Dalej jestem kawałkiem tektury. Życie jest do dupy.']
+];
+const SMIECH_ZAKLADKI = ['Ha! Dobre!', 'Hahaha! Zapiszę to sobie na marginesie!', 'Słyszałam lepsze. Ale nie dziś.', 'Ała, aż mnie zgięło. Dosłownie, jestem z papieru.'];
+// scenka po dodaniu książki: stałe kwestie (nagrane) + zmienne (gaworzenie)
+const RECENZJA = {
+  start: ['Hu-hu! Nowa książka na półce!', 'Ooo, co tam przyniosłeś? Pokaż, pokaż!', 'Hu-hu! Świeża dostawa do biblioteki!'],
+  dobryWybor: ['Moim zdaniem to świetny wybór.', 'Hu-hu, to może być twoja nowa ulubiona!', 'Dobry wybór. Jestem dumna.'],
+  ryzyko: ['Hm, nowy gatunek dla ciebie. Warto spróbować!', 'Trochę ryzykownie, ale najlepsze książki są z zaskoczenia.'],
+  grubaZ: ['Ile?! Ja się w tym zgubię! Kto mnie potem znajdzie?!', 'Toż to cegła! Tym można kogoś zabić!'],
+  krotkaZ: ['Krótka? To na jeden wieczór. Ledwo się rozgrzeję.', 'Taka chudzinka? Nawet nie zdążę się przyzwyczaić.'],
+  zaczepkaZ: ['Dobry wybór? Ostatnio mówiłaś to o książce kucharskiej.', 'A ja bym wolała coś z większą ilością przygód.', 'Znowu? Ja jeszcze nie skończyłam poprzedniej!'],
+  ripostaS: ['Nie marudź, Zakładko.', 'Ciszej tam, papierku. Ja tu recenzuję.', 'Zakładko, nikt cię nie pytał.'],
+  ripostaZ: ['Sama nie marudź, sowo jedna!', 'Pierzasta mądralo!', 'Dobra, dobra. Ale jak się zgubię, to twoja wina.'],
+  koniecS: ['Dobra, zgoda. Czytamy?', 'Hu-hu, pogódźmy się przy nowej książce.']
+};
+const POCHWALY_NAGRANE = ['Hu-hu, pięknie!', 'Brawo! Każda strona się liczy.', 'Super! Zakładka już się przesunęła.', 'Pięknie czytasz! Tak trzymaj.'];
+
 /* ================= kopia, import, eksport ================= */
 async function eksportujKopie() {
   const ok = await zapiszPlik(`zakladka-kopia-${dzisISO()}.json`, JSON.stringify(daneDoKopii()), 'application/json');
@@ -5356,6 +5669,21 @@ async function start() {
   else lsSet('zakladka-widziana-wersja', WERSJA);
   setInterval(sprawdzPrzypomnienie, 60 * 1000);
   setTimeout(() => sprawdzCenyListy(), 6000);
+  U.stronyPoprz = stronyRazem();
+  // Sówka: raz dziennie przywitanie z niespodzianką, potem co jakiś czas sama coś powie
+  setTimeout(() => { if (lsGet('zakladka-sowka-dzien') !== dzisISO() && Z.ksiazki.length) { lsSet('zakladka-sowka-dzien', dzisISO()); niespodziankaSowki('start'); } }, 3500);
+  setInterval(() => { if (Math.random() < .3) niespodziankaSowki(); }, 75 * 1000);
+  setInterval(() => {
+    if (U.widok !== 'dzis' || document.hidden || otwarte.length) return;
+    const st = stanSowki();
+    if (st.tryb === 'spi') return;
+    U.sowkaN = (U.sowkaN || 0) + 1;
+    const r = U.sowkaN % 4;
+    if (r === 1 && Z.ustawienia.gra.zarty) { const [a, b] = losowyZart(); pokazDymek(a, { klasa: 'mysli' }); setTimeout(() => pokazDymek(`${a} ${b}`, { klasa: 'smieje' }), 3800); }
+    else if (r === 2) pokazDymek(motywacja(), { klasa: 'skacze' });
+    else if (r === 3) pokazDymek(coCzytac(), { klasa: 'mysli' });
+    else pokazDymek(wiadomoscSowki(st));
+  }, 22 * 1000);
   setInterval(() => {
     const el = $('#pigulka [data-czas]'), s = sesjaAktywna();
     if (el && s) el.textContent = stoper(czasSesji(s));

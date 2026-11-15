@@ -1523,3 +1523,66 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 .hist-kropki i { width: 8px; height: 8px; border-radius: 50%; background: var(--linia); transition: background .2s, transform .2s; }
 .hist-kropki i.akt { background: var(--wstazka); transform: scale(1.3); }
 @media (prefers-reduced-motion: reduce) { .kl-postac, .kl-rekw, .krople path, .fala, .gw, .zakladka-svg { animation: none !important; } }
+
+/* ================= wersja 2.17: kino i Sówka z zaskoczenia ================= */
+body.kino-otwarte { overflow: hidden; }
+.kino { position: fixed; inset: 0; z-index: 300; background: #000; display: grid; place-items: center; opacity: 0; transition: opacity .5s ease; user-select: none; -webkit-user-select: none; cursor: pointer; }
+.kino.widoczne { opacity: 1; }
+.kino-scena { position: relative; width: 100%; max-width: 900px; aspect-ratio: 360 / 220; overflow: hidden; }
+.kino-pasek { position: absolute; left: 0; right: 0; height: 12vh; background: #000; z-index: 3; transition: transform 1.2s cubic-bezier(.2, .8, .2, 1); }
+.kino-gora { top: 0; transform: translateY(-100%); } .kino-dol { bottom: 0; transform: translateY(100%); }
+.kino.widoczne .kino-pasek { transform: none; }
+.kino-kadr { position: absolute; inset: 0; animation: kadr-wejscie .9s ease both; }
+.kino-kadr svg { width: 100%; height: 100%; display: block; }
+.kino-kadr.znika-kadr { animation: kadr-wyjscie .8s ease both; }
+@keyframes kadr-wejscie { from { opacity: 0; filter: brightness(.2); } }
+@keyframes kadr-wyjscie { to { opacity: 0; filter: brightness(.2); } }
+/* „kamera”: powolny najazd w różnych kierunkach (efekt Kena Burnsa) */
+.kino-kadr.kb-0 svg { animation: kb0 12s ease-out both; } .kino-kadr.kb-1 svg { animation: kb1 12s ease-out both; }
+.kino-kadr.kb-2 svg { animation: kb2 12s ease-out both; } .kino-kadr.kb-3 svg { animation: kb3 12s ease-out both; }
+@keyframes kb0 { from { transform: scale(1.02); } to { transform: scale(1.14) translate(-2%, -1%); } }
+@keyframes kb1 { from { transform: scale(1.16) translate(2%, 1%); } to { transform: scale(1.04); } }
+@keyframes kb2 { from { transform: scale(1.04) translate(-2%, 0); } to { transform: scale(1.12) translate(2%, -2%); } }
+@keyframes kb3 { from { transform: scale(1.12) translate(0, -2%); } to { transform: scale(1.03) translate(-1%, 1%); } }
+.kino-kadr .kl-postac { animation: kl-wejscie .8s cubic-bezier(.2, 1.4, .4, 1) both, kl-bob 2.6s ease-in-out .8s infinite; transform-box: fill-box; transform-origin: center bottom; }
+@keyframes kl-wejscie { from { opacity: 0; transform: translateY(20px) scale(.8); } }
+.kino-kadr.mowi-s .kl-sowa, .kino-kadr.mowi-z .kl-zakl { animation: mowi .32s ease-in-out infinite alternate; }
+@keyframes mowi { to { transform: translateY(-3px) scale(1.03, .98); } }
+.kino-plansza { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; color: #f1ede0; background: radial-gradient(circle at 50% 50%, #1f2a44, #000 70%); animation: kadr-wejscie 1.2s ease both; padding: 16px; z-index: 2; }
+.kino-plansza-gora { font-size: 13px; letter-spacing: .35em; text-transform: uppercase; color: #d9b66e; animation: wjazd 1s ease .3s both; }
+.kino-plansza-tytul { font-family: var(--font-ksiazka); font-size: clamp(28px, 7vw, 54px); margin-top: 8px; animation: tytul 1.6s cubic-bezier(.2, .8, .2, 1) .5s both; }
+@keyframes tytul { from { opacity: 0; letter-spacing: .3em; filter: blur(6px); } }
+.kino-koniec .przyciski { margin-top: 18px; }
+.kino-napis { position: absolute; left: 50%; bottom: calc(12vh + 14px); z-index: 4; width: min(92vw, 760px); transform: translateX(-50%) translateY(10px); opacity: 0; transition: opacity .35s, transform .35s; text-align: center; pointer-events: none; }
+.kino-napis.widoczny { opacity: 1; transform: translateX(-50%); }
+.kino-kto { display: block; font-weight: 800; font-size: 14px; letter-spacing: .05em; margin-bottom: 4px; text-shadow: 0 2px 6px #000; }
+.kino-tekst { display: inline; padding: 6px 12px; line-height: 1.75; font-size: clamp(16px, 4.3vw, 22px); color: #fff; background: rgba(0, 0, 0, .62); border-radius: 8px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.kino-napis.narracja .kino-tekst { font-family: var(--font-ksiazka); font-style: italic; color: #f6efd9; }
+.kino-postep { position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 5; background: rgba(255, 255, 255, .12); }
+.kino-postep span { display: block; height: 100%; width: 0; background: #d9b66e; transition: width .5s ease; }
+.kino-ster { position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 10px; z-index: 6; display: flex; gap: 8px; }
+.kino-btn { width: 42px; height: 42px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .45); color: #fff; font-size: 17px; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.kino-podp { position: absolute; bottom: 10px; left: 0; right: 0; z-index: 5; text-align: center; font-size: 11.5px; color: rgba(255, 255, 255, .45); }
+.kino.pauza .kino-kadr svg, .kino.pauza .kl-postac { animation-play-state: paused !important; }
+.chip-kino { background: linear-gradient(90deg, #2a1f3d, #1f4a3d); color: #f1ede0; border-color: transparent; padding: 7px 12px; font-size: 13px; }
+.hist-intro { padding: 10px 12px; border-radius: 12px; background: linear-gradient(90deg, #2a1f3d, #1f4a3d); color: #f1ede0; font-size: 14px; margin-bottom: 8px; }
+@media (prefers-reduced-motion: reduce) { .kino-kadr svg { animation: none !important; } }
+/* Sówka wyskakująca z zaskoczenia */
+.sowka-wyskok { position: fixed; left: 12px; right: 12px; bottom: calc(var(--nawigacja) + 14px + env(safe-area-inset-bottom)); z-index: 90; display: flex; align-items: flex-end; gap: 6px; max-width: 520px; margin: 0 auto; transform: translateY(140%); opacity: 0; transition: transform .55s cubic-bezier(.2, 1.3, .4, 1), opacity .3s; pointer-events: none; }
+.sowka-wyskok.widoczny { transform: none; opacity: 1; pointer-events: auto; }
+.wyskok-sowa { flex: none; width: 74px; height: 80px; border: 0; padding: 0; background: none; cursor: pointer; }
+.wyskok-sowa .sowka-svg { width: 74px; height: 80px; }
+.sowka-wyskok.widoczny .wyskok-sowa .sowka-svg { animation: wyskok-sowy .7s cubic-bezier(.3, 1.6, .5, 1) both, kolysanie 4s ease-in-out .7s infinite; }
+@keyframes wyskok-sowy { from { transform: translateY(60px) rotate(-12deg); } }
+.sowka-wyskok.smieje .sowka-svg { animation: smiech .14s linear 7 !important; }
+.wyskok-dymek { flex: 1; margin-bottom: 30px; padding: 10px 14px; border-radius: 16px 16px 16px 4px; background: var(--pole); border: 1px solid var(--linia); box-shadow: 0 14px 30px -14px rgba(0, 0, 0, .55); font-size: 14.5px; line-height: 1.45; cursor: pointer; }
+.wyskok-puenta { margin-top: 6px; font-weight: 700; color: var(--wstazka); }
+.wyskok-puenta.nowy { animation: puenta .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes puenta { from { opacity: 0; transform: scale(.7); } }
+.kino-scena { position: absolute; inset: 0; max-width: none; aspect-ratio: auto; }
+.kadr-tlo { position: absolute; inset: -8%; filter: blur(22px) brightness(.5) saturate(1.2); }
+.kadr-tlo svg { width: 100%; height: 100%; }
+.kadr-przod { position: absolute; left: 50%; top: 44%; width: min(100%, 132vh); transform: translate(-50%, -50%); }
+.kadr-przod svg { width: 100%; height: auto; border-radius: 6px; box-shadow: 0 30px 60px -30px rgba(0,0,0,.9); }
+@media (orientation: portrait) { .kadr-przod { width: 116%; } .kino-pasek { height: 7vh; } .kino-napis { bottom: calc(7vh + 18%); } }
+.kino-kadr.kb-0 .kadr-tlo svg, .kino-kadr.kb-1 .kadr-tlo svg, .kino-kadr.kb-2 .kadr-tlo svg, .kino-kadr.kb-3 .kadr-tlo svg { animation: none; }
