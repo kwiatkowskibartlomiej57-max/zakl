@@ -1989,3 +1989,10 @@ body.gra-otwarta { overflow: hidden; }
 .sowka-menu { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .sowka-menu .chip-m { justify-content: center; padding: 7px 4px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sowka-opcje .chip-m { max-width: 100%; white-space: normal; text-align: left; line-height: 1.25; }
+
+/* ---------- 2.24: audiobooki ---------- */
+.f-audio-pola { padding: 12px; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); display: grid; gap: 10px; }
+.f-audio-pola[hidden] { display: none; }
+.f-audio-tytul { font-weight: 700; }
+.kafel-audio { position: absolute; right: 6px; top: 6px; z-index: 2; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: rgba(0,0,0,.6); font-size: 14px; }
+.kd-audio-brak { margin-top: 6px; font-size: 13.5px; color: var(--zloto); }

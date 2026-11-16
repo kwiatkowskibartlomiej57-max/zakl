@@ -1,6 +1,6 @@
 /* Zakładka — service worker: aplikacja działa bez internetu.
    Przy każdej nowej wersji zmień WERSJA, żeby telefon pobrał świeże pliki. */
-const WERSJA = 'zakladka-2.23.1';
+const WERSJA = 'zakladka-2.24';
 const MEDIA = 'zakladka-media';
 const RDZEN = [
   './', 'index.html', 'css/app.css',

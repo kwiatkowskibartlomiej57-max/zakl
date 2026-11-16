@@ -102,7 +102,7 @@ function statusKsiazki(k) {
   if (k.status === 'czytam') return k.bazowa ? 'Książka bazowa' : 'Czytam';
   if (k.status === 'doPrzeczytania') return `Do przeczytania, nr ${kolejka().indexOf(k) + 1} w kolejce`;
   if (k.status === 'przeczytana') return k.koniec ? `Przeczytana ${dataDluga(k.koniec)}` : 'Przeczytana';
-  if (k.status === 'pozniej') return `Na później${k.odlozono ? ` od ${dataDluga(k.odlozono)}` : ''}${k.strona ? `, przerwana na s. ${k.strona}` : ''}`;
+  if (k.status === 'pozniej') return `Na później${k.odlozono ? ` od ${dataDluga(k.odlozono)}` : ''}${k.strona ? (czyAudio(k) ? `, przerwana w ${hm(minutaAudio(k))}` : `, przerwana na s. ${k.strona}`) : ''}`;
   if (k.status === 'zyczenia') return `Lista życzeń${k.priorytet ? ', ' + ['', 'chcę', 'bardzo chcę', 'muszę mieć'][k.priorytet] : ''}${k.cena ? `, ${k.cena.toFixed(2).replace('.', ',')} zł` : ''}`;
   return k.porzucono ? `Porzucona ${dataDluga(k.porzucono)}` : 'Porzucona';
 }
@@ -262,6 +262,9 @@ function widokPowitalny() {
   </section>`;
 }
 
+/** 2.24: ile minut nagrania to tyle stron audiobooka (do norm i planów). */
+const minNagrania = (k, strony) => Math.round(strony / k.strony * k.czasMin);
+
 function blokBazowej(k) {
   const p = planBazowej(k);
   const proc = k.strona / k.strony * 100;
@@ -275,13 +278,15 @@ function blokBazowej(k) {
     <p class="bazowa-etykieta">Książka bazowa</p>
     <button type="button" class="bazowa-ksiazka" data-akcja="ksiazka" data-id="${k.id}">${okladka(k, 's')}
       <span class="bazowa-tekst"><span class="bazowa-tytul">${esc(k.tytul)}</span><span class="bazowa-autor">${esc(k.autor)}</span></span></button>
-    <p class="bazowa-strona"><span>Strona <strong>${k.strona}</strong> z ${k.strony}</span><span>${Math.floor(proc)}%</span></p>
+    ${czyAudio(k) ? `<p class="bazowa-strona"><span>🎧 <strong>${hm(minutaAudio(k))}</strong> z ${hm(k.czasMin)}</span><span>${Math.floor(proc)}%</span></p>` : `<p class="bazowa-strona"><span>Strona <strong>${k.strona}</strong> z ${k.strony}</span><span>${Math.floor(proc)}%</span></p>`}
     ${pasek(proc, { plan: p.planDzis / k.strony * 100, duzy: true })}
     <dl class="bazowa-fakty">
-      <div><dt>Dziś</dt><dd>${p.dzisiaj} z ${p.norma} ${odmiana(p.norma, FORMY_STRON_D)} ${p.zrobione ? `<span class="znacznik znacznik-ok">${I.check}norma zrobiona</span>` : `<span class="znacznik">brakuje ${brakuje}</span>`}</dd></div>
-      <div><dt>Plan</dt><dd class="${p.stan === 'za' ? 'zle' : ''}">${plan}</dd></div>
+      ${czyAudio(k) ? `<div><dt>Dziś</dt><dd>${czasNagrania(minNagrania(k, p.dzisiaj))} z ${czasNagrania(minNagrania(k, p.norma))} ${p.zrobione ? `<span class="znacznik znacznik-ok">${I.check}norma zrobiona</span>` : `<span class="znacznik">brakuje ${czasNagrania(minNagrania(k, brakuje))}</span>`}</dd></div>
+      <div><dt>Plan</dt><dd class="${p.stan === 'za' ? 'zle' : ''}">${p.stan === 'przed' ? `${czasNagrania(minNagrania(k, p.roznica))} przed planem` : p.stan === 'za' ? `${czasNagrania(minNagrania(k, Math.abs(p.roznica)))} za planem` : plan}</dd></div>`
+      : `<div><dt>Dziś</dt><dd>${p.dzisiaj} z ${p.norma} ${odmiana(p.norma, FORMY_STRON_D)} ${p.zrobione ? `<span class="znacznik znacznik-ok">${I.check}norma zrobiona</span>` : `<span class="znacznik">brakuje ${brakuje}</span>`}</dd></div>
+      <div><dt>Plan</dt><dd class="${p.stan === 'za' ? 'zle' : ''}">${plan}</dd></div>`}
       <div><dt>Termin</dt><dd>${termin}</dd></div>
-      ${tempo ? `<div><dt>Do końca</dt><dd>ok. ${czasCzytania(p.zostalo / tempo)} czytania</dd></div>` : ''}
+      ${czyAudio(k) ? `<div><dt>Do końca</dt><dd>${czasNagrania((k.czasMin - minutaAudio(k)) / k.predkosc)} słuchania (${predkoscTekst(k.predkosc)})</dd></div>` : tempo ? `<div><dt>Do końca</dt><dd>ok. ${czasCzytania(p.zostalo / tempo)} czytania</dd></div>` : ''}
     </dl>
     <div class="przyciski">
       <button type="button" class="btn btn-zloty" data-akcja="postep" data-id="${k.id}">Zapisz postęp</button>
@@ -308,11 +313,11 @@ function wierszCzytanej(k) {
   return `<li class="wiersz">
     <button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${k.id}">${okladka(k, 's')}
       <span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor || FORMATY[k.format])}</span>
-      ${pasek(proc)}<span class="wiersz-info">Strona ${k.strona} z ${k.strony}${dzis ? `, dziś +${dzis}` : ''}${prog ? `. Skończysz ok. ${dataKrotka(prog)}` : ''}</span></span>
+      ${pasek(proc)}<span class="wiersz-info">${czyAudio(k) ? `🎧 ${hm(minutaAudio(k))} z ${hm(k.czasMin)}${dzis ? `, dziś +${czasNagrania(minNagrania(k, dzis))}` : ''}` : `Strona ${k.strona} z ${k.strony}${dzis ? `, dziś +${dzis}` : ''}`}${prog ? `. Skończysz ok. ${dataKrotka(prog)}` : ''}</span></span>
     </button>
     <span class="wiersz-akcje">
       <button type="button" class="btn-ikona" data-akcja="postep" data-id="${k.id}" aria-label="Zapisz postęp: ${esc(k.tytul)}">${I.plus}</button>
-      <button type="button" class="btn-ikona" data-akcja="sesja" data-id="${k.id}" aria-label="Sesja czytania: ${esc(k.tytul)}">${I.zegar}</button>
+      <button type="button" class="btn-ikona" data-akcja="sesja" data-id="${k.id}" aria-label="${czyAudio(k) ? 'Sesja słuchania' : 'Sesja czytania'}: ${esc(k.tytul)}">${czyAudio(k) ? '🎧' : I.zegar}</button>
     </span>
   </li>`;
 }
@@ -446,7 +451,7 @@ function htmlSiatki() {
   }
   const kolejkowa = U.polka === 'doPrzeczytania' && U.sort === 'domyslnie' && !q && !U.tag;
   return `<ul class="siatka">${lista.map((k, i) => `<li style="--n:${i}"><button type="button" class="kafel" data-akcja="ksiazka" data-id="${k.id}">
-      ${okladka(k, 'm')}${kolejkowa ? `<span class="kafel-nr" aria-label="Pozycja w kolejce">${i + 1}</span>` : ''}${k.bazowa ? '<span class="kafel-wstazka" aria-label="Książka bazowa"></span>' : ''}
+      ${okladka(k, 'm')}${k.format === 'audio' ? '<span class="kafel-audio" aria-label="Audiobook">🎧</span>' : ''}${kolejkowa ? `<span class="kafel-nr" aria-label="Pozycja w kolejce">${i + 1}</span>` : ''}${k.bazowa ? '<span class="kafel-wstazka" aria-label="Książka bazowa"></span>' : ''}
       ${k.pozyczona ? `<span class="kafel-pozyczka${dniDoZwrotu(k) != null && dniDoZwrotu(k) < 0 ? ' po-terminie' : ''}" title="${k.pozyczona.kierunek === 'komus' ? 'Pożyczona: ' : 'Od: '}${esc(k.pozyczona.kto)}">${I.reka}${esc(k.pozyczona.kto)}</span>` : ''}
       <span class="kafel-tytul">${esc(k.tytul)}</span><span class="kafel-autor">${esc(k.autor)}${k.seria ? `<span class="kafel-seria">${esc(k.seria)}${k.tom != null ? ` ${String(k.tom).replace('.', ',')}` : ''}</span>` : ''}</span>
       ${k.status === 'czytam' || (k.status === 'pozniej' && k.strona) ? pasek(k.strona / k.strony * 100) : ''}
@@ -460,7 +465,7 @@ function widokBiblioteka() {
   const tagi = [...new Set(Z.ksiazki.filter(k => k.status === U.polka).flatMap(k => k.tagi))].sort((a, b) => a.localeCompare(b, 'pl'));
   if (U.tag && !tagi.includes(U.tag)) U.tag = null;
   return `<section class="naglowek-widoku"><h1>Biblioteka</h1>
-    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="dodaj-wiele">${I.skaner}Wiele</button><button type="button" class="btn btn-glowny" data-akcja="dodaj">${I.plus}Dodaj</button></span></section>
+    <span class="naglowek-akcje"><button type="button" class="btn" data-akcja="dodaj-wiele">${I.skaner}Wiele</button><button type="button" class="btn" data-akcja="dodaj-audio" aria-label="Dodaj audiobook">🎧</button><button type="button" class="btn btn-glowny" data-akcja="dodaj">${I.plus}Dodaj</button></span></section>
   <div class="polki" role="tablist" aria-label="Półki">${POLKI.map(([s, n]) =>
     `<button type="button" role="tab" aria-selected="${!U.pozyczone && U.polka === s}" data-akcja="polka" data-polka="${s}">${n}<span class="polki-liczba">${liczby[s]}</span></button>`).join('')}</div>
   <div class="filtry">
@@ -630,6 +635,7 @@ function widokStatystyki() {
     ${najdluzsza ? `<div><dt>Najdłuższa przeczytana</dt><dd>${esc(najdluzsza.tytul)}, ${ile(najdluzsza.strony, FORMY_STRON)}</dd></div>` : ''}
     ${szybkie ? `<div><dt>Najszybciej przeczytana</dt><dd>${esc(szybkie.k.tytul)}, ${ile(szybkie.dni, FORMY_DNI)}</dd></div>` : ''}
     ${minutySesji ? `<div><dt>Czas w sesjach</dt><dd>${czasCzytania(minutySesji / 60)}</dd></div>` : ''}
+    ${(() => { const au = Z.ksiazki.filter(czyAudio); if (!au.length) return ''; const min = au.reduce((a, k) => a + k.log.reduce((x, w) => x + w.strony, 0) / k.strony * k.czasMin, 0), wys = au.filter(k => k.status === 'przeczytana').length; return `<div><dt>🎧 Wysłuchane nagrania</dt><dd>${czasNagrania(min)}${wys ? `, ${ile(wys, FORMY_KSIAZEK)} do końca` : ''}</dd></div>`; })()}
     ${oceny.length ? `<div><dt>Średnia ocena</dt><dd>${ulamek(oceny.reduce((s, k) => s + k.ocena, 0) / oceny.length)} na 5</dd></div>` : ''}
     <div><dt>Przeczytane ogółem</dt><dd>${ile(przeczytane.length, FORMY_KSIAZEK)}, ${ile(przeczytane.reduce((s, k) => s + k.strony, 0), FORMY_STRON)}</dd></div>
   </dl></section>
@@ -829,8 +835,8 @@ function htmlKsiazki(k) {
   let akcje = '';
   if (k.status === 'czytam') {
     akcje = `<button type="button" class="btn btn-glowny" data-akcja="postep" data-id="${k.id}">Zapisz postęp</button>
-      <button type="button" class="btn" data-akcja="sesja" data-id="${k.id}">${I.zegar}Sesja</button>
-      <button type="button" class="btn" data-akcja="skonczona" data-id="${k.id}">${I.check}Skończona</button>
+      <button type="button" class="btn" data-akcja="sesja" data-id="${k.id}">${czyAudio(k) ? '🎧 Słuchaj' : `${I.zegar}Sesja`}</button>
+      <button type="button" class="btn" data-akcja="skonczona" data-id="${k.id}">${I.check}${czyAudio(k) ? 'Wysłuchana' : 'Skończona'}</button>
       ${k.bazowa ? `<button type="button" class="btn" data-akcja="bazowa" data-id="${k.id}">Zmień termin</button>
         <button type="button" class="btn-tekst" data-akcja="zdejmij-bazowa" data-id="${k.id}">Przestań traktować jako bazową</button>`
         : `<button type="button" class="btn" data-akcja="bazowa" data-id="${k.id}">Ustaw jako bazową</button>`}
@@ -867,16 +873,17 @@ function htmlKsiazki(k) {
       <h2 class="kd-tytul">${esc(k.tytul)}</h2>
       ${k.autor ? `<p class="kd-autor">${esc(k.autor)}</p>` : ''}
       ${k.seria ? `<p class="kd-cykl">${esc(k.seria)}${k.tom != null ? `, ${tomTekst(k.tom)}` : ''}</p>` : ''}
-      <p class="kd-szczegoly">${czyTechniczna(k) ? '<span class="znacznik-tech">techniczna</span> ' : ''}${ile(k.strony, FORMY_STRON)}, ${FORMATY[k.format].toLowerCase()}${k.isbn ? `, ISBN ${esc(k.isbn)}` : ''}</p>
+      <p class="kd-szczegoly">${czyTechniczna(k) ? '<span class="znacznik-tech">techniczna</span> ' : ''}${czyAudio(k) ? `🎧 audiobook, ${czasNagrania(k.czasMin)}${k.lektor ? `, czyta ${esc(k.lektor)}` : ''}, słuchasz ${predkoscTekst(k.predkosc)} (ok. ${ile(k.strony, FORMY_STRON)})` : `${ile(k.strony, FORMY_STRON)}, ${FORMATY[k.format].toLowerCase()}`}${k.isbn ? `, ISBN ${esc(k.isbn)}` : ''}</p>
+      ${k.format === 'audio' && !k.czasMin ? `<p class="kd-audio-brak">🎧 Wpisz długość nagrania, a postęp zapiszesz w czasie. <button type="button" class="btn-tekst" data-akcja="edytuj" data-id="${k.id}">Uzupełnij</button></p>` : ''}
       ${k.tagi.length ? `<p class="kd-tagi">${k.tagi.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</p>` : ''}
     </div></div>
   ${k.status === 'czytam' ? `<div class="kd-postep">
-    <p class="kd-strona"><span>Strona <strong>${k.strona}</strong> z ${k.strony}</span><span>${Math.floor(proc)}%</span></p>
+    ${czyAudio(k) ? `<p class="kd-strona"><span>🎧 <strong>${hm(minutaAudio(k))}</strong> z ${hm(k.czasMin)} nagrania</span><span>${Math.floor(proc)}%</span></p>` : `<p class="kd-strona"><span>Strona <strong>${k.strona}</strong> z ${k.strony}</span><span>${Math.floor(proc)}%</span></p>`}
     ${pasek(proc, { plan: p ? p.planDzis / k.strony * 100 : null })}
     <p class="cichy">${[
       p ? `Termin ${dataDluga(k.celData)}, dziś norma ${ile(p.norma, FORMY_STRON)}` : '',
       prog ? `przy obecnym tempie skończysz ok. ${dataDluga(prog, false)}` : '',
-      tempoDoKonca ? `zostało ok. ${czasCzytania((k.strony - k.strona) / tempoDoKonca)} czytania` : ''
+      czyAudio(k) ? `zostało ${czasNagrania(k.czasMin - minutaAudio(k))} nagrania${k.predkosc !== 1 ? `, przy ${predkoscTekst(k.predkosc)} to ${czasNagrania((k.czasMin - minutaAudio(k)) / k.predkosc)}` : ''}` : tempoDoKonca ? `zostało ok. ${czasCzytania((k.strony - k.strona) / tempoDoKonca)} czytania` : ''
     ].filter(Boolean).join(', ').replace(/^./, c => c.toUpperCase()) || 'Zapisuj postęp, a pokażę, kiedy skończysz.'}</p></div>` : ''}
   ${k.status === 'przeczytana' ? `<div class="kd-ocena"><p>Twoja ocena</p>${gwiazdki(k)}</div>${htmlWrazen(k)}` : ''}
   ${k.status === 'porzucona' ? `<p class="kd-porzucona">Porzucona ${k.porzucono ? dataDluga(k.porzucono) : ''}${k.strona ? ` na stronie ${k.strona}` : ''}${k.powodPorzucenia ? `. Powód: ${esc(POWODY_PORZUCENIA.find(p => p.id === k.powodPorzucenia).nazwa.toLowerCase())}` : ''}.</p>` : ''}
@@ -971,7 +978,9 @@ function dyktuj(pole, potem, przycisk) {
 
 function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
   const edytowana = id ? znajdz(id) : null;
-  const k = edytowana || { tytul: '', autor: '', strony: '', isbn: '', format: 'papier', tagi: [], okladka: null, seria: '', tom: null };
+  const k = edytowana || { tytul: '', autor: '', strony: '', isbn: '', format: jako === 'audio' ? 'audio' : 'papier', tagi: [], okladka: null, seria: '', tom: null, czasMin: 0, lektor: '', predkosc: 1 };
+  if (jako === 'audio') jako = 'doPrzeczytania';
+  const audioNaStart = k.format === 'audio';
   let okl = k.okladka;
   let wyniki = [], opisWyniku = '';
   const a = arkusz({
@@ -994,19 +1003,27 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       <div class="f-rzad f-rzad-seria"><label>Cykl (opcjonalnie)<input name="seria" value="${esc(k.seria || '')}" list="znane-serie" autocomplete="off" placeholder="np. Wiedźmin"></label>
         <label>Tom<input name="tom" type="number" inputmode="decimal" min="0" step="0.5" value="${k.tom ?? ''}"></label></div>
       <datalist id="znane-serie">${serie().map(x => `<option value="${esc(x.nazwa)}">`).join('')}</datalist>
-      <div class="f-rzad"><label>Liczba stron<input name="strony" type="number" inputmode="numeric" min="1" value="${esc(k.strony)}" required></label>
+      <fieldset class="segment"><legend>Format</legend>${Object.entries(FORMATY).map(([v, n]) => radio('format', v, v === 'audio' ? '🎧 Audiobook' : n, k.format === v)).join('')}</fieldset>
+      <div class="f-audio-pola"${audioNaStart ? '' : ' hidden'}>
+        <p class="f-audio-tytul">🎧 Audiobook</p>
+        <div class="f-rzad f-czas"><label>Długość nagrania: godziny<input name="czasH" type="number" inputmode="numeric" min="0" max="200" value="${k.czasMin ? Math.floor(k.czasMin / 60) : ''}" placeholder="np. 11"></label>
+          <label>minuty<input name="czasM" type="number" inputmode="numeric" min="0" max="59" value="${k.czasMin ? k.czasMin % 60 : ''}" placeholder="np. 20"></label></div>
+        <div class="f-rzad"><label>Lektor (opcjonalnie)<input name="lektor" value="${esc(k.lektor || '')}" autocomplete="off" placeholder="np. Krzysztof Gosztyła"></label>
+          <label>Słucham z prędkością<select name="predkosc">${[0.8, 0.9, 1, 1.1, 1.2, 1.25, 1.3, 1.4, 1.5, 1.75, 2, 2.5, 3].map(p => `<option value="${p}"${Math.abs((k.predkosc || 1) - p) < .001 ? ' selected' : ''}>${predkoscTekst(p)}</option>`).join('')}</select></label></div>
+        <p class="podpowiedz">Długość znajdziesz w aplikacji z audiobookiem (Storytel, Audioteka, Empik Go, Legimi). Postęp zapisujesz w czasie, np. „5:32”.</p>
+      </div>
+      <div class="f-rzad"><label><span data-et-strony>${audioNaStart ? 'Strony papierowego wydania (opcjonalnie)' : 'Liczba stron'}</span><input name="strony" type="number" inputmode="numeric" min="1" value="${esc(k.strony)}"${audioNaStart ? '' : ' required'}></label>
         <label>ISBN<input name="isbn" inputmode="numeric" value="${esc(k.isbn)}" autocomplete="off"></label></div>
-      <fieldset class="segment"><legend>Format</legend>${Object.entries(FORMATY).map(([v, n]) => radio('format', v, n, k.format === v)).join('')}</fieldset>
       <label class="przelacznik"><input type="checkbox" name="techniczna"${k.rodzaj === 'techniczna' ? ' checked' : ''}><span>Książka techniczna / do nauki</span></label>
       <p class="podpowiedz">Czytana po kawałku, rozdziałami, nie codziennie. Nie trafia do planu tygodnia ani losowania, a postęp odhaczasz rozdziałami.</p>
-      <p class="podpowiedz f-audio"${k.format === 'audio' ? '' : ' hidden'}>Przy audiobooku wpisz liczbę stron wydania papierowego, a postęp zapisuj w stronach albo procentach tej liczby.</p>
+      <p class="podpowiedz f-audio"${k.format === 'audio' ? '' : ' hidden'}>Strony są potrzebne do celów i statystyk. Jeśli ich nie wpiszesz, policzę je z długości nagrania (godzina to ok. ${STRON_NA_GODZINE_AUDIO} strony).</p>
       <label>Tagi<input name="tagi" value="${esc(k.tagi.join(', '))}" placeholder="np. historia, reportaż" autocomplete="off"></label>
       <p class="podpowiedz">Oddziel przecinkami.</p>
       ${htmlWyboruKategorii(k)}
       ${edytowana ? '' : `<fieldset class="segment"><legend>Gdzie odłożyć</legend>
         ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}${radio('gdzie', 'zyczenia', 'Lista życzeń', jako === 'zyczenia')}${radio('gdzie', 'pozniej', 'Na później', jako === 'pozniej')}</fieldset>
         <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>
-        <label class="f-juz"${jako === 'czytam' || jako === 'bazowa' ? '' : ' hidden'}>Już zaczęte? Jestem na stronie<input name="juz" type="number" inputmode="numeric" min="0" placeholder="0"></label>
+        <label class="f-juz"${jako === 'czytam' || jako === 'bazowa' ? '' : ' hidden'}><span data-et-juz>${audioNaStart ? 'Już zaczęty? Jestem w miejscu (h:mm)' : 'Już zaczęte? Jestem na stronie'}</span><input name="juz" inputmode="${audioNaStart ? 'text' : 'numeric'}" placeholder="${audioNaStart ? '0:00' : '0'}"></label>
         <div class="f-listy"${jako === 'zyczenia' ? '' : ' hidden'}>${htmlListWFormularzu()}</div>`}
       <p class="blad" hidden></p>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button>
@@ -1120,7 +1137,14 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
   });
   f.addEventListener('change', e => {
     if (e.target.name === 'gdzie') { $('.f-miesiace', f).hidden = e.target.value !== 'bazowa'; $('.f-listy', f).hidden = e.target.value !== 'zyczenia'; $('.f-juz', f).hidden = !['czytam', 'bazowa'].includes(e.target.value); }
-    if (e.target.name === 'format') $('.f-audio', f).hidden = e.target.value !== 'audio';
+    if (e.target.name === 'format') {
+      const au = e.target.value === 'audio';
+      $('.f-audio', f).hidden = !au; $('.f-audio-pola', f).hidden = !au;
+      el('strony').required = !au;
+      $('[data-et-strony]', f).textContent = au ? 'Strony papierowego wydania (opcjonalnie)' : 'Liczba stron';
+      const juz = $('[data-et-juz]', f); if (juz) { juz.textContent = au ? 'Już zaczęty? Jestem w miejscu (h:mm)' : 'Już zaczęte? Jestem na stronie'; el('juz').placeholder = au ? '0:00' : '0'; el('juz').inputMode = au ? 'text' : 'numeric'; }
+      if (au && !el('czasH').value) setTimeout(() => el('czasH').focus(), 50);
+    }
     if (e.target.name === 'seria' && !el('tom').value) {
       // znany cykl: podpowiedz kolejny numer tomu
       const tomy = ksiazkiSerii(e.target.value).filter(x => x !== edytowana && x.tom != null).map(x => x.tom);
@@ -1131,15 +1155,19 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
   f.addEventListener('submit', async e => {
     e.preventDefault();
     const tytul = el('tytul').value.trim();
-    const strony = Math.round(+el('strony').value);
+    const audio = f.elements.format.value === 'audio';
+    const czasMin = audio ? Math.round((+el('czasH').value || 0) * 60 + (+el('czasM').value || 0)) : 0;
+    const strony = Math.round(+el('strony').value) || (audio && czasMin ? stronyZCzasu(czasMin) : 0);
     if (!tytul) { pokazBlad('Wpisz tytuł.'); el('tytul').focus(); return; }
+    if (audio && !(czasMin >= 1)) { pokazBlad('Wpisz długość nagrania (godziny i minuty).'); el('czasH').focus(); return; }
     if (!(strony >= 1)) { pokazBlad('Wpisz liczbę stron.'); el('strony').focus(); return; }
     const dane = {
       tytul, autor: el('autor').value.trim(), strony, isbn: el('isbn').value.replace(/[^\dXx]/g, ''),
       format: f.elements.format.value, tagi: el('tagi').value.split(',').map(t => t.trim().toLowerCase()).filter(Boolean), okladka: okl,
       rodzaj: f.elements.techniczna.checked ? 'techniczna' : 'zwykla',
       kategorie: $$('[name="kat"]:checked', f).map(x => x.value).slice(0, 3),
-      seria: el('seria').value.trim().slice(0, 80), tom: +el('tom').value > 0 ? Math.round(+el('tom').value * 10) / 10 : null
+      seria: el('seria').value.trim().slice(0, 80), tom: +el('tom').value > 0 ? Math.round(+el('tom').value * 10) / 10 : null,
+      czasMin, lektor: audio ? el('lektor').value.trim().slice(0, 80) : '', predkosc: audio ? +el('predkosc').value || 1 : 1
     };
     if (edytowana) {
       Object.assign(edytowana, dane, { tagi: [...new Set(dane.tagi)] });
@@ -1164,9 +1192,10 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       const mies = Math.max(0.5, parseFloat(String(el('miesiace').value).replace(',', '.')) || 2);
       zmienione = ustawBazowa(nowa, dodajDni(dzisISO(), Math.round(mies * 30.44) - 1));
     }
-    const juz = Math.round(+(el('juz') && el('juz').value) || 0);
+    const juzTxt = el('juz') ? el('juz').value : '';
+    const juz = czyAudio(nowa) ? stronaZMinuty(nowa, parsujCzas(juzTxt) || 0) : Math.round(+juzTxt || 0);
     if (juz > 0 && (gdzie === 'czytam' || gdzie === 'bazowa')) {
-      // strony przeczytane przed dodaniem: bez wpisu do dzisiejszego licznika
+      // strony (albo minuty nagrania) przed dodaniem: bez wpisu do dzisiejszego licznika
       nowa.strona = Math.min(juz, nowa.strony - 1);
       if (nowa.planOd) nowa.planOd = { data: dzisISO(), strona: nowa.strona };
     }
@@ -1185,9 +1214,84 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
 }
 
 /* ================= arkusz: postęp ================= */
+/** 2.24: postęp audiobooka w czasie nagrania („jestem w 5:32”), szybkie +15 min, +30 min, +1 h. */
+function arkuszPostepuAudio(k) {
+  const teraz = minutaAudio(k);
+  const a = arkusz({
+    tytul: 'Zapisz odsłuch', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <div class="postep-ksiazka">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">🎧 ${esc(k.tytul)}</span><span class="wiersz-autor">Teraz ${hm(teraz)} z ${hm(k.czasMin)} (${Math.floor(k.strona / k.strony * 100)}%)</span></span></div>
+      <fieldset class="segment segment-maly"><legend class="sr">Jak wpisać</legend>${radio('jak', 'miejsce', 'Jestem w miejscu', true)}${radio('jak', 'dodaj', 'Dziś słuchałem')}${radio('jak', 'proc', 'Procent')}</fieldset>
+      <label class="pole-duze"><span data-etykieta>Jestem w miejscu (godz:min)</span><input name="czas" inputmode="text" autocomplete="off" value="${teraz ? hm(teraz) : ''}" placeholder="np. 5:32" autofocus></label>
+      <div class="szybkie" role="group" aria-label="Dodaj czas">${[15, 30, 45, 60, 120].map(n => `<button type="button" class="chip" data-plus="${n}">+${n >= 60 ? `${n / 60} h` : `${n} min`}</button>`).join('')}<button type="button" class="chip" data-koniec>Koniec</button></div>
+      <p class="podpowiedz" data-podp>Wpisz miejsce z odtwarzacza, np. 5:32 albo 5:32:10. Przy „Dziś słuchałem” wpisz, ile czasu nagrania przesłuchałeś.</p>
+      <fieldset class="segment"><legend>Kiedy słuchałeś</legend>${radio('kiedy', 'dzis', 'Dziś', true)}${radio('kiedy', 'wczoraj', 'Wczoraj')}${radio('kiedy', 'inny', 'Inny dzień')}</fieldset>
+      <label class="f-data" hidden>Data<input type="date" name="data" max="${dzisISO()}" value="${dodajDni(dzisISO(), -2)}"></label>
+      <p class="podsumowanie" aria-live="polite">&nbsp;</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-glowny">Zapisz</button></div>
+    </form>`
+  });
+  const f = $('form', a.tresc), pole = f.elements.namedItem('czas');
+  const jak = () => f.elements.jak.value;
+  /** Wpisana wartość → minuta nagrania, w której jesteś. */
+  const naMinute = () => {
+    const t = pole.value.trim();
+    if (!t) return null;
+    if (jak() === 'proc') { const p = +t.replace(',', '.').replace('%', ''); return Number.isFinite(p) ? p / 100 * k.czasMin : null; }
+    const v = parsujCzas(t);
+    if (v == null) return null;
+    return jak() === 'dodaj' ? teraz + v : v;
+  };
+  const podsum = () => {
+    const v = naMinute(), p = $('.podsumowanie', f);
+    if (v == null) { p.textContent = pole.value.trim() ? 'Nie rozumiem tego czasu. Wpisz np. 5:32.' : ' '; return; }
+    const r = Math.round(Math.min(v, k.czasMin) - teraz);
+    p.textContent = v >= k.czasMin ? 'To koniec nagrania.' : r > 0 ? `+${czasNagrania(r)} nagrania (ok. ${ile(stronaZMinuty(k, v) - k.strona, FORMY_STRON)})${k.predkosc !== 1 ? `, przy ${predkoscTekst(k.predkosc)} to ${czasNagrania(r / k.predkosc)} słuchania` : ''}` : r < 0 ? `Poprawka: −${czasNagrania(-r)}` : 'Bez zmian.';
+  };
+  pole.addEventListener('input', podsum);
+  f.addEventListener('change', e => {
+    if (e.target.name === 'kiedy') $('.f-data', f).hidden = e.target.value !== 'inny';
+    if (e.target.name === 'jak') {
+      const j = jak();
+      $('[data-etykieta]', f).textContent = j === 'dodaj' ? 'Ile przesłuchałem (godz:min albo minuty)' : j === 'proc' ? 'Przesłuchałem procent' : 'Jestem w miejscu (godz:min)';
+      pole.value = j === 'miejsce' ? (teraz ? hm(teraz) : '') : j === 'proc' ? (k.strona ? (k.strona / k.strony * 100).toFixed(1).replace('.0', '') : '') : '';
+      pole.placeholder = j === 'dodaj' ? 'np. 45 albo 1:10' : j === 'proc' ? 'np. 40' : 'np. 5:32';
+      podsum(); pole.focus();
+    }
+  });
+  f.addEventListener('click', e => {
+    const b = e.target.closest('[data-plus]');
+    if (b) {
+      if (jak() === 'proc') f.elements.jak.value = 'miejsce';
+      const baza = jak() === 'dodaj' ? (parsujCzas(pole.value) || 0) : (naMinute() ?? teraz);
+      pole.value = jak() === 'dodaj' ? hm(baza + +b.dataset.plus) : hm(Math.min(k.czasMin, baza + +b.dataset.plus));
+      if (jak() !== 'dodaj') $('[data-etykieta]', f).textContent = 'Jestem w miejscu (godz:min)';
+      podsum();
+    }
+    if (e.target.closest('[data-koniec]')) { f.querySelector('[name="jak"][value="miejsce"]').checked = true; pole.value = hm(k.czasMin); podsum(); }
+  });
+  f.addEventListener('submit', e => {
+    e.preventDefault();
+    const v = naMinute();
+    if (v == null) { pole.focus(); podsum(); return; }
+    const kiedy = f.elements.kiedy.value;
+    let data = kiedy === 'dzis' ? dzisISO() : kiedy === 'wczoraj' ? dodajDni(dzisISO(), -1) : f.elements.namedItem('data').value;
+    if (!poprawnaData(data) || data > dzisISO()) data = dzisISO();
+    const { roznica, skonczona } = ustawStrone(k, v >= k.czasMin ? k.strony : stronaZMinuty(k, v), data);
+    utrwal(k);
+    a.zamknij();
+    odswiez();
+    if (skonczona) celebracja(k.id);
+    else if (roznica > 0) toast(`Zapisano: +${czasNagrania(Math.min(v, k.czasMin) - teraz)} nagrania${data !== dzisISO() ? ` (${dataKrotka(data)})` : ''}.`);
+    else if (roznica < 0) toast('Poprawiono miejsce w nagraniu.');
+  });
+  setTimeout(() => { pole.focus(); pole.select(); }, 80);
+}
+
 function arkuszPostepu(id) {
   const k = znajdz(id);
   if (!k) return;
+  if (czyAudio(k)) { arkuszPostepuAudio(k); return; }
   const zapamietane = lsGet('zakladka-procent-' + id);
   const procentowo = zapamietane != null ? zapamietane === '1' : k.format !== 'papier';
   const a = arkusz({
@@ -1291,16 +1395,20 @@ function arkuszSesji(id) {
   const zwolnij = () => { if (blokada) { blokada.release().catch(() => {}); blokada = null; } };
   const godzina = new Date(s.start).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' });
   const tempo = tempoKsiazki(k) || tempoOgolne() || 0; // stron na godzinę
+  const audio = czyAudio(k), startAudio = audio ? minutaAudio(k, s.strona) : 0;
+  const opisStartu = () => `${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, ${audio ? `start w ${hm(startAudio)} nagrania` : `start na stronie ${s.strona}`}`;
+  /** Audiobook: gdzie mniej więcej jesteś w nagraniu po tylu minutach słuchania (z prędkością). */
+  const miejsceAudio = () => Math.min(k.czasMin, startAudio + czasSesji(s) / 60000 * k.predkosc);
   const zapisz = () => lsSet('zakladka-sesja', JSON.stringify(s));
   const R = 108, OBW = 2 * Math.PI * R;
   const a = arkusz({
-    tytul: 'Sesja czytania', klasa: 'arkusz-sesja', onZamknij: () => { clearInterval(t); zwolnij(); },
+    tytul: audio ? 'Sesja słuchania' : 'Sesja czytania', klasa: 'arkusz-sesja', onZamknij: () => { clearInterval(t); zwolnij(); },
     render: () => `<div class="sesja${s.pauzaOd ? ' sesja-pauza' : ''}">
-      <div class="sesja-naglowek">${okladka(k, 's')}<div><p class="sesja-tytul">${esc(k.tytul)}</p><p class="sesja-start">${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, start na stronie ${s.strona}</p></div></div>
+      <div class="sesja-naglowek">${okladka(k, 's')}<div><p class="sesja-tytul">${esc(k.tytul)}</p><p class="sesja-start">${opisStartu()}</p></div></div>
       <div class="sesja-tarcza">
         <svg viewBox="0 0 240 240" aria-hidden="true"><circle cx="120" cy="120" r="${R}" class="tarcza-tlo"/><circle cx="120" cy="120" r="${R}" class="tarcza-postep" data-postep stroke-dasharray="${OBW.toFixed(1)}" stroke-dashoffset="${OBW.toFixed(1)}"/></svg>
         <div class="tarcza-srodek"><p class="sesja-czas" data-czas role="timer" aria-live="off">${stoper(czasSesji(s))}</p><p class="tarcza-cel" data-cel-opis></p></div>
-        <div class="sesja-sowa">${svgSowki('czyta', Z.ustawienia.gra.zalozone)}</div>
+        <div class="sesja-sowa">${svgSowki('czyta', audio ? [...Z.ustawienia.gra.zalozone.filter(x => !['czapka', 'beret', 'cylinder', 'detektyw', 'korona'].includes(x)), 'sluchawki'] : Z.ustawienia.gra.zalozone)}</div>
       </div>
       <p class="sesja-szacunek" data-szacunek></p>
       <div class="sesja-opcje"><span>Cel</span>${CELE_SESJI.map(c => `<button type="button" class="chip-m${(s.cel || 0) === c ? ' akt' : ''}" data-cel="${c}">${c ? `${c} min` : 'bez celu'}</button>`).join('')}</div>
@@ -1308,7 +1416,9 @@ function arkuszSesji(id) {
       <button type="button" class="btn btn-na-plotnie sesja-pauza-btn" data-pauza>${s.pauzaOd ? `${I.graj}Wznów` : `${I.pauza}Pauza`}</button>
       ${'wakeLock' in navigator ? '<label class="przelacznik"><input type="checkbox" data-blokada> Nie wygaszaj ekranu</label>' : ''}
       <form class="formularz sesja-koniec" novalidate>
-        <label class="pole-duze"><span>Skończyłem na stronie</span><input name="strona" type="number" inputmode="numeric" min="0" max="${k.strony}" value="${k.strona}"></label>
+        ${audio ? `<label class="pole-duze"><span>Skończyłem w miejscu (godz:min)</span><input name="czas" inputmode="text" autocomplete="off" data-czas-audio value="${hm(miejsceAudio())}"></label>
+          <p class="podpowiedz">Podpowiadam z czasu sesji i prędkości ${predkoscTekst(k.predkosc)}. Popraw na to, co pokazuje odtwarzacz.</p>`
+          : `<label class="pole-duze"><span>Skończyłem na stronie</span><input name="strona" type="number" inputmode="numeric" min="0" max="${k.strony}" value="${k.strona}"></label>`}
         <div class="przyciski"><button type="submit" class="btn btn-zloty">Zakończ sesję</button>
           <button type="button" class="btn btn-na-plotnie" data-zamknij>Zwiń</button>
           <button type="button" class="btn-tekst" data-odrzuc>Odrzuć sesję</button></div>
@@ -1324,8 +1434,14 @@ function arkuszSesji(id) {
     $('[data-postep]', a.tresc).setAttribute('stroke-dashoffset', (OBW * (1 - proc)).toFixed(1));
     $('.sesja-tarcza', a.tresc).classList.toggle('cel-zrobiony', !!(cel && min >= cel));
     $('[data-cel-opis]', a.tresc).textContent = cel ? (min >= cel ? `cel ${cel} min zrobiony ✓` : `z ${cel} min · zostało ${Math.ceil(cel - min)} min`) : 'bez celu, czytaj ile chcesz';
+    if (audio) {
+      const gdzie = miejsceAudio(), zostA = (k.czasMin - gdzie) / k.predkosc;
+      $('[data-szacunek]', a.tresc).textContent = `🎧 ≈ ${hm(gdzie)} z ${hm(k.czasMin)} nagrania (${predkoscTekst(k.predkosc)})${zostA > 0 ? ` · do końca ok. ${czasLadnie(zostA)} słuchania` : ''}`;
+      const pole = $('[data-czas-audio]', a.tresc);
+      if (pole && !pole.dataset.ruszone) pole.value = hm(gdzie);
+    }
     const szac = Math.round(tempo * min / 60), zost = k.strony - k.strona - szac;
-    $('[data-szacunek]', a.tresc).textContent = tempo ? `≈ ${szac} ${odmiana(szac, FORMY_STRON)} przy twoim tempie (${Math.round(tempo)} str./h)${zost > 0 ? ` · do końca książki ok. ${czasLadnie(zost / tempo * 60)}` : ''}` : 'Po kilku sesjach pokażę, ile stron mniej więcej już przeczytałeś.';
+    if (!audio) $('[data-szacunek]', a.tresc).textContent = tempo ? `≈ ${szac} ${odmiana(szac, FORMY_STRON)} przy twoim tempie (${Math.round(tempo)} str./h)${zost > 0 ? ` · do końca książki ok. ${czasLadnie(zost / tempo * 60)}` : ''}` : 'Po kilku sesjach pokażę, ile stron mniej więcej już przeczytałeś.';
     // kamienie milowe: połowa i cel (raz na sesję)
     if (cel && !s.pauzaOd) {
       if (!s.polowa && min >= cel / 2 && cel >= 15) { s.polowa = true; zapisz(); Glos.mow(SESJA_TEKSTY.polowa, 's', { wl: Z.ustawienia.gra.glosSowki }); }
@@ -1353,7 +1469,7 @@ function arkuszSesji(id) {
     zapisz();
     $('.sesja', a.tresc).classList.toggle('sesja-pauza', !!s.pauzaOd);
     $('[data-pauza]', a.tresc).innerHTML = s.pauzaOd ? `${I.graj}Wznów` : `${I.pauza}Pauza`;
-    $('.sesja-start', a.tresc).textContent = `${s.pauzaOd ? 'Pauza. ' : ''}Od ${godzina}, start na stronie ${s.strona}`;
+    $('.sesja-start', a.tresc).textContent = opisStartu();
   });
   $('[data-blokada]', a.tresc)?.addEventListener('change', async e => {
     if (e.target.checked) {
@@ -1370,9 +1486,15 @@ function arkuszSesji(id) {
     a.zamknij();
     toast('Odrzucono sesję.');
   });
+  $('[data-czas-audio]', a.tresc)?.addEventListener('input', e => { e.target.dataset.ruszone = '1'; });
   $('form', a.tresc).addEventListener('submit', e => {
     e.preventDefault();
-    const wartosc = e.target.elements.namedItem('strona').value;
+    let wartosc;
+    if (audio) {
+      const v = parsujCzas(e.target.elements.namedItem('czas').value);
+      if (v == null) { toast('Wpisz miejsce w nagraniu, np. 5:32.'); return; }
+      wartosc = v >= k.czasMin ? k.strony : stronaZMinuty(k, v);
+    } else wartosc = e.target.elements.namedItem('strona').value;
     lsSet('zakladka-sesja', null);
     Fx.tloStop();
     a.zamknij();
@@ -1399,10 +1521,13 @@ function zakonczSesje(k, s, wartosc) {
     tytul: 'Koniec sesji', klasa: 'arkusz-maly arkusz-po-sesji',
     render: () => `<div class="po-sesji"><div class="po-sesji-sowa">${svgSowki('zadowolona', Z.ustawienia.gra.zalozone)}</div>
       ${rekord ? '<p class="po-sesji-rekord">🏆 Nowy rekord sesji!</p>' : ''}
+      ${czyAudio(k) ? `<dl class="liczby"><div><dt>Słuchanie</dt><dd>${czasLadnie(minuty)}</dd></div><div><dt>Nagrania</dt><dd>${czasNagrania(minutaAudio(k) - minutaAudio(k, s.strona))}</dd></div>
+        <div><dt>Miejsce</dt><dd>${hm(minutaAudio(k))}<small> z ${hm(k.czasMin)}</small></dd></div><div><dt>Do końca</dt><dd><small>${czasNagrania((k.czasMin - minutaAudio(k)) / k.predkosc)} przy ${predkoscTekst(k.predkosc)}</small></dd></div></dl>
+      <p class="cichy">🎧 ${esc(k.tytul)}: to mniej więcej ${ile(strony, FORMY_STRON)} książki.</p>` : `
       <dl class="liczby"><div><dt>Czas</dt><dd>${czasLadnie(minuty)}</dd></div><div><dt>Strony</dt><dd>${strony}</dd></div>
         <div><dt>Tempo</dt><dd>${tempoTeraz ? `${tempoTeraz}<small> str./h</small>` : '<small>—</small>'}</dd></div>
         <div><dt>Na tle średniej</dt><dd>${tempoTeraz && tempoPrzed ? `${tempoTeraz >= tempoPrzed ? '▲' : '▼'} ${Math.abs(Math.round((tempoTeraz / tempoPrzed - 1) * 100))}<small>%</small>` : '<small>—</small>'}</dd></div></dl>
-      <p class="cichy">${esc(k.tytul)}: strona ${k.strona} z ${k.strony}${tempoOgolne() ? `, do końca ok. ${czasLadnie((k.strony - k.strona) / (tempoKsiazki(k) || tempoOgolne()) * 60)} czytania` : ''}.</p>
+      <p class="cichy">${esc(k.tytul)}: strona ${k.strona} z ${k.strony}${tempoOgolne() ? `, do końca ok. ${czasLadnie((k.strony - k.strona) / (tempoKsiazki(k) || tempoOgolne()) * 60)} czytania` : ''}.</p>`}
       <div class="przyciski przyciski-srodek"><button type="button" class="btn btn-glowny" data-zamknij>Super</button></div></div>`
   });
   if (rekord) konfetti({ ile: 80 });
@@ -4791,6 +4916,7 @@ async function wymusAktualizacje() {
   setTimeout(() => location.reload(), 400);
 }
 const NOWOSCI = [
+  ['🎧', 'Audiobooki', 'Dodajesz audiobook z długością nagrania, lektorem i prędkością. Postęp zapisujesz w czasie („jestem w 5:32” albo „dziś +45 min”), a sesja słuchania sama podpowiada miejsce w nagraniu.', () => arkuszFormularza(null, { jako: 'audio' })],
   ['🌦️', 'Sówka zna pogodę', 'Chmurka w karcie Sówki: podaj miasto, a Sówka powie, jaka jest pogoda i co w taką pogodę czytać. Rano mówi sama.', () => arkuszPogody()],
   ['🧠', 'Analiza twojego czytania', 'Sówka przegląda twoje półki i mówi, co lubisz, kiedy czytasz, czy idziesz z planem i co warto spróbować.', () => analizaSowki()],
   ['🆕', 'Nowości od Sówki', 'Najnowsze polskie książki w gatunkach, które czytasz, z oceną z Lubimyczytać. Sówka wskazuje tę najlepszą.', () => arkuszNowosci()],
@@ -6947,6 +7073,7 @@ const AKCJE = {
     udostepnijPolke({ naglowek: `Mój rok ${r.rok}`, podpis: `${ile(r.ksiazki.length, FORMY_KSIAZEK)} · ${ile(r.strony, FORMY_STRON)}`, ksiazki: r.ksiazki.map(x => x.k) }, `zakladka-rok-${r.rok}.png`);
   },
   ksiazka: d => arkuszKsiazki(d.id),
+  'dodaj-audio': () => arkuszFormularza(null, { jako: 'audio' }),
   dodaj: d => arkuszFormularza(null, { jako: d.jako || (U.widok === 'biblioteka' && ['czytam', 'zyczenia', 'pozniej'].includes(U.polka) ? U.polka : 'doPrzeczytania') }),
   edytuj: d => arkuszFormularza(d.id),
   postep: d => arkuszPostepu(d.id),

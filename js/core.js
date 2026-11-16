@@ -1,11 +1,34 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.23.1';
+const WERSJA = '2.24';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
+/* ---------- 2.24: audiobooki. Postęp liczony w czasie nagrania; strony to papierowy odpowiednik (do celów, serii i statystyk) ---------- */
+const STRON_NA_GODZINE_AUDIO = 33; // godzina nagrania przy 1× to mniej więcej 33 strony książki
+const czyAudio = k => !!k && k.format === 'audio' && k.czasMin > 0;
+const stronyZCzasu = min => Math.max(1, Math.round(min / 60 * STRON_NA_GODZINE_AUDIO));
+const minutaAudio = (k, strona = k.strona) => Math.round(strona / k.strony * k.czasMin);
+const stronaZMinuty = (k, min) => Math.round(Math.max(0, Math.min(min, k.czasMin)) / k.czasMin * k.strony);
+/** 125 → „2:05” (godziny:minuty). */
+const hm = min => { min = Math.max(0, Math.round(min)); return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`; };
+/** 125 → „2 h 5 min”. */
+const czasNagrania = min => { min = Math.max(0, Math.round(min)); const h = Math.floor(min / 60), m = min % 60; return h ? (m ? `${h} h ${m} min` : `${h} h`) : `${m} min`; };
+/** „2:05”, „2:05:30”, „2h5”, „2 h 5 min”, „125 min”, „125” (minuty) → minuty; null, gdy nie da się odczytać. */
+function parsujCzas(t) {
+  t = String(t || '').trim().toLowerCase().replace(',', '.');
+  if (!t) return null;
+  let m = t.match(/^(\d+):(\d{1,2})(?::(\d{1,2}))?$/);
+  if (m) return +m[1] * 60 + +m[2] + (m[3] ? +m[3] / 60 : 0);
+  m = t.match(/^(\d+(?:\.\d+)?)\s*(?:h|godz\w*)\s*(?:(\d+)\s*(?:m|min\w*)?)?$/);
+  if (m) return +m[1] * 60 + (m[2] ? +m[2] : 0);
+  m = t.match(/^(\d+)\s*(?:m|min\w*)?$/);
+  if (m) return +m[1];
+  return null;
+}
+const predkoscTekst = p => `${String(+p.toFixed(2)).replace('.', ',')}×`;
 // 2.22: jak książka smakowała (do 3 nastrojów) i dlaczego ktoś ją rzucił
 const NASTROJE = [
   { id: 'wciaga', nazwa: 'Wciągająca', emoji: '🌀' }, { id: 'napiecie', nazwa: 'Trzyma w napięciu', emoji: '😬' },
@@ -72,6 +95,10 @@ function normalizujKsiazke(k = {}) {
     autor: String(k.autor || '').trim(),
     strony,
     format: FORMATY[k.format] ? k.format : 'papier',
+    // 2.24: audiobook: długość nagrania w minutach, lektor i prędkość słuchania (strony to odpowiednik papierowy)
+    czasMin: Math.max(0, Math.round(+k.czasMin) || 0),
+    lektor: String(k.lektor || '').trim().slice(0, 80),
+    predkosc: ogranicz(Math.round((+k.predkosc || 1) * 100) / 100, 0.5, 3.5),
     tagi: Array.isArray(k.tagi) ? [...new Set(k.tagi.map(t => String(t).trim().toLowerCase()).filter(Boolean))] : [],
     okladka: typeof k.okladka === 'string' && k.okladka ? k.okladka : null,
     isbn: String(k.isbn || '').replace(/[^\dXx]/g, ''),
@@ -442,7 +469,7 @@ function tempoZSesji(sesje) {
   for (const s of sesje) if (s.minuty > 0 && s.strony > 0) { min += s.minuty; str += s.strony; }
   return min >= 10 ? str / (min / 60) : null;
 }
-const tempoOgolne = () => tempoZSesji(Z.ksiazki.flatMap(k => k.sesje));
+const tempoOgolne = () => tempoZSesji(Z.ksiazki.filter(k => !czyAudio(k)).flatMap(k => k.sesje)); // słuchanie nie zaniża tempa czytania
 const tempoKsiazki = k => tempoZSesji(k.sesje);
 
 /** Wszystkie ukończenia (także ponowne czytania) w przedziale dat. */

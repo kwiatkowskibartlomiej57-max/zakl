@@ -82,6 +82,12 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
 
+## Wersja 2.24: audiobooki
+- **Dodawanie audiobooka**: przycisk 🎧 w Bibliotece (albo format „Audiobook” w formularzu). Wpisujesz długość nagrania, lektora i prędkość słuchania (0,8× do 3×). Strony papierowego wydania są opcjonalne; bez nich aplikacja liczy odpowiednik (godzina nagrania to ok. 33 strony), żeby audiobooki wliczały się do celów, serii i statystyk.
+- **Postęp w czasie**: „Jestem w miejscu 5:32”, „Dziś słuchałem 45 min” albo procent. Szybkie +15 min, +30 min, +1 h.
+- **Sesja słuchania**: stoper sam podpowiada miejsce w nagraniu (czas sesji × prędkość). Na koniec widać, ile nagrania przesłuchałeś i ile zostało przy twojej prędkości.
+- Wszędzie (Dziś, karta książki, książka bazowa) audiobook pokazuje czas zamiast stron, a Statystyki pokazują łączny czas wysłuchanych nagrań. Słuchanie nie zaniża twojego tempa czytania.
+
 ## Wersja 2.23: mądrzejsza Sówka, garderoba i gry
 - **Pogoda**: w karcie Sówki jest chmurka. Podajesz miasto (albo lokalizację), a Sówka mówi, jaka jest pogoda i co w taką pogodę czytać. Rano mówi to sama. Dane z Open-Meteo, bez konta.
 - **Analiza czytania**: Sówka mówi, jakie gatunki i nastroje lubisz, kiedy czytasz najwięcej, czy czytasz więcej niż tydzień temu, jak idzie cel roczny, dlaczego porzucasz książki i co warto spróbować.
