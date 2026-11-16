@@ -433,7 +433,7 @@ function htmlSiatki() {
   if (U.polka === 'zyczenia' && U.listaZ && !U.pozyczone) lista = lista.filter(k => k.listy.includes(U.listaZ));
   if (!U.pozyczone) lista = sortuj(lista);
   if (!lista.length) {
-    if (q || U.tag) return '<p class="pusto">Nic nie pasuje do wyszukiwania.</p>';
+    if (q || U.tag) return `<p class="pusto">Nic nie pasuje na tej półce.</p>${htmlInnychPolek(q)}`;
     const puste = {
       czytam: 'Nie czytasz teraz nic. Zacznij książkę z listy do przeczytania albo dodaj nową.',
       doPrzeczytania: 'Lista do przeczytania jest pusta. Dodaj książki, po które chcesz sięgnąć.',
@@ -452,7 +452,7 @@ function htmlSiatki() {
       ${k.status === 'czytam' || (k.status === 'pozniej' && k.strona) ? pasek(k.strona / k.strony * 100) : ''}
       ${k.status === 'zyczenia' && (k.cena || k.priorytet) ? `<span class="kafel-zycz">${k.priorytet ? `<span class="kafel-prio">${'♥'.repeat(k.priorytet)}</span>` : ''}${k.cena ? `${k.cena.toFixed(2).replace('.', ',')} zł` : ''}</span>` : ''}
       ${k.status === 'przeczytana' && k.ocena ? `<span class="kafel-ocena" aria-label="Ocena ${k.ocena} na 5">${'★'.repeat(k.ocena)}<span class="kafel-ocena-reszta">${'★'.repeat(5 - k.ocena)}</span></span>` : ''}
-    </button></li>`).join('')}</ul>`;
+    </button></li>`).join('')}</ul>${htmlInnychPolek(q)}`;
 }
 
 function widokBiblioteka() {
@@ -622,6 +622,8 @@ function widokStatystyki() {
   <section class="sekcja"><h2>Cel roczny w czasie</h2>${wykresCeluWCzasie()}</section>
   <section class="sekcja"><h2>Książki w miesiącach</h2><p class="cichy">Od ${dataDluga(u.start)} do ${dataDluga(u.koniec)}.</p>${wykresMiesiecy()}</section>
   <section class="sekcja"><h2>Miesiąc po miesiącu</h2><p class="cichy">Kliknij miesiąc, żeby zobaczyć kalendarz, przeczytane książki i plan.</p>${htmlMiesiecy(m)}</section>
+  ${htmlProfiluCzytelnika()}
+  ${htmlPoryCzytania()}
   ${htmlWydatkow()}
   <section class="sekcja"><h2>Rekordy</h2><dl class="rekordy">
     ${najDzien ? `<div><dt>Najlepszy dzień</dt><dd>${ile(najDzien[1], FORMY_STRON)}, ${dataDluga(najDzien[0])}</dd></div>` : ''}
@@ -876,7 +878,8 @@ function htmlKsiazki(k) {
       prog ? `przy obecnym tempie skończysz ok. ${dataDluga(prog, false)}` : '',
       tempoDoKonca ? `zostało ok. ${czasCzytania((k.strony - k.strona) / tempoDoKonca)} czytania` : ''
     ].filter(Boolean).join(', ').replace(/^./, c => c.toUpperCase()) || 'Zapisuj postęp, a pokażę, kiedy skończysz.'}</p></div>` : ''}
-  ${k.status === 'przeczytana' ? `<div class="kd-ocena"><p>Twoja ocena</p>${gwiazdki(k)}</div>` : ''}
+  ${k.status === 'przeczytana' ? `<div class="kd-ocena"><p>Twoja ocena</p>${gwiazdki(k)}</div>${htmlWrazen(k)}` : ''}
+  ${k.status === 'porzucona' ? `<p class="kd-porzucona">Porzucona ${k.porzucono ? dataDluga(k.porzucono) : ''}${k.strona ? ` na stronie ${k.strona}` : ''}${k.powodPorzucenia ? `. Powód: ${esc(POWODY_PORZUCENIA.find(p => p.id === k.powodPorzucenia).nazwa.toLowerCase())}` : ''}.</p>` : ''}
   <div class="przyciski kd-akcje">${akcje}</div>
   ${htmlZyczenia(k)}
   ${htmlRozdzialow(k)}
@@ -932,6 +935,40 @@ function arkuszKsiazki(id) {
 }
 
 /* ================= arkusz: dodawanie i edycja ================= */
+/* ---------- 2.23: szybsze i pewniejsze zapisywanie książek ---------- */
+/** Link z księgarni albo serwisu → fraza do wyszukania (tytuł z adresu). */
+function frazaZLinku(q) {
+  if (!/^https?:\/\//i.test(q)) return null;
+  try {
+    const u = new URL(q);
+    const isbn = (u.pathname + u.search).match(/97[89]\d{10}/);
+    if (isbn) return isbn[0];
+    const czesci = u.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+    // lubimyczytac.pl/ksiazka/123/tytul, empik.com/tytul-autor,p123,ksiazka-p, taniaksiazka.pl/tytul-autor-p-123.html
+    let slug = czesci.reverse().find(c => /[a-ząćęłńóśźż]{3,}-[a-ząćęłńóśźż]/i.test(c)) || czesci[0] || '';
+    slug = slug.split(',')[0].replace(/\.(html?|php)$/i, '').replace(/-p-\d+$/i, '').replace(/-\d{4,}$/g, '').replace(/[-_+]+/g, ' ').trim();
+    return slug.length >= 3 ? slug : null;
+  } catch { return null; }
+}
+/** Czy ta książka (ISBN albo tytuł i nazwisko autora, bez polskich znaków) już jest w bibliotece. */
+function podobnaWBibliotece(w) {
+  const bez = t => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').split(/[:(]/)[0].replace(/[^a-z0-9]+/g, ' ').trim();
+  const nazw = t => bez(t).split(' ').pop() || '';
+  return Z.ksiazki.find(k => (w.isbn && k.isbn && k.isbn === w.isbn) || (bez(k.tytul) === bez(w.tytul) && (!w.autor || !k.autor || nazw(k.autor) === nazw(w.autor)))) || null;
+}
+/** Dyktowanie: mówisz tytuł, aplikacja wpisuje go w pole i szuka. */
+function dyktuj(pole, potem, przycisk) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR || !pole) return;
+  const r = new SR();
+  r.lang = 'pl-PL'; r.interimResults = true; r.maxAlternatives = 1;
+  przycisk && przycisk.classList.add('nagrywa');
+  r.onresult = e => { pole.value = [...e.results].map(x => x[0].transcript).join(' '); };
+  r.onerror = e => { toast(e.error === 'not-allowed' ? 'Pozwól na mikrofon, żeby dyktować tytuł.' : 'Nie usłyszałam. Spróbuj jeszcze raz.'); };
+  r.onend = () => { przycisk && przycisk.classList.remove('nagrywa'); if (pole.value.trim()) potem(); };
+  try { r.start(); } catch { przycisk && przycisk.classList.remove('nagrywa'); }
+}
+
 function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
   const edytowana = id ? znajdz(id) : null;
   const k = edytowana || { tytul: '', autor: '', strony: '', isbn: '', format: 'papier', tagi: [], okladka: null, seria: '', tom: null };
@@ -944,9 +981,10 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
         <label for="f-q">Znajdź w internecie</label>
         <div class="szukajka-rzad"><input id="f-q" type="search" placeholder="Tytuł, autor albo ISBN" enterkeyhint="search" autocomplete="off">
           <button type="button" class="btn" data-szukaj>${I.szukaj}<span class="sr">Szukaj</span></button>
-          ${U.skaner ? `<button type="button" class="btn" data-skanuj aria-label="Skanuj kod kreskowy">${I.skaner}</button>` : ''}</div>
+          ${U.skaner ? `<button type="button" class="btn" data-skanuj aria-label="Skanuj kod kreskowy">${I.skaner}</button>` : ''}
+          ${window.SpeechRecognition || window.webkitSpeechRecognition ? '<button type="button" class="btn" data-dyktuj aria-label="Powiedz tytuł">🎤</button>' : ''}</div>
         <div class="wyniki" aria-live="polite"></div>
-        <p class="podpowiedz">Albo wpisz dane ręcznie poniżej. Masz kilka książek? <button type="button" class="btn-tekst" data-wiele>Dodaj wiele naraz</button></p>
+        <p class="podpowiedz">Możesz też wkleić link z Lubimyczytać, Empiku czy innej księgarni. Albo wpisz dane ręcznie poniżej. Masz kilka książek? <button type="button" class="btn-tekst" data-wiele>Dodaj wiele naraz</button></p>
       </div>`}
       <div class="f-okladka"><div class="f-okl-podglad"></div>
         <div class="f-okl-akcje"><label class="btn">${I.aparat}Zdjęcie okładki<input type="file" accept="image/*" data-plik class="sr"></label>
@@ -968,9 +1006,11 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       ${edytowana ? '' : `<fieldset class="segment"><legend>Gdzie odłożyć</legend>
         ${radio('gdzie', 'doPrzeczytania', 'Do przeczytania', jako === 'doPrzeczytania')}${radio('gdzie', 'czytam', 'Czytam teraz', jako === 'czytam')}${radio('gdzie', 'bazowa', 'Jako bazową', jako === 'bazowa')}${radio('gdzie', 'zyczenia', 'Lista życzeń', jako === 'zyczenia')}${radio('gdzie', 'pozniej', 'Na później', jako === 'pozniej')}</fieldset>
         <label class="f-miesiace"${jako === 'bazowa' ? '' : ' hidden'}>Na ile miesięcy?<input name="miesiace" type="number" inputmode="decimal" min="0.5" step="0.5" value="2"></label>
+        <label class="f-juz"${jako === 'czytam' || jako === 'bazowa' ? '' : ' hidden'}>Już zaczęte? Jestem na stronie<input name="juz" type="number" inputmode="numeric" min="0" placeholder="0"></label>
         <div class="f-listy"${jako === 'zyczenia' ? '' : ' hidden'}>${htmlListWFormularzu()}</div>`}
       <p class="blad" hidden></p>
       <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button>
+        ${edytowana ? '' : '<button type="submit" class="btn" data-i-nastepna>Dodaj i następną</button>'}
         <button type="submit" class="btn btn-glowny">${edytowana ? 'Zapisz zmiany' : 'Dodaj książkę'}</button></div>
     </form>`
   });
@@ -997,7 +1037,9 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     : `<p class="cichy">Nic nie znalazłem. Sprawdź pisownię, spróbuj samego nazwiska autora albo wpisz dane ręcznie.</p>${podpowiedzZrodel()}`;
 
   async function szukaj() {
-    const q = $('#f-q', f).value.trim();
+    let q = $('#f-q', f).value.trim();
+    const zLinku = frazaZLinku(q);
+    if (zLinku) { q = zLinku; $('#f-q', f).value = q; }
     const box = $('.wyniki', f);
     if (!q) { $('#f-q', f).focus(); return; }
     if (!navigator.onLine) { box.innerHTML = '<p class="cichy">Jesteś offline. Wpisz dane ręcznie albo spróbuj, gdy wróci internet.</p>'; return; }
@@ -1039,6 +1081,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     const pop = e.target.closest('[data-poprawka]');
     if (pop) { $('#f-q', f).value = pop.textContent; szukaj(); }
     if (e.target.closest('[data-wiele]')) { a.zamknij(); arkuszWielu(); return; }
+    if (e.target.closest('[data-dyktuj]')) dyktuj($('#f-q', f), () => szukaj(), e.target.closest('[data-dyktuj]'));
     if (e.target.closest('[data-skanuj]')) arkuszSkanera(kod => { $('#f-q', f).value = kod; el('isbn').value = kod; szukaj(); });
     if (e.target.closest('[data-bez-okladki]')) { okl = null; podglad(); }
     if (e.target.closest('[data-do-ustawien]')) {
@@ -1058,7 +1101,9 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       if (r.tagi && r.tagi.length && !el('tagi').value.trim()) el('tagi').value = r.tagi.join(', ');
       okl = r.okladka;
       podglad();
-      $('.wyniki', f).innerHTML = `<p class="ok">Wybrano: ${esc(r.tytul)}.${r.strony ? '' : ' Uzupełnij liczbę stron.'}</p>`;
+      const dup = podobnaWBibliotece(r);
+      $('.wyniki', f).innerHTML = `<p class="ok">Wybrano: ${esc(r.tytul)}.${r.strony ? '' : ' Uzupełnij liczbę stron.'}</p>${dup ? `<p class="ostrzezenie-dup">⚠️ Masz już „${esc(dup.tytul)}”${dup.autor ? ` (${esc(dup.autor)})` : ''} na półce <strong>${esc((POLKI.find(([id]) => id === dup.status) || [, dup.status])[1])}</strong>.</p>` : ''}`;
+      if (dup) Glos.mow('Uwaga, tę książkę już masz na półce.', 's', { wl: Z.ustawienia.gra.glosSowki });
       if (!r.strony) el('strony').focus();
       if (r.okladka) {
         const zapisana = await urlNaOkladke(r.okladka);
@@ -1074,7 +1119,7 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
     try { okl = await plikNaOkladke(plik); podglad(); } catch { toast('Nie udało się wczytać zdjęcia.', { typ: 'blad' }); }
   });
   f.addEventListener('change', e => {
-    if (e.target.name === 'gdzie') { $('.f-miesiace', f).hidden = e.target.value !== 'bazowa'; $('.f-listy', f).hidden = e.target.value !== 'zyczenia'; }
+    if (e.target.name === 'gdzie') { $('.f-miesiace', f).hidden = e.target.value !== 'bazowa'; $('.f-listy', f).hidden = e.target.value !== 'zyczenia'; $('.f-juz', f).hidden = !['czytam', 'bazowa'].includes(e.target.value); }
     if (e.target.name === 'format') $('.f-audio', f).hidden = e.target.value !== 'audio';
     if (e.target.name === 'seria' && !el('tom').value) {
       // znany cykl: podpowiedz kolejny numer tomu
@@ -1119,8 +1164,16 @@ function arkuszFormularza(id = null, { jako = 'doPrzeczytania' } = {}) {
       const mies = Math.max(0.5, parseFloat(String(el('miesiace').value).replace(',', '.')) || 2);
       zmienione = ustawBazowa(nowa, dodajDni(dzisISO(), Math.round(mies * 30.44) - 1));
     }
+    const juz = Math.round(+(el('juz') && el('juz').value) || 0);
+    if (juz > 0 && (gdzie === 'czytam' || gdzie === 'bazowa')) {
+      // strony przeczytane przed dodaniem: bez wpisu do dzisiejszego licznika
+      nowa.strona = Math.min(juz, nowa.strony - 1);
+      if (nowa.planOd) nowa.planOd = { data: dzisISO(), strona: nowa.strona };
+    }
     await utrwal(zmienione);
+    const nastepna = e.submitter && e.submitter.hasAttribute('data-i-nastepna');
     a.zamknij();
+    if (nastepna) setTimeout(() => { arkuszFormularza(null, { jako: gdzie === 'bazowa' ? 'doPrzeczytania' : gdzie }); Glos.mow('Książka zapisana. Hu-hu!', 's', { wl: Z.ustawienia.gra.glosSowki }); }, 260);
     if (U.widok === 'biblioteka') U.polka = nowa.status;
     odswiez();
     toast(`Dodano „${nowa.tytul}”.`);
@@ -1336,7 +1389,7 @@ function zakonczSesje(k, s, wartosc) {
   const tempoPrzed = tempoOgolne();
   const { skonczona } = ustawStrone(k, wartosc, dzisISO());
   const strony = Math.max(0, k.strona - s.strona);
-  k.sesje.push({ data: dzisISO(), minuty, strony });
+  k.sesje.push({ data: dzisISO(), minuty, strony, godz: new Date(s.start).getHours() });
   utrwal(k);
   odswiez();
   if (skonczona) { celebracja(k.id); return; }
@@ -1621,6 +1674,7 @@ function celebracja(id) {
         <p>„${esc(kk.tytul)}”${wCelu ? ` to twoja ${n}. książka w tym celu. Zostało ${Math.max(0, u.cel - n)}.` : ' trafia na półkę przeczytanych.'}</p>
         <p class="cichy">Jak ją oceniasz?</p>
         ${gwiazdki(kk)}
+        ${htmlWrazen(kk)}
         ${kk.ocena >= 4 ? htmlPodobnych(kk, { naglowek: 'Skoro ci się podobała, może też…', kompakt: true }) : kk.ocena ? '' : '<p class="cichy brawo-podp">Oceń ją na 4 albo 5, a podsunę podobne książki.</p>'}
         ${(() => { const nt = nastepnyTom(kk); return nt && nt.status === 'doPrzeczytania' ? `<p class="brawo-nastepny">Następny w cyklu: <strong>${esc(nt.tytul)}</strong></p><div class="przyciski"><button type="button" class="btn btn-zloty" data-akcja="zacznij" data-id="${nt.id}">Zacznij następny tom</button></div>` : ''; })()}
         <div class="przyciski"><button type="button" class="btn" data-akcja="cytat-dodaj" data-id="${kk.id}">Dodaj cytat</button>
@@ -3703,6 +3757,7 @@ function naglowekPolki() {
       <label class="przelacznik maly"><input type="checkbox" data-ceny-auto${Z.ustawienia.cenyAuto ? ' checked' : ''}><span>Sprawdzaj ceny automatycznie raz dziennie</span></label>
     </div>`;
   }
+  if (U.polka === 'doPrzeczytania') return htmlKolejkiLiczby();
   if (U.polka === 'pozniej') return naPozniej().length ? '<p class="polka-info">Odłożone na później: nie zaśmiecają kolejki, a zapamiętują stronę, na której skończyłeś.</p>' : '';
   return '';
 }
@@ -3772,6 +3827,121 @@ function htmlWydatkow() {
     <div><dt>Średnio za książkę</dt><dd>${(r.suma / r.ile).toFixed(2).replace('.', ',')}<small> zł</small></dd></div>
     <div><dt>Najdroższa</dt><dd><small>${esc(top.tytul)}, ${zl(top.cenaZakupu)}</small></dd></div>
   </dl></section>`;
+}
+
+/* ================= 2.22: wrażenia, porzucenia, pora czytania, kolejka, profil ================= */
+/** Chipsy „Jaka była?”: do 3 nastrojów i tempo akcji. Klik zapisuje od razu. */
+function odswiezWrazenia(k) {
+  document.querySelectorAll(`[data-wrazenia="${k.id}"]`).forEach(el => { el.outerHTML = htmlWrazen(k); });
+}
+function htmlWrazen(k, { naglowek = 'Jaka była?' } = {}) {
+  return `<div class="wrazenia" data-wrazenia="${k.id}">
+    <p class="wrazenia-tytul">${naglowek} <span class="cichy">(do 3)</span></p>
+    <div class="wrazenia-chipy">${NASTROJE.map(n => `<button type="button" class="wchip${k.nastroje.includes(n.id) ? ' wybrany' : ''}" data-akcja="nastroj" data-id="${k.id}" data-n="${n.id}" aria-pressed="${k.nastroje.includes(n.id)}">${n.emoji} ${n.nazwa}</button>`).join('')}</div>
+    <div class="wrazenia-chipy wrazenia-tempo">${Object.entries(TEMPA_AKCJI).map(([id, n]) => `<button type="button" class="wchip wchip-tempo${k.tempoAkcji === id ? ' wybrany' : ''}" data-akcja="tempo-akcji" data-id="${k.id}" data-n="${id}" aria-pressed="${k.tempoAkcji === id}">${n}</button>`).join('')}</div>
+  </div>`;
+}
+
+/** Porzucenie z powodem: wiesz potem, czego unikać. */
+function arkuszPorzucenia(id) {
+  const k = znajdz(id);
+  if (!k) return;
+  const a = arkusz({
+    tytul: 'Porzucasz?', klasa: 'arkusz-maly',
+    render: () => `<form class="formularz" novalidate>
+      <p>„${esc(k.tytul)}”${k.strona ? `, jesteś na stronie ${k.strona} z ${k.strony}` : ''}. Rzucenie książki, która nie siedzi, to nie porażka. Dlaczego?</p>
+      <div class="wrazenia-chipy">${POWODY_PORZUCENIA.map((p, i) => `<label class="wchip-radio"><input type="radio" name="powod" value="${p.id}"${i === 0 ? ' checked' : ''}><span class="wchip">${p.nazwa}</span></label>`).join('')}</div>
+      <p class="podpowiedz">Strona zostaje zapisana, więc możesz kiedyś wrócić do czytania.</p>
+      <div class="przyciski przyciski-koniec"><button type="button" class="btn" data-zamknij>Anuluj</button><button type="submit" class="btn btn-ryzyko">Porzuć</button></div>
+    </form>`
+  });
+  $('form', a.tresc).addEventListener('submit', e => {
+    e.preventDefault();
+    const kopia = JSON.parse(JSON.stringify(k));
+    const zmienione = porzuc(k);
+    k.powodPorzucenia = e.target.elements.powod.value;
+    utrwal(zmienione);
+    a.zamknij();
+    odswiez();
+    toast(`Porzucono „${k.tytul}”.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, kopia); utrwal(k); odswiez(); } });
+  });
+}
+
+const PORY_CZYTANIA = [['rano', 'Rano', '🌅', h => h >= 5 && h < 12], ['popoludnie', 'Po południu', '☀️', h => h >= 12 && h < 17], ['wieczor', 'Wieczorem', '🌆', h => h >= 17 && h < 22], ['noc', 'W nocy', '🌙', h => h >= 22 || h < 5]];
+/** Kiedy czytasz najwięcej i najszybciej (z sesji ze stoperem, od 2.22 zapisują godzinę startu). */
+function htmlPoryCzytania() {
+  const sesje = Z.ksiazki.flatMap(k => k.sesje).filter(s => s.godz != null && s.minuty > 0);
+  if (sesje.length < 3) return `<section class="sekcja"><h2>Kiedy czytasz</h2><p class="cichy">Po kilku sesjach ze stoperem pokażę, o jakiej porze czytasz najwięcej i najszybciej.${sesje.length ? ` Masz już ${sesje.length} z 3.` : ''}</p></section>`;
+  const dane = PORY_CZYTANIA.map(([id, nazwa, emoji, ok]) => {
+    const l = sesje.filter(s => ok(s.godz)), min = l.reduce((a, s) => a + s.minuty, 0), str = l.reduce((a, s) => a + s.strony, 0);
+    return { id, nazwa, emoji, ile: l.length, min, tempo: min >= 20 && str ? str / min * 60 : 0 };
+  });
+  const maxMin = Math.max(...dane.map(d => d.min), 1);
+  const naj = [...dane].sort((a, b) => b.min - a.min)[0], szyb = [...dane].filter(d => d.tempo).sort((a, b) => b.tempo - a.tempo)[0];
+  return `<section class="sekcja"><h2>Kiedy czytasz</h2>
+    <p class="cichy">Najwięcej czytasz <strong>${naj.nazwa.toLowerCase()}</strong>${szyb && szyb.id !== naj.id ? `, a najszybciej ${szyb.nazwa.toLowerCase()} (${Math.round(szyb.tempo)} str./h)` : szyb ? `, w tempie ${Math.round(szyb.tempo)} str./h` : ''}.</p>
+    <ol class="ranking pory">${dane.map(d => `<li><span class="ranking-nazwa">${d.emoji} ${d.nazwa}</span><span class="ranking-liczba">${d.min ? czasCzytania(d.min / 60) : '—'}${d.tempo ? ` <small class="cichy">· ${Math.round(d.tempo)} str./h</small>` : ''}</span><span class="ranking-pasek" style="--w:${d.min / maxMin * 100}%"></span></li>`).join('')}</ol></section>`;
+}
+
+/** Twój czytelniczy profil: gatunki, formaty, nastroje, tempo akcji i powody porzuceń. */
+function htmlProfiluCzytelnika() {
+  const przecz = Z.ksiazki.filter(k => k.status === 'przeczytana'), porz = Z.ksiazki.filter(k => k.status === 'porzucona');
+  if (przecz.length + porz.length < 2) return '';
+  const licz = (lista, f) => { const o = {}; for (const k of lista) for (const x of f(k)) o[x] = (o[x] || 0) + 1; return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  const gatunki = licz(przecz, kategorieKsiazki).slice(0, 6).map(([id, v]) => { const c = kategoria(id); return [`${c.emoji} ${c.nazwa}`, v]; });
+  const nastroje = licz(przecz, k => k.nastroje).slice(0, 5).map(([id, v]) => { const n = NASTROJE.find(x => x.id === id); return [`${n.emoji} ${n.nazwa}`, v]; });
+  const formaty = licz(przecz, k => [k.format]).map(([f, v]) => `${FORMATY[f]} ${Math.round(v / przecz.length * 100)}%`);
+  const tempa = licz(przecz, k => k.tempoAkcji ? [k.tempoAkcji] : []);
+  const powody = licz(porz, k => k.powodPorzucenia ? [k.powodPorzucenia] : []).map(([id, v]) => [POWODY_PORZUCENIA.find(p => p.id === id).nazwa, v]);
+  const srStron = przecz.length ? Math.round(przecz.reduce((a, k) => a + k.strony, 0) / przecz.length) : 0;
+  const ocenione = przecz.filter(k => k.ocena && k.nastroje.length);
+  const ulubiony = (() => { // nastrój, który daje ci najwyższe oceny
+    const o = {};
+    for (const k of ocenione) for (const n of k.nastroje) (o[n] = o[n] || []).push(k.ocena);
+    const w = Object.entries(o).filter(([, l]) => l.length >= 2).map(([n, l]) => [n, l.reduce((a, b) => a + b, 0) / l.length]).sort((a, b) => b[1] - a[1])[0];
+    return w ? NASTROJE.find(x => x.id === w[0]) : null;
+  })();
+  const odsetekPorz = Math.round(porz.length / (przecz.length + porz.length) * 100);
+  return `<section class="sekcja profil"><h2>Twój czytelniczy profil</h2>
+    <p class="profil-zdanie">${[
+      srStron ? `Przeciętna przeczytana książka ma u ciebie ${ile(srStron, FORMY_STRON)}` : '',
+      formaty.length ? `formaty: ${formaty.join(', ')}` : '',
+      tempa.length ? `najczęściej wybierasz: ${TEMPA_AKCJI[tempa[0][0]].toLowerCase()}` : '',
+      ulubiony ? `najwyżej oceniasz książki ${ulubiony.emoji} ${ulubiony.nazwa.toLowerCase()}` : ''
+    ].filter(Boolean).join(', ')}.</p>
+    <div class="dwie"><div><h3>Gatunki</h3>${ranking(gatunki, 'Dodaj kategorie albo tagi do książek, a pokażę, co czytasz najczęściej.')}</div>
+    <div><h3>Nastroje</h3>${ranking(nastroje, 'Po skończeniu książki zaznacz, jaka była: wciągająca, zabawna, mroczna…')}</div></div>
+    ${porz.length ? `<h3>Porzucone</h3><p class="cichy">${ile(porz.length, FORMY_KSIAZEK)} (${odsetekPorz}% zaczętych i zamkniętych).${powody.length ? ` Najczęstszy powód: <strong>${esc(powody[0][0].toLowerCase())}</strong>.` : ''}</p>${powody.length > 1 ? ranking(powody.slice(0, 4), '') : ''}` : ''}
+  </section>`;
+}
+
+/** Kolejka do przeczytania w liczbach: strony, godziny i kiedy ją skończysz przy obecnym tempie. */
+function htmlKolejkiLiczby() {
+  const l = kolejka();
+  if (l.length < 2) return '';
+  const strony = l.reduce((a, k) => a + Math.max(0, k.strony - k.strona), 0);
+  const godz = strony / tempoPlanu();
+  const dziennie = sredniaDzienna(mapaDni(), 30);
+  const wToku = czytane().reduce((a, k) => a + Math.max(0, k.strony - k.strona), 0);
+  const dni = dziennie >= 1 ? Math.ceil((strony + wToku) / dziennie) : 0;
+  return `<div class="kolejka-liczby">
+    <p><strong>${ile(l.length, FORMY_KSIAZEK)}</strong> · ${liczba(strony)} stron · ok. ${czasCzytania(godz)} czytania</p>
+    <p class="cichy">${dni ? `Przy twoim tempie (${Math.round(dziennie)} str. dziennie z 30 dni) przeczytasz całą kolejkę ok. <strong>${dataDluga(dodajDni(dzisISO(), dni))}</strong>${dni > 365 ? '. Może czas coś odłożyć na później?' : '.'}` : 'Zapisuj postęp przez kilka dni, a policzę, kiedy przeczytasz całą kolejkę.'}</p>
+  </div>`;
+}
+
+/** Wyszukiwanie we wszystkich półkach i w cytatach, nie tylko na bieżącej półce. */
+function htmlInnychPolek(q) {
+  if (!q || q.length < 2) return '';
+  const pasuje = k => `${k.tytul} ${k.autor} ${k.tagi.join(' ')} ${k.isbn} ${k.seria}`.toLowerCase().includes(q);
+  const inne = Z.ksiazki.filter(k => (U.pozyczone || k.status !== U.polka) && pasuje(k)).slice(0, 12);
+  const cyt = Z.ksiazki.reduce((a, k) => a + k.cytaty.filter(c => c.tekst.toLowerCase().includes(q)).length, 0);
+  if (!inne.length && !cyt) return '';
+  const nazwaPolki = s => (POLKI.find(([id]) => id === s) || [, s])[1];
+  return `<section class="inne-polki"><h3>Na innych półkach</h3>
+    ${inne.length ? `<ul class="lista">${inne.map(k => `<li><button type="button" class="wiersz-glowny" data-akcja="ksiazka" data-id="${k.id}">${okladka(k, 's')}<span class="wiersz-tekst"><span class="wiersz-tytul">${esc(k.tytul)}</span><span class="wiersz-autor">${esc(k.autor)}</span><span class="wiersz-info">${esc(nazwaPolki(k.status))}</span></span></button></li>`).join('')}</ul>` : ''}
+    ${cyt ? `<button type="button" class="btn-tekst" data-akcja="szukaj-w-cytatach">${I.szukaj}${cyt} ${odmiana(cyt, ['cytat pasuje', 'cytaty pasują', 'cytatów pasuje'])} do „${esc(q)}”</button>` : ''}
+  </section>`;
 }
 
 /* ================= opis książki i podobne (2.11) ================= */
@@ -4621,6 +4791,17 @@ async function wymusAktualizacje() {
   setTimeout(() => location.reload(), 400);
 }
 const NOWOSCI = [
+  ['🌦️', 'Sówka zna pogodę', 'Chmurka w karcie Sówki: podaj miasto, a Sówka powie, jaka jest pogoda i co w taką pogodę czytać. Rano mówi sama.', () => arkuszPogody()],
+  ['🧠', 'Analiza twojego czytania', 'Sówka przegląda twoje półki i mówi, co lubisz, kiedy czytasz, czy idziesz z planem i co warto spróbować.', () => analizaSowki()],
+  ['🆕', 'Nowości od Sówki', 'Najnowsze polskie książki w gatunkach, które czytasz, z oceną z Lubimyczytać. Sówka wskazuje tę najlepszą.', () => arkuszNowosci()],
+  ['💬', 'Sówka pyta i pamięta', 'Sówka zadaje pytania (gdzie czytasz, na co masz ochotę…) i potem do tego wraca.', () => idz('dzis')],
+  ['👗', 'Garderoba', '30 rzeczy dla Sówki i Zakładki: czapki, okulary, muszki, peleryna i kolory piór. Kupujesz za listki.', () => arkuszGarderoby()],
+  ['🎮', 'Gry: Nocny lot i Quiz', 'Leć Sówką albo Zakładką między regałami albo odpowiedz na pytania o książkach. Za gry są listki.', () => arkuszGier()],
+  ['🎤', 'Szybsze dodawanie', 'Dyktowanie tytułu, wklejanie linku z księgarni, ostrzeżenie, że już masz tę książkę, strona, na której jesteś, i „Dodaj i następną”.', () => arkuszFormularza()],
+  ['🎭', 'Jaka była ta książka?', 'Po skończeniu zaznaczasz nastroje (wciągająca, zabawna, mroczna…) i tempo akcji. W Statystykach powstaje z tego twój czytelniczy profil.', () => idz('statystyki')],
+  ['🔎', 'Szukanie na wszystkich półkach', 'Szukasz w Bibliotece, a pod spodem widzisz pasujące książki z innych półek i cytaty.', () => idz('biblioteka')],
+  ['🕰️', 'Kiedy czytasz najlepiej', 'Sesje zapamiętują porę dnia. Statystyki pokazują, kiedy czytasz najwięcej i najszybciej.', () => idz('statystyki')],
+  ['📦', 'Kolejka w liczbach i powód porzucenia', 'Ile stron i godzin ma twoja kolejka i kiedy ją skończysz. Porzucając książkę, zapisujesz dlaczego.', () => idz('biblioteka')],
   ['🎭', 'Goście z przygód', 'Smok, Przypis, Bibliotekarz Kurz, Kot Erratum i Wielka Gumka wpadają z wizytą, gadają z Sówką i Zakładką i znikają.', () => wizytaGoscia()],
   ['⭐', 'Recenzja z opiniami z sieci', 'Po dodaniu książki Sówka sprawdza ocenę i opinie czytelników z Lubimyczytać i na tej podstawie ocenia, czy to dobry wybór.', () => idz('biblioteka')],
   ['⏱️', 'Nowa sesja czytania', 'Cel z pierścieniem (też 25 min jak Pomodoro), dźwięki tła: deszcz, kominek, las, kawiarnia, a na koniec podsumowanie z rekordem.', () => idz('dzis')],
@@ -4694,13 +4875,33 @@ function wiadomoscSowki(st) {
 
 function svgSowki(tryb, zalozone = []) {
   const ma = id => zalozone.includes(id);
+  const kol = SKLEP.find(x => x.slot === 'kolor' && x.postac === 's' && ma(x.id));
+  const styl = kol ? ` style="--s-cialo:${kol.kolor[0]};--s-brzuch:${kol.kolor[1]};--s-ucho:${kol.kolor[2]}"` : '';
   const oczy = tryb === 'spi'
     ? '<path class="s-zamk" d="M34 44 q8 6 16 0 M60 44 q8 6 16 0"/>'
     : `<g class="s-oko"><circle cx="42" cy="44" r="11" class="s-bialko"/><circle cx="42" cy="45" r="5.5" class="s-zrenica"/><circle cx="44" cy="43" r="1.8" fill="#fff"/></g>
        <g class="s-oko"><circle cx="68" cy="44" r="11" class="s-bialko"/><circle cx="68" cy="45" r="5.5" class="s-zrenica"/><circle cx="70" cy="43" r="1.8" fill="#fff"/></g>
        <rect class="s-powieka" x="30" y="32" width="24" height="24" rx="12"/><rect class="s-powieka" x="56" y="32" width="24" height="24" rx="12"/>`;
-  return `<svg class="sowka-svg tryb-${tryb}" viewBox="0 0 110 120" aria-hidden="true">
+  const glowa = ma('czapka') ? '<g class="s-czapka"><path d="M30 26 L55 -18 L80 26z"/><ellipse cx="55" cy="26" rx="30" ry="5"/><circle cx="50" cy="8" r="2" fill="#ffd34d"/><circle cx="60" cy="-2" r="1.6" fill="#ffd34d"/></g>'
+    : ma('beret') ? '<g class="s-beret"><ellipse cx="50" cy="22" rx="27" ry="9" fill="#b3263a"/><ellipse cx="50" cy="25" rx="24" ry="4" fill="#8e1c2d"/><path d="M50 13 v-6" stroke="#8e1c2d" stroke-width="3" stroke-linecap="round"/></g>'
+    : ma('cylinder') ? '<g class="s-cylinder"><rect x="38" y="-10" width="34" height="34" rx="3" fill="#24201f"/><rect x="38" y="14" width="34" height="5" fill="#b3263a"/><ellipse cx="55" cy="24" rx="29" ry="5" fill="#24201f"/></g>'
+    : ma('detektyw') ? '<g class="s-detektyw"><path d="M27 26 q28 -30 56 0z" fill="#8b6a43"/><path d="M27 26 q28 -30 56 0" fill="none" stroke="#6b4f2e" stroke-width="1.5" stroke-dasharray="3 3"/><path d="M80 24 l12 4 l-12 2z" fill="#6b4f2e"/><path d="M30 24 l-12 4 l12 2z" fill="#6b4f2e"/></g>'
+    : ma('sluchawki') ? '<g class="s-sluchawki"><path d="M22 46 q0 -40 33 -40 q33 0 33 40" fill="none" stroke="#2b2b33" stroke-width="5"/><rect x="15" y="40" width="12" height="18" rx="5" fill="#e04f5f"/><rect x="83" y="40" width="12" height="18" rx="5" fill="#e04f5f"/></g>'
+    : ma('korona') ? '<path class="s-korona" d="M36 24 l4 -16 l8 10 l7 -14 l7 14 l8 -10 l4 16z"/>' : '';
+  const naOczach = tryb === 'spi' ? ''
+    : ma('okulary') ? '<g class="s-okulary"><circle cx="42" cy="44" r="13"/><circle cx="68" cy="44" r="13"/><path d="M55 44 h0"/></g>'
+    : ma('monokl') ? '<g class="s-monokl"><circle cx="68" cy="44" r="13" fill="none" stroke="#c9982f" stroke-width="2.5"/><path d="M80 50 q8 14 -2 30" fill="none" stroke="#c9982f" stroke-width="1.2"/></g>'
+    : ma('ciemne') ? '<g class="s-ciemne"><path d="M28 38 h28 v6 q0 12 -14 12 q-14 0 -14 -12z M54 38 h28 v6 q0 12 -14 12 q-14 0 -14 -12z" fill="#1d1d24"/><path d="M28 38 h54" stroke="#1d1d24" stroke-width="3"/><path d="M33 42 l6 -2" stroke="#fff" stroke-width="1.5" opacity=".6"/></g>' : '';
+  const szyja = ma('szalik') ? '<g class="s-szalik"><path d="M26 82 q29 12 58 0 l0 7 q-29 12 -58 0z"/><path d="M70 88 l6 16 l7 -3 l-5 -14z"/></g>'
+    : ma('muszka') ? '<g class="s-muszka"><path d="M55 84 l-12 -7 v14z M55 84 l12 -7 v14z" fill="#b3263a"/><circle cx="55" cy="84" r="3.2" fill="#8e1c2d"/></g>'
+    : ma('medal') ? '<g class="s-medal"><path d="M47 78 l8 14 l8 -14" fill="none" stroke="#2f6fb5" stroke-width="5"/><circle cx="55" cy="96" r="7" fill="#e6b93c" stroke="#b08a22" stroke-width="1.5"/><path d="M55 92 l1.4 3 l3.2 .3 l-2.4 2.1 l.8 3.1 l-3 -1.7 l-3 1.7 l.8 -3.1 l-2.4 -2.1 l3.2 -.3z" fill="#fff6d8"/></g>' : '';
+  const obok = ma('kubek') ? '<g class="s-kubek"><rect x="2" y="88" width="16" height="18" rx="3"/><path d="M18 92 q6 0 6 6 q0 5 -6 5" fill="none" stroke-width="2.5"/><path class="s-para" d="M7 84 q-3 -5 0 -10 M12 84 q-3 -5 0 -10" fill="none"/></g>'
+    : ma('parasol') ? '<g class="s-parasol"><path d="M2 40 q13 -18 26 0 q-6.5 -4 -13 0 q-6.5 -4 -13 0z" fill="#2f6fb5"/><path d="M15 40 v34 q0 5 -5 5" fill="none" stroke="#5a3a24" stroke-width="2.5" stroke-linecap="round"/></g>'
+    : ma('pioro') ? '<g class="s-pioro"><path d="M8 100 q2 -40 22 -56 q-6 26 -20 56z" fill="#f4efe4" stroke="#b9ad97" stroke-width="1"/><path d="M8 100 l14 -40" stroke="#b9ad97" stroke-width="1"/></g>'
+    : ma('balon') ? '<g class="s-balon"><path d="M12 64 q4 20 -4 40" fill="none" stroke="#777" stroke-width="1"/><ellipse cx="12" cy="20" rx="12" ry="15" fill="#e04f5f"/><path d="M10 35 l2 4 l2 -4z" fill="#c23b4a"/><ellipse cx="7" cy="14" rx="3" ry="5" fill="#fff" opacity=".45"/><path d="M12 39 q2 12 0 25" fill="none" stroke="#777" stroke-width="1"/></g>' : '';
+  return `<svg class="sowka-svg tryb-${tryb}" viewBox="0 0 110 120" aria-hidden="true"${styl}>
     ${ma('lampka') ? '<g class="s-lampka"><path d="M96 70 v34 M88 104 h16" stroke="#7a5218" stroke-width="3"/><path d="M86 70 h20 l-4 -12 h-12z" fill="#d9b66e"/><circle cx="96" cy="74" r="10" class="s-swiatlo"/></g>' : ''}
+    ${ma('peleryna') ? '<path class="s-peleryna" d="M30 40 q-22 40 -12 70 q37 10 74 0 q10 -30 -12 -70z" fill="#7a3fb0"/>' : ''}
     <path class="s-ucho" d="M28 26 l-4 -16 l14 10z M82 26 l4 -16 l-14 10z"/>
     <ellipse class="s-cialo" cx="55" cy="62" rx="34" ry="40"/>
     <ellipse class="s-brzuch" cx="55" cy="74" rx="21" ry="24"/>
@@ -4710,13 +4911,11 @@ function svgSowki(tryb, zalozone = []) {
     ${oczy}
     <path class="s-dziob" d="M51 54 l4 7 l4 -7z"/>
     <path class="s-nozki" d="M45 101 l-3 5 M48 101 v6 M51 101 l3 5 M59 101 l-3 5 M62 101 v6 M65 101 l3 5"/>
-    ${ma('okulary') && tryb !== 'spi' ? '<g class="s-okulary"><circle cx="42" cy="44" r="13"/><circle cx="68" cy="44" r="13"/><path d="M55 44 h0"/></g>' : ''}
-    ${ma('szalik') ? '<g class="s-szalik"><path d="M26 82 q29 12 58 0 l0 7 q-29 12 -58 0z"/><path d="M70 88 l6 16 l7 -3 l-5 -14z"/></g>' : ''}
+    ${naOczach}${szyja}
     ${ma('kwiat') ? '<g class="s-kwiat"><circle cx="84" cy="26" r="4" fill="#ffd34d"/><circle cx="84" cy="19" r="4.5"/><circle cx="91" cy="25" r="4.5"/><circle cx="88" cy="32" r="4.5"/><circle cx="80" cy="32" r="4.5"/><circle cx="77" cy="25" r="4.5"/></g>' : ''}
-    ${ma('czapka') ? '<g class="s-czapka"><path d="M30 26 L55 -18 L80 26z"/><ellipse cx="55" cy="26" rx="30" ry="5"/><circle cx="50" cy="8" r="2" fill="#ffd34d"/><circle cx="60" cy="-2" r="1.6" fill="#ffd34d"/></g>' : ''}
-    ${ma('korona') && !ma('czapka') ? '<path class="s-korona" d="M36 24 l4 -16 l8 10 l7 -14 l7 14 l8 -10 l4 16z"/>' : ''}
+    ${glowa}
     ${tryb === 'czyta' ? '<g class="s-ksiazka"><path d="M33 84 q11 -6 22 0 v16 q-11 -6 -22 0z" class="s-ks-l"/><path d="M77 84 q-11 -6 -22 0 v16 q11 -6 22 0z" class="s-ks-p"/></g>' : ''}
-    ${ma('kubek') ? '<g class="s-kubek"><rect x="2" y="88" width="16" height="18" rx="3"/><path d="M18 92 q6 0 6 6 q0 5 -6 5" fill="none" stroke-width="2.5"/><path class="s-para" d="M7 84 q-3 -5 0 -10 M12 84 q-3 -5 0 -10" fill="none"/></g>' : ''}
+    ${obok}
     ${tryb === 'spi' ? '<g class="s-zzz"><text x="84" y="22">z</text><text x="92" y="12">z</text><text x="99" y="3">Z</text></g>' : ''}
   </svg>`;
 }
@@ -4732,6 +4931,7 @@ function htmlSowki() {
       <div class="sowka-opcje"><button type="button" class="chip-m chip-kino" data-sowka-opcja="historia">🎬 ${st.tryb === 'spi' ? 'Bajka na dobranoc' : 'Przygody Sówki i Zakładki'}${historiaStan().odblokowane > (Z.ustawienia.gra.historiaWidziane || 0) ? ' <b class="kropka">nowy!</b>' : ''}</button></div>
       ${st.tryb !== 'spi' && st.tryb !== 'czyta' && (bazowa() || czytane()[0]) ? `<div class="sowka-akcje"><button type="button" class="btn btn-maly" data-akcja="postep" data-id="${(bazowa() || czytane()[0]).id}">Zapisz strony</button><button type="button" class="btn-tekst" data-akcja="sesja" data-id="${(bazowa() || czytane()[0]).id}">10 minut?</button></div>` : ''}
     </div>
+    ${typeof chipySowkiPlus === 'function' ? `<div class="sowka-menu">${chipySowkiPlus()}</div>` : ''}
     <button type="button" class="sowka-pasek" data-akcja="sklepik">
       <span class="listki">🍃 <strong data-licz="${l.saldo}">${l.saldo}</strong></span>
       <span class="poziom-tekst">Poziom ${p.n} · ${esc(p.nazwa)}</span>
@@ -4753,12 +4953,14 @@ function arkuszSklepiku() {
         <ul class="zadania">${zad.map(z => `<li class="${z.odebrane ? 'odebrane' : z.zrobione ? 'zrobione' : ''}"><span class="zad-znak">${z.odebrane ? '✓' : z.zrobione ? '★' : '○'}</span><span class="zad-nazwa">${esc(z.nazwa)}</span>
           ${z.odebrane ? '<span class="cichy">odebrane</span>' : z.zrobione ? `<button type="button" class="btn btn-maly btn-glowny" data-odbierz="${z.id}">+${z.nagroda} 🍃</button>` : `<span class="zad-nagroda">+${z.nagroda} 🍃</span>`}</li>`).join('')}</ul></section>
       <section class="kd-sekcja"><h3>Sklepik Sówki</h3>
-        <ul class="sklep">${SKLEP.map(x => { const ma = !x.zuzywalne && g.kupione.includes(x.id), zal = g.zalozone.includes(x.id); return `<li class="${ma ? 'ma' : ''}"><span class="sklep-e">${x.emoji}</span><span class="sklep-n">${esc(x.nazwa)}${x.zuzywalne ? `<small>ratuje passę, gdy zapomnisz o jednym dniu${(g.zamrozeniaKupione[dzisISO().slice(0, 7)] || 0) ? ` · masz: ${g.zamrozeniaKupione[dzisISO().slice(0, 7)]}` : ''}</small>` : ''}</span>
+        <div class="sklep-wejscia"><button type="button" class="btn btn-glowny" data-akcja="garderoba">👗 Garderoba Sówki i Zakładki</button><button type="button" class="btn" data-akcja="gry">🎮 Gry z Sówką</button></div>
+        <ul class="sklep">${SKLEP.filter(x => x.zuzywalne).map(x => { const ma = !x.zuzywalne && g.kupione.includes(x.id), zal = g.zalozone.includes(x.id); return `<li class="${ma ? 'ma' : ''}"><span class="sklep-e">${x.emoji}</span><span class="sklep-n">${esc(x.nazwa)}${x.zuzywalne ? `<small>ratuje passę, gdy zapomnisz o jednym dniu${(g.zamrozeniaKupione[dzisISO().slice(0, 7)] || 0) ? ` · masz: ${g.zamrozeniaKupione[dzisISO().slice(0, 7)]}` : ''}</small>` : ''}</span>
           ${ma ? `<button type="button" class="btn btn-maly${zal ? ' btn-glowny' : ''}" data-zaloz="${x.id}">${zal ? 'Założone' : 'Załóż'}</button>` : `<button type="button" class="btn btn-maly" data-kup="${x.id}"${l.saldo < x.cena ? ' disabled' : ''}>${x.cena} 🍃</button>`}</li>`; }).join('')}</ul></section>
       <section class="kd-sekcja"><h3>Skąd masz listki</h3><dl class="rekordy">
         <div><dt>Strony (1 za 10)</dt><dd>${l.strony}</dd></div><div><dt>Dni czytania (5 za dzień)</dt><dd>${l.dni}</dd></div>
         <div><dt>Skończone książki (30)</dt><dd>${l.ksiazki}</dd></div><div><dt>Cytaty (3)</dt><dd>${l.cytaty}</dd></div>
         <div><dt>Bonusy za passę</dt><dd>${l.passa}</dd></div><div><dt>Zadania dnia</dt><dd>${l.zadania}</dd></div>
+        <div><dt>Gry z Sówką</dt><dd>${l.gra}</dd></div>
         <div><dt>Wydane w sklepiku</dt><dd>−${g.wydane}</dd></div></dl></section>
       <section class="kd-sekcja"><h3>Sówka i dźwięk</h3>
       <label class="przelacznik maly"><input type="checkbox" data-sowka-wl${g.sowka ? ' checked' : ''}><span>Pokazuj Sówkę na ekranie Dziś</span></label>
@@ -4805,7 +5007,7 @@ function arkuszSklepiku() {
       return;
     }
     const z = e.target.closest('[data-zaloz]');
-    if (z) { const g = Z.ustawienia.gra, id = z.dataset.zaloz; g.zalozone = g.zalozone.includes(id) ? g.zalozone.filter(x => x !== id) : [...g.zalozone, id]; utrwalUstawienia(); odswiez(); }
+    if (z) { zaloz(z.dataset.zaloz); utrwalUstawienia(); odswiez(); }
   });
   a.tresc.addEventListener('change', e => {
     if (e.target.matches('[data-sowka-wl]')) { Z.ustawienia.gra.sowka = e.target.checked; utrwalUstawienia(); odswiez(); }
@@ -4849,6 +5051,7 @@ document.addEventListener('click', e => {
     if ((U.kartaKlik || []).length >= 3) return;
     const n = U.sowkaN;
     // na zmianę: co u ciebie (w karcie), ciekawostka albo żart (Sówka wylatuje z karty i opowiada)
+    if (n % 4 === 0 && typeof gadkaSowkiPlus === 'function' && gadkaSowkiPlus()) return;
     if (n % 3 === 1) {
       const m = wiadomoscSowki(stanSowki());
       pokazDymek(m, { klasa: 'skacze' }); mowWKarcie(m, 's');
@@ -5098,7 +5301,8 @@ function coCzytac() {
 }
 
 /* ---------- Zakładka: animowana postać ---------- */
-function svgZakladki(poza = 'stoi') {
+function svgZakladki(poza = 'stoi', zal = (Z.ustawienia && Z.ustawienia.gra && Z.ustawienia.gra.zalozoneZ) || []) {
+  const ma = id => zal.includes(id), kol = SKLEP.find(x => x.slot === 'kolor' && x.postac === 'z' && ma(x.id));
   // 2.21: zakładka z materiału: szew, cień, dziurka ze złotym sznureczkiem i chwostem, większe oczy
   const oczy = poza === 'spi' ? '<path d="M11 29 q4 4 8 0 M21 29 q4 4 8 0" class="z-zamk"/>'
     : poza === 'smutna' ? '<g class="z-oczy"><ellipse cx="15" cy="30" rx="4" ry="4.6" class="z-bialko"/><ellipse cx="25" cy="30" rx="4" ry="4.6" class="z-bialko"/><circle cx="15" cy="31.5" r="2.3" class="z-oko"/><circle cx="25" cy="31.5" r="2.3" class="z-oko"/></g><path d="M11 23.5 l6 2.2 M29 23.5 l-6 2.2" class="z-brew"/>'
@@ -5109,13 +5313,21 @@ function svgZakladki(poza = 'stoi') {
     ? `<g class="z-reka-mach"><path d="M3 46 q-6 -4 -6 -12" class="z-reka"/>${dlon(-3, 33)}</g><path d="M37 46 q5 3 5 9" class="z-reka"/>${dlon(42, 56)}`
     : poza === 'lata' ? `<path d="M3 44 q-8 -2 -10 -8" class="z-reka"/>${dlon(-7, 35)}<path d="M37 44 q8 -2 10 -8" class="z-reka"/>${dlon(47, 35)}`
     : `<path d="M3 46 q-5 3 -5 9" class="z-reka"/>${dlon(-2, 56)}<path d="M37 46 q5 3 5 9" class="z-reka"/>${dlon(42, 56)}`;
-  return `<svg class="zakladka-svg poza-${poza}" viewBox="-12 -6 64 102" aria-hidden="true">
+  const glowaZ = ma('z-kokarda') ? '<g class="zd-kokarda"><path d="M8 4 l-9 -6 v12z M8 4 l9 -6 v12z" fill="#f27aa6"/><circle cx="8" cy="4" r="2.6" fill="#d14f82"/></g>'
+    : ma('z-kapelusz') ? '<g class="zd-kapelusz"><rect x="11" y="-9" width="18" height="12" rx="1.5" fill="#24201f"/><rect x="11" y="-1" width="18" height="2.5" fill="#e6b93c"/><ellipse cx="20" cy="4" rx="15" ry="2.6" fill="#24201f"/></g>'
+    : ma('z-korona') ? '<path class="zd-korona" d="M9 5 l2 -11 l5 6 l4 -9 l4 9 l5 -6 l2 11z" fill="#f2c94c" stroke="#b8901f" stroke-width="1"/>' : '';
+  const oczyZ = poza === 'spi' ? '' : ma('z-okulary') ? '<g class="zd-okulary" fill="none" stroke="#2a2420" stroke-width="1.4"><circle cx="15" cy="30" r="6"/><circle cx="25" cy="30" r="6"/><path d="M19 29 h2"/></g>'
+    : ma('z-ciemne') ? '<g class="zd-ciemne"><path d="M8 26 h12 v3 q0 6 -6 6 q-6 0 -6 -6z M20 26 h12 v3 q0 6 -6 6 q-6 0 -6 -6z" fill="#1d1d24"/></g>' : '';
+  const szyjaZ = ma('z-muszka') ? '<g class="zd-muszka"><path d="M20 47 l-7 -4 v8z M20 47 l7 -4 v8z" fill="#2f6fb5"/><circle cx="20" cy="47" r="2" fill="#21528a"/></g>'
+    : ma('z-szalik') ? '<g class="zd-szalik"><path d="M3 44 h34 v5 h-34z" fill="#e6b93c"/><path d="M28 48 l3 14 l5 -1 l-3 -13z" fill="#e6b93c"/></g>' : '';
+  const ozdobaZ = ma('z-gwiazdki') ? '<g class="zd-gwiazdki" fill="#ffe27a"><path d="M10 60 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1z"/><path d="M29 66 l.8 2.4 l2.4 .8 l-2.4 .8 l-.8 2.4 l-.8 -2.4 l-2.4 -.8 l2.4 -.8z"/><circle cx="19" cy="56" r="1"/><circle cx="24" cy="74" r="1"/></g>' : '';
+  return `<svg class="zakladka-svg poza-${poza}" viewBox="-12 -6 64 102" aria-hidden="true"${kol ? ` style="--z-cialo:${kol.kolor[0]};--z-cien:${kol.kolor[1]}"` : ''}>
     <g class="z-chwost-g"><path d="M20 9 q12 -10 18 6 q3 8 2 16" class="z-sznurek"/><path d="M37.5 29 h5 l2 12 h-9z" class="z-chwost"/><circle cx="40" cy="29" r="2.4" class="z-chwost-kulka"/></g>
     <g class="z-cialo-g"><path class="z-cialo" d="M6 4 h28 a4 4 0 0 1 4 4 v80 l-18 -13 l-18 13 v-80 a4 4 0 0 1 4 -4z"/>
     <path class="z-cien" d="M27 4 h7 a4 4 0 0 1 4 4 v80 l-11 -8z"/>
     <path class="z-szew" d="M8.5 8.5 h23 v72 l-11.5 -8.4 l-11.5 8.4z"/>
     <circle cx="20" cy="11" r="2.2" class="z-dziurka"/>
-    ${rece}${oczy}${usta}<ellipse cx="9.5" cy="37" rx="3" ry="2" class="z-rumieniec"/><ellipse cx="30.5" cy="37" rx="3" ry="2" class="z-rumieniec"/></g>
+    ${rece}${oczy}${usta}<ellipse cx="9.5" cy="37" rx="3" ry="2" class="z-rumieniec"/><ellipse cx="30.5" cy="37" rx="3" ry="2" class="z-rumieniec"/>${oczyZ}${szyjaZ}${ozdobaZ}${glowaZ}</g>
     ${poza === 'spi' ? '<g class="s-zzz"><text x="36" y="16">z</text><text x="42" y="8">z</text></g>' : ''}
   </svg>`;
 }
@@ -5462,7 +5674,7 @@ const Glos = {
   get dostepny() { return typeof Audio !== 'undefined'; },
   /** Wszystkie nagrania są w jednej paczce (audio/glosy-….bin), a glosy.json mówi, gdzie w niej leży każda kwestia. */
   wczytaj() {
-    if (!this.ladowanie) this.ladowanie = fetch('audio/glosy.json').then(r => r.ok ? r.json() : null).then(d => {
+    if (!this.ladowanie) this.ladowanie = fetch('audio/glosy.json', { cache: 'no-cache' }).then(r => r.ok ? r.json() : null).then(d => {
       this.paczka = d; this.spis = d ? d.k : {};
       if (d) setTimeout(() => this.pobierzPaczke(), 5000); // w tle cała paczka, potem działa bez internetu
     }).catch(() => { this.spis = {}; });
@@ -6746,12 +6958,17 @@ const AKCJE = {
   wznow: d => { const k = znajdz(d.id); utrwal(zacznijCzytac(k)); odswiez(); toast(`Wracasz do „${k.tytul}”.`); },
   ponownie: d => { const k = znajdz(d.id); utrwal(czytajPonownie(k)); odswiez(); toast(`Czytasz „${k.tytul}” jeszcze raz.`); },
   skonczona: d => arkuszZakonczenia(d.id),
-  porzuc: d => {
-    const k = znajdz(d.id), kopia = JSON.parse(JSON.stringify(k));
-    utrwal(porzuc(k));
-    odswiez();
-    toast(`Porzucono „${k.tytul}”.`, { akcja: 'Cofnij', onAkcja: () => { Object.assign(k, kopia); utrwal(k); odswiez(); } });
+  porzuc: d => arkuszPorzucenia(d.id),
+  nastroj: d => {
+    const k = znajdz(d.id);
+    if (!k) return;
+    if (k.nastroje.includes(d.n)) k.nastroje = k.nastroje.filter(x => x !== d.n);
+    else { if (k.nastroje.length >= 3) { toast('Wybierz najwyżej 3 nastroje. Odznacz któryś.'); return; } k.nastroje.push(d.n); }
+    utrwal(k); odswiezWrazenia(k);
+    if (navigator.vibrate) navigator.vibrate(10);
   },
+  'tempo-akcji': d => { const k = znajdz(d.id); if (!k) return; k.tempoAkcji = k.tempoAkcji === d.n ? '' : d.n; utrwal(k); odswiezWrazenia(k); },
+  'szukaj-w-cytatach': () => { U.szukajCytat = U.szukaj; U.szukaj = ''; idz('cytaty'); },
   kolejka: d => { utrwal(przesunWKolejce(znajdz(d.id), +d.kierunek)); odswiez(); },
   'na-poczatek': d => { utrwal(naPoczatekKolejki(znajdz(d.id))); odswiez(); toast('Przeniesiono na początek kolejki.'); },
   usun: d => usunKsiazke(d.id),
@@ -7045,7 +7262,8 @@ async function start() {
     const st = stanSowki();
     if (st.tryb === 'spi') return;
     U.sowkaN = (U.sowkaN || 0) + 1;
-    const r = U.sowkaN % 5;
+    const r = U.sowkaN % 6;
+    if (r === 5 && typeof gadkaSowkiPlus === 'function' && gadkaSowkiPlus()) return;
     if (r === 1 && g.zarty) zartWKarcie();
     else if (r === 2) kartaMowi(motywacja(), 'skacze');
     else if (r === 3) kartaMowi(coCzytac(), 'mysli');
@@ -7067,6 +7285,13 @@ async function start() {
     if (akcja === 'tydzien') arkuszTygodnia();
     if (akcja === 'wiele') arkuszWielu();
     if (akcja === 'postep') { const b = bazowa() || czytane()[0]; if (b) arkuszPostepu(b.id); }
+  }
+  const par = new URLSearchParams(location.search), udost = par.get('link') || par.get('tekst') || par.get('tytul');
+  if (udost) {
+    history.replaceState(null, '', location.pathname);
+    const fraza = (String(udost).match(/https?:\/\/\S+/) || [udost])[0];
+    arkuszFormularza();
+    setTimeout(() => { const q = $('#f-q'); if (q) { q.value = fraza.slice(0, 300); $('[data-szukaj]')?.click(); } }, 150);
   }
 
   Skaner.dostepny().then(v => { U.skaner = v; });

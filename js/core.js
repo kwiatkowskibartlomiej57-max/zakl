@@ -1,11 +1,24 @@
 'use strict';
 /* Zakładka — model danych, operacje na książkach i obliczenia */
 
-const WERSJA = '2.21.1';
+const WERSJA = '2.23.1';
 const POSREDNIK_BN = 'https://spring-mud-cef8.kwiatkowskibartlomiej57.workers.dev';
 const DOMYSLNE = { imie: '', cel: 200, start: '2026-09-01', koniec: '2027-08-31', srednia: 300, dziennyCel: 0, motyw: 'auto', tydzienStrony: 0, tydzienKsiazki: 0, miesiacStrony: 0, miesiacKsiazki: 0, celeMiesiecy: {}, googleKlucz: '', posrednik: '', planyTygodni: {}, przypomnienie: { wlaczone: false, godzina: '20:00', dni: [0, 1, 2, 3, 4, 5, 6] }, seria: { prog: 1, dniWolne: [], zamrozenia: 0, cel: 0 }, czasDni: [30, 30, 30, 30, 30, 60, 60], stalePlany: [], trybRozkladu: 'kolejno', czasTygodni: {}, celeTygodni: {}, losowania: {}, losIle: 3, budzet: 0, odkrywaj: { tak: [], nie: [] }, cenyAuto: true, listyZyczen: [], gra: { wydane: 0, kupione: [], zalozone: [], zadania: {}, zamrozeniaKupione: {}, sowka: true } };
 const STATUSY = ['czytam', 'doPrzeczytania', 'pozniej', 'zyczenia', 'przeczytana', 'porzucona'];
 const FORMATY = { papier: 'Papier', ebook: 'E-book', audio: 'Audiobook' };
+// 2.22: jak książka smakowała (do 3 nastrojów) i dlaczego ktoś ją rzucił
+const NASTROJE = [
+  { id: 'wciaga', nazwa: 'Wciągająca', emoji: '🌀' }, { id: 'napiecie', nazwa: 'Trzyma w napięciu', emoji: '😬' },
+  { id: 'wzrusza', nazwa: 'Wzruszająca', emoji: '🥲' }, { id: 'zabawna', nazwa: 'Zabawna', emoji: '😄' },
+  { id: 'mroczna', nazwa: 'Mroczna', emoji: '🌑' }, { id: 'pouczajaca', nazwa: 'Pouczająca', emoji: '🧠' },
+  { id: 'relaks', nazwa: 'Relaksująca', emoji: '☕' }, { id: 'inspiruje', nazwa: 'Inspirująca', emoji: '✨' },
+  { id: 'trudna', nazwa: 'Wymagająca', emoji: '🧗' }, { id: 'romantyczna', nazwa: 'Romantyczna', emoji: '💞' }
+];
+const TEMPA_AKCJI = { wolne: 'Powolna', srednie: 'Średnie tempo', szybkie: 'Szybka akcja' };
+const POWODY_PORZUCENIA = [
+  { id: 'nudna', nazwa: 'Nudziła mnie' }, { id: 'styl', nazwa: 'Nie mój styl' }, { id: 'trudna', nazwa: 'Za trudna' },
+  { id: 'nieTeraz', nazwa: 'Nie teraz, nie ten czas' }, { id: 'rozczarowanie', nazwa: 'Rozczarowała mnie' }, { id: 'inne', nazwa: 'Inny powód' }
+];
 
 const FORMY_STRON = ['strona', 'strony', 'stron'];
 const FORMY_STRON_D = ['strony', 'stron', 'stron']; // dopełniacz: „z 150 stron”, „brakuje 1 strony”
@@ -76,7 +89,7 @@ function normalizujKsiazke(k = {}) {
       .map(w => ({ data: w.data, strony: Math.round(+w.strony) })),
     sesje: (Array.isArray(k.sesje) ? k.sesje : [])
       .filter(s => s && poprawnaData(s.data))
-      .map(s => ({ data: s.data, minuty: Math.max(0, Math.round(+s.minuty) || 0), strony: Math.max(0, Math.round(+s.strony) || 0) })),
+      .map(s => ({ data: s.data, minuty: Math.max(0, Math.round(+s.minuty) || 0), strony: Math.max(0, Math.round(+s.strony) || 0), ...(s.godz >= 0 && s.godz < 24 && s.godz !== null && s.godz !== '' ? { godz: Math.floor(+s.godz) } : {}) })),
     cytaty: (Array.isArray(k.cytaty) ? k.cytaty : [])
       .filter(c => c && String(c.tekst || '').trim())
       .map(c => ({ id: c.id || noweId(), tekst: String(c.tekst).trim(), strona: +c.strona > 0 ? Math.round(+c.strona) : null, data: poprawnaData(c.data) ? c.data : dzisISO(), notatka: !!c.notatka })),
@@ -125,7 +138,11 @@ function normalizujKsiazke(k = {}) {
     ceny: (Array.isArray(k.ceny) ? k.ceny : []).filter(c => c && +c.cena > 0 && poprawnaData(c.data)).slice(-20).map(c => ({ data: c.data, cena: Math.round(+c.cena * 100) / 100, sklep: String(c.sklep || '').slice(0, 40) })),
     okazja: String(k.okazja || '').slice(0, 40),
     cenaZakupu: +k.cenaZakupu > 0 ? Math.round(+k.cenaZakupu * 100) / 100 : null,
-    dataZakupu: poprawnaData(k.dataZakupu) ? k.dataZakupu : null
+    dataZakupu: poprawnaData(k.dataZakupu) ? k.dataZakupu : null,
+    // 2.22: wrażenia po lekturze i powód porzucenia
+    nastroje: (Array.isArray(k.nastroje) ? k.nastroje : []).map(String).filter(x => NASTROJE.some(n => n.id === x)).slice(0, 3),
+    tempoAkcji: ['wolne', 'srednie', 'szybkie'].includes(k.tempoAkcji) ? k.tempoAkcji : '',
+    powodPorzucenia: POWODY_PORZUCENIA.some(p => p.id === k.powodPorzucenia) ? k.powodPorzucenia : ''
   };
   if (n.status === 'przeczytana') n.strona = n.strony;
   if (n.bazowa && !n.celData) n.celData = dodajDni(dzisISO(), 61);
@@ -177,6 +194,14 @@ function normalizujUstawienia(u = {}) {
     wydane: Math.max(0, Math.round(+g.wydane) || 0),
     kupione: (Array.isArray(g.kupione) ? g.kupione : []).map(String).slice(0, 100),
     zalozone: (Array.isArray(g.zalozone) ? g.zalozone : []).map(String).slice(0, 10),
+    zalozoneZ: (Array.isArray(g.zalozoneZ) ? g.zalozoneZ : []).map(String).slice(0, 10),
+    miasto: g.miasto && Number.isFinite(+g.miasto.lat) && Number.isFinite(+g.miasto.lon) ? { nazwa: String(g.miasto.nazwa || 'Twoja okolica').slice(0, 60), lat: Math.round(+g.miasto.lat * 100) / 100, lon: Math.round(+g.miasto.lon * 100) / 100 } : null,
+    pogoda: g.pogoda !== false,
+    graListki: Math.max(0, Math.round(+g.graListki) || 0),
+    graDzien: g.graDzien && poprawnaData(g.graDzien.data) ? { data: g.graDzien.data, ile: Math.max(0, Math.round(+g.graDzien.ile) || 0) } : { data: '', ile: 0 },
+    graRekord: { lot: Math.max(0, Math.round(+(g.graRekord || {}).lot) || 0), quiz: Math.max(0, Math.round(+(g.graRekord || {}).quiz) || 0) },
+    odpowiedzi: Object.fromEntries(Object.entries(g.odpowiedzi || {}).filter(([k, v]) => /^[a-z]+$/.test(k) && typeof v === 'string').map(([k, v]) => [k, v.slice(0, 30)]).slice(0, 30)),
+    nowosciWidziane: (Array.isArray(g.nowosciWidziane) ? g.nowosciWidziane : []).map(String).slice(-300),
     zadania: Object.fromEntries(Object.entries(g.zadania || {}).filter(([d, v]) => poprawnaData(d) && Array.isArray(v) && d >= dodajDni(dzisISO(), -60)).map(([d, v]) => [d, v.map(String).slice(0, 5)])),
     zamrozeniaKupione: Object.fromEntries(Object.entries(g.zamrozeniaKupione || {}).filter(([m, v]) => poprawnyMiesiac(m) && +v > 0).map(([m, v]) => [m, Math.min(10, Math.round(+v))])),
     sowka: g.sowka !== false,
@@ -1361,7 +1386,8 @@ function listkiZdobyte() {
   const passa = (naj >= 7 ? 20 : 0) + (naj >= 30 ? 100 : 0) + (naj >= 100 ? 300 : 0) + (naj >= 365 ? 1000 : 0);
   const zadania = Object.entries(Z.ustawienia.gra.zadania).reduce((s, [, ids]) => s + ids.reduce((a, id) => a + ((ZADANIA_DNIA.find(z => z.id === id) || {}).nagroda || 0), 0), 0);
   const bingo = Object.values(Z.ustawienia.gra.bingo || {}).reduce((a, b) => a + b, 0);
-  return { razem: Math.floor(strony / 10) + dni * 5 + ksiazki * 30 + cytaty * 3 + passa + zadania + bingo, strony: Math.floor(strony / 10), dni: dni * 5, ksiazki: ksiazki * 30, cytaty: cytaty * 3, passa, zadania, bingo };
+  const gra = Z.ustawienia.gra.graListki || 0;
+  return { razem: Math.floor(strony / 10) + dni * 5 + ksiazki * 30 + cytaty * 3 + passa + zadania + bingo + gra, strony: Math.floor(strony / 10), dni: dni * 5, ksiazki: ksiazki * 30, cytaty: cytaty * 3, passa, zadania, bingo, gra };
 }
 const listkiStan = () => { const z = listkiZdobyte(); return { ...z, saldo: Math.max(0, z.razem - Z.ustawienia.gra.wydane) }; };
 /** Poziom z doświadczenia (wszystkie zdobyte listki, także wydane). */
@@ -1370,16 +1396,57 @@ function poziom(xp = listkiZdobyte().razem) {
   while (xp >= nast && n < 98) { n++; prog = nast; nast = Math.round(nast + 60 * Math.pow(n + 1, 1.35)); }
   return { n: n + 1, nazwa: POZIOMY[Math.min(POZIOMY.length - 1, Math.floor(n / 2))], xp, prog, nast, proc: (xp - prog) / (nast - prog) * 100 };
 }
+// 2.23: garderoba. postac: s = Sówka, z = Zakładka; slot: jedna rzecz na slot (kolor to kolor piór albo materiału)
 const SKLEP = [
-  { id: 'okulary', nazwa: 'Okulary do czytania', emoji: '👓', cena: 40 },
-  { id: 'szalik', nazwa: 'Ciepły szalik', emoji: '🧣', cena: 70 },
-  { id: 'kubek', nazwa: 'Kubek kakao', emoji: '☕', cena: 60 },
-  { id: 'kwiat', nazwa: 'Kwiatek za uchem', emoji: '🌸', cena: 50 },
-  { id: 'czapka', nazwa: 'Czapka czarodzieja', emoji: '🎩', cena: 150 },
-  { id: 'lampka', nazwa: 'Lampka do czytania', emoji: '💡', cena: 120 },
-  { id: 'korona', nazwa: 'Korona Mistrza', emoji: '👑', cena: 400 },
+  { id: 'okulary', nazwa: 'Okulary do czytania', emoji: '👓', cena: 40, postac: 's', slot: 'oczy' },
+  { id: 'monokl', nazwa: 'Monokl profesora', emoji: '🧐', cena: 90, postac: 's', slot: 'oczy' },
+  { id: 'ciemne', nazwa: 'Okulary przeciwsłoneczne', emoji: '🕶️', cena: 110, postac: 's', slot: 'oczy' },
+  { id: 'kwiat', nazwa: 'Kwiatek za uchem', emoji: '🌸', cena: 50, postac: 's', slot: 'ozdoba' },
+  { id: 'czapka', nazwa: 'Czapka czarodzieja', emoji: '🎩', cena: 150, postac: 's', slot: 'glowa' },
+  { id: 'beret', nazwa: 'Beret artystki', emoji: '🎨', cena: 80, postac: 's', slot: 'glowa' },
+  { id: 'cylinder', nazwa: 'Cylinder', emoji: '🎩', cena: 160, postac: 's', slot: 'glowa' },
+  { id: 'detektyw', nazwa: 'Czapka detektywa', emoji: '🔍', cena: 140, postac: 's', slot: 'glowa' },
+  { id: 'sluchawki', nazwa: 'Słuchawki do audiobooków', emoji: '🎧', cena: 120, postac: 's', slot: 'glowa' },
+  { id: 'korona', nazwa: 'Korona Mistrza', emoji: '👑', cena: 400, postac: 's', slot: 'glowa' },
+  { id: 'szalik', nazwa: 'Ciepły szalik', emoji: '🧣', cena: 70, postac: 's', slot: 'szyja' },
+  { id: 'muszka', nazwa: 'Elegancka muszka', emoji: '🎀', cena: 60, postac: 's', slot: 'szyja' },
+  { id: 'medal', nazwa: 'Medal czytelnika', emoji: '🏅', cena: 220, postac: 's', slot: 'szyja' },
+  { id: 'peleryna', nazwa: 'Peleryna bohaterki', emoji: '🦸', cena: 200, postac: 's', slot: 'plecy' },
+  { id: 'kubek', nazwa: 'Kubek kakao', emoji: '☕', cena: 60, postac: 's', slot: 'obok' },
+  { id: 'lampka', nazwa: 'Lampka do czytania', emoji: '💡', cena: 120, postac: 's', slot: 'tlo' },
+  { id: 'parasol', nazwa: 'Parasol na deszcz', emoji: '☂️', cena: 90, postac: 's', slot: 'obok' },
+  { id: 'pioro', nazwa: 'Gęsie pióro', emoji: '🪶', cena: 70, postac: 's', slot: 'obok' },
+  { id: 'balon', nazwa: 'Balonik', emoji: '🎈', cena: 50, postac: 's', slot: 'obok' },
+  { id: 'kolor-sniezna', nazwa: 'Śnieżne pióra', emoji: '🤍', cena: 180, postac: 's', slot: 'kolor', kolor: ['#ddd6ca', '#fbf7ef', '#b9b0a2'] },
+  { id: 'kolor-ruda', nazwa: 'Rude pióra', emoji: '🧡', cena: 160, postac: 's', slot: 'kolor', kolor: ['#c0632b', '#f3d2a8', '#93461b'] },
+  { id: 'kolor-nocna', nazwa: 'Pióra nocnego nieba', emoji: '💙', cena: 220, postac: 's', slot: 'kolor', kolor: ['#34477a', '#c7d2ef', '#243259'] },
+  { id: 'kolor-rozowa', nazwa: 'Różowe pióra', emoji: '🩷', cena: 200, postac: 's', slot: 'kolor', kolor: ['#c86b8f', '#f7d6e2', '#a24c6f'] },
+  { id: 'kolor-zlota', nazwa: 'Złote pióra', emoji: '💛', cena: 500, postac: 's', slot: 'kolor', kolor: ['#c9982f', '#fbe9b0', '#9c7419'] },
+  { id: 'z-kokarda', nazwa: 'Kokarda', emoji: '🎀', cena: 50, postac: 'z', slot: 'glowa' },
+  { id: 'z-kapelusz', nazwa: 'Mały cylinder', emoji: '🎩', cena: 120, postac: 'z', slot: 'glowa' },
+  { id: 'z-korona', nazwa: 'Korona Zakładki', emoji: '👑', cena: 300, postac: 'z', slot: 'glowa' },
+  { id: 'z-okulary', nazwa: 'Okulary mądrali', emoji: '🤓', cena: 60, postac: 'z', slot: 'oczy' },
+  { id: 'z-ciemne', nazwa: 'Okulary gwiazdy', emoji: '😎', cena: 100, postac: 'z', slot: 'oczy' },
+  { id: 'z-muszka', nazwa: 'Muszka', emoji: '🎀', cena: 60, postac: 'z', slot: 'szyja' },
+  { id: 'z-szalik', nazwa: 'Szaliczek', emoji: '🧣', cena: 70, postac: 'z', slot: 'szyja' },
+  { id: 'z-gwiazdki', nazwa: 'Brokat i gwiazdki', emoji: '✨', cena: 90, postac: 'z', slot: 'ozdoba' },
+  { id: 'zk-zielona', nazwa: 'Zielony materiał', emoji: '💚', cena: 150, postac: 'z', slot: 'kolor', kolor: ['#2f8a5b', '#1f6b43'] },
+  { id: 'zk-niebieska', nazwa: 'Niebieski materiał', emoji: '💙', cena: 150, postac: 'z', slot: 'kolor', kolor: ['#2f6fb5', '#21528a'] },
+  { id: 'zk-fioletowa', nazwa: 'Fioletowy aksamit', emoji: '💜', cena: 180, postac: 'z', slot: 'kolor', kolor: ['#7a4bb0', '#5a3487'] },
+  { id: 'zk-zlota', nazwa: 'Złoty brokat', emoji: '💛', cena: 450, postac: 'z', slot: 'kolor', kolor: ['#d1a332', '#a37b1c'] },
   { id: 'zamrozenie', nazwa: 'Zamrożenie passy (ten miesiąc)', emoji: '🧊', cena: 120, zuzywalne: true }
 ];
+const SLOTY_GARDEROBY = { glowa: 'Głowa', oczy: 'Oczy', szyja: 'Szyja', plecy: 'Plecy', obok: 'W skrzydle', ozdoba: 'Ozdoba', tlo: 'Obok', kolor: 'Kolor' };
+/** Zakłada rzecz (zdejmuje inną z tego samego slotu) albo zdejmuje, gdy już założona. Zwraca true, gdy założona. */
+function zaloz(id) {
+  const p = SKLEP.find(x => x.id === id), g = Z.ustawienia.gra;
+  if (!p || p.zuzywalne) return false;
+  const pole = p.postac === 'z' ? 'zalozoneZ' : 'zalozone';
+  const lista = g[pole] || [];
+  if (lista.includes(id)) { g[pole] = lista.filter(x => x !== id); return false; }
+  g[pole] = [...lista.filter(x => (SKLEP.find(y => y.id === x) || {}).slot !== p.slot), id];
+  return true;
+}
 function kup(id) {
   const p = SKLEP.find(x => x.id === id), g = Z.ustawienia.gra;
   if (!p) return { blad: 'Nie ma takiej rzeczy.' };
@@ -1387,6 +1454,6 @@ function kup(id) {
   if (listkiStan().saldo < p.cena) return { blad: `Brakuje ${p.cena - listkiStan().saldo} listków.` };
   g.wydane += p.cena;
   if (p.zuzywalne) { const m = dzisISO().slice(0, 7); g.zamrozeniaKupione[m] = (g.zamrozeniaKupione[m] || 0) + 1; }
-  else { g.kupione.push(id); if (!g.zalozone.includes(id)) g.zalozone.push(id); }
+  else { g.kupione.push(id); zaloz(id); }
   return { ok: true, p };
 }

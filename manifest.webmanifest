@@ -17,6 +17,7 @@
     { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
     { "src": "icons/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ],
+  "share_target": { "action": "./", "method": "GET", "params": { "title": "tytul", "text": "tekst", "url": "link" } },
   "shortcuts": [
     { "name": "Zapisz postęp", "short_name": "Postęp", "url": "./?akcja=postep", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Dodaj książkę", "short_name": "Dodaj", "url": "./?akcja=dodaj", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },

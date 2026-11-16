@@ -75,11 +75,29 @@ Po zmianie plików podbij numer w `sw.js` (np. `const WERSJA = 'zakladka-2.4.0'`
 | `js/ean.js` | Własny odczyt kodów kreskowych EAN-13 (ISBN) z obrazu |
 | `js/extras.js` | Wyszukiwarka książek, skaner ISBN, okładki, CSV Goodreads |
 | `js/ui.js` | Ekrany, okna i obsługa kliknięć |
+| `js/sowka-plus.js` | Pogoda, analiza, nowości, pytania Sówki, garderoba i gry |
 | `sw.js` | Service worker, czyli tryb offline |
 | `bn.php` | Pośrednik do katalogu Biblioteki Narodowej (serwer z PHP) |
 | `proxy/cloudflare-worker.js` | To samo jako darmowy Cloudflare Worker (dla GitHub Pages) |
 | `manifest.webmanifest` | Dane do instalacji: nazwa, ikony, skróty |
 | `icons/` | Logo i ikony aplikacji |
+
+## Wersja 2.23: mądrzejsza Sówka, garderoba i gry
+- **Pogoda**: w karcie Sówki jest chmurka. Podajesz miasto (albo lokalizację), a Sówka mówi, jaka jest pogoda i co w taką pogodę czytać. Rano mówi to sama. Dane z Open-Meteo, bez konta.
+- **Analiza czytania**: Sówka mówi, jakie gatunki i nastroje lubisz, kiedy czytasz najwięcej, czy czytasz więcej niż tydzień temu, jak idzie cel roczny, dlaczego porzucasz książki i co warto spróbować.
+- **Nowości**: najnowsze polskie wydania z Lubimyczytać w gatunkach, które czytasz (albo na które masz ochotę). Wymaga workera w wersji 4 (`proxy/cloudflare-worker.js`).
+- **Rozmowy**: Sówka zadaje pytania z odpowiedziami do kliknięcia, zapamiętuje je i potem do nich wraca.
+- **Garderoba**: 30 rzeczy dla Sówki i Zakładki (głowa, oczy, szyja, plecy, w skrzydle, kolor piór i materiału).
+- **Gry**: „Nocny lot” (Sówka albo Zakładka leci między regałami, zbiera listki i litery, unika kleksów i Wielkiej Gumki) i „Quiz Sówki” (42 pytania, Zakładka raz podpowiada). Do 50 listków dziennie.
+- **Dodawanie książek**: dyktowanie tytułu, link z księgarni zamiast tytułu, ostrzeżenie o duplikacie, pole „jestem na stronie”, „Dodaj i następną”, udostępnianie linku do aplikacji (Android).
+
+## Wersja 2.22: profil czytelnika
+- **Jaka była?** Po skończeniu książki (i w jej karcie) zaznaczasz do 3 nastrojów (wciągająca, zabawna, mroczna…) i tempo akcji.
+- **Twój czytelniczy profil** w Statystykach: gatunki, nastroje, formaty, średnia długość książki i nastrój, który oceniasz najwyżej.
+- **Kiedy czytasz**: sesje zapamiętują godzinę startu. Statystyki pokazują, o jakiej porze czytasz najwięcej i najszybciej.
+- **Powód porzucenia**: przy „Porzuć” wybierasz dlaczego. Profil pokazuje najczęstszy powód. Cofnij dalej działa.
+- **Kolejka w liczbach**: na półce „Do przeczytania” widać, ile stron i godzin ma kolejka i kiedy ją skończysz przy obecnym tempie.
+- **Szukanie wszędzie**: szukasz w Bibliotece, a pod spodem widać pasujące książki z innych półek i cytaty.
 
 ## Wersja 2.21: goście z przygód, opinie z sieci, nowa sesja, bingo
 

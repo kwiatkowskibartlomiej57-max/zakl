@@ -1379,7 +1379,7 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 @keyframes skok { 30% { transform: translateY(-16px) scale(1.04, .96); } 60% { transform: translateY(0) scale(.96, 1.04); } }
 .sowka.skok .s-skrz-p { animation: machanie .5s ease-in-out 2; transform-origin: 88px 60px; }
 @keyframes machanie { 50% { transform: rotate(-35deg); } }
-.s-cialo { fill: #8a5a3b; } .s-brzuch { fill: #e9d3b0; } .s-ucho { fill: #6e4630; } .s-skrz { fill: #6e4630; }
+.s-cialo { fill: var(--s-cialo, #8a5a3b); } .s-brzuch { fill: var(--s-brzuch, #e9d3b0); } .s-ucho { fill: var(--s-ucho, #6e4630); } .s-skrz { fill: var(--s-ucho, #6e4630); }
 .s-piorka { fill: none; stroke: #b58d68; stroke-width: 1.6; stroke-linecap: round; }
 .s-bialko { fill: #fff; stroke: #5a3a28; stroke-width: 1.2; } .s-zrenica { fill: #1e1712; }
 .s-dziob { fill: #f2a43a; } .s-nozki { stroke: #f2a43a; stroke-width: 2.5; stroke-linecap: round; fill: none; }
@@ -1466,7 +1466,7 @@ svg .linia-siatki { stroke: var(--linia); stroke-width: 1; stroke-dasharray: 2 4
 @keyframes zakl-kolys { 50% { transform: rotate(-5deg); } }
 .zakl-postac.skok .zakladka-svg { animation: zakl-skok .6s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes zakl-skok { 35% { transform: translateY(-18px) rotate(10deg); } 70% { transform: translateY(0) rotate(-6deg); } }
-.z-cialo { fill: #c8283f; } .z-polysk { stroke: rgba(255,255,255,.35); stroke-width: 3; stroke-linecap: round; }
+.z-cialo { fill: var(--z-cialo, #c8283f); } .z-polysk { stroke: rgba(255,255,255,.35); stroke-width: 3; stroke-linecap: round; }
 .z-oko { fill: #1e1712; } .z-usta, .z-brew, .z-zamk { fill: none; stroke: #1e1712; stroke-width: 2; stroke-linecap: round; }
 .z-rumieniec { fill: #ff9ab0; opacity: .7; } .z-reka { fill: none; stroke: #c8283f; stroke-width: 4; stroke-linecap: round; }
 .z-reka-mach { transform-origin: 4px 46px; animation: zakl-mach .7s ease-in-out infinite alternate; }
@@ -1721,7 +1721,7 @@ body.kino-otwarte .sowa-lot, body.kino-otwarte .sowa-dymek { display: none; }
 .kl-kurz.kicha svg { animation: smiech .14s linear 6; }
 @media (prefers-reduced-motion: reduce) { .wyskok-gosc, .wyskok-gosc svg, .gosc-smok .g-skrz, .gosc-kot .g-ogon, .gosc-przypis .g-gwiazdka { animation: none !important; transition: none !important; } }
 /* 2.21: nowa Zakładka */
-.z-cialo { fill: #d33a4f; } .z-cien { fill: #a82639; opacity: .55; }
+.z-cialo { fill: var(--z-cialo, #d33a4f); } .z-cien { fill: var(--z-cien, #a82639); opacity: .55; }
 .z-szew { fill: none; stroke: rgba(255, 236, 214, .55); stroke-width: 1.1; stroke-dasharray: 2.6 2.2; }
 .z-dziurka { fill: #7d1a29; }
 .z-sznurek { fill: none; stroke: #e8b84a; stroke-width: 1.8; stroke-linecap: round; }
@@ -1806,3 +1806,186 @@ body.zakl-w-rozmowie #widok .zakl-postac { opacity: .2; transition: opacity .4s;
 .po-sesji { text-align: center; }
 .po-sesji-sowa .sowka-svg { width: 96px; height: 104px; }
 .po-sesji-rekord { font-weight: 800; font-size: 18px; color: var(--zloto, #d9b66e); animation: puenta .6s cubic-bezier(.3, 1.6, .5, 1); }
+
+/* ---------- 2.22: wrażenia, porzucenie, profil, kolejka, szukanie wszędzie ---------- */
+.wrazenia { margin: 12px 0 4px; text-align: left; }
+.wrazenia-tytul { font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+.wrazenia-chipy { display: flex; flex-wrap: wrap; gap: 6px; }
+.wrazenia-tempo { margin-top: 8px; }
+.wchip { display: inline-flex; align-items: center; gap: 4px; min-height: 32px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; font-size: 13.5px; cursor: pointer; transition: transform .12s, background .15s, border-color .15s; }
+.wchip:active { transform: scale(.94); }
+.wchip.wybrany, .wchip-radio input:checked + .wchip { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); font-weight: 600; }
+.wchip-tempo { font-size: 12.5px; min-height: 28px; }
+.wchip-radio { display: inline-flex; }
+.wchip-radio input { position: absolute; opacity: 0; pointer-events: none; }
+.wchip-radio input:focus-visible + .wchip { outline: 2px solid var(--plotno); outline-offset: 2px; }
+.kd-porzucona { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: var(--powierzchnia); border: 1px solid var(--linia); font-size: 14px; color: var(--cichy); }
+.kolejka-liczby { margin: -2px 0 14px; padding: 12px 14px; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); font-size: 14.5px; }
+.kolejka-liczby p + p { margin-top: 4px; font-size: 13.5px; }
+.inne-polki { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--linia); }
+.inne-polki h3 { font-size: 15px; margin-bottom: 8px; color: var(--cichy); }
+.inne-polki .btn-tekst { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.inne-polki .btn-tekst svg { width: 16px; height: 16px; }
+.profil-zdanie { font-size: 15px; line-height: 1.5; margin-bottom: 14px; }
+.profil h3 { font-size: 15px; margin: 14px 0 8px; }
+.profil .dwie h3 { margin-top: 0; }
+.ranking.pory small { font-weight: 400; }
+
+.zakladka-svg, .sowka-svg { overflow: visible; }
+
+/* ---------- 2.23: mądrzejsza Sówka, garderoba, gry, nowości, zapisywanie ---------- */
+.sowka-opcje { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -4px; padding-bottom: 2px; }
+.sowka-opcje::-webkit-scrollbar { display: none; }
+.sowka-opcje .chip-m { flex: none; }
+.chip-m.akt { background: var(--plotno); border-color: var(--plotno); color: var(--plotno-tusz); }
+.sowka-odp { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.sowka-odp .chip-m { font-size: 13.5px; padding: 7px 12px; animation: odp-wej .35s both; }
+.sowka-odp .chip-m:nth-child(2) { animation-delay: .06s; } .sowka-odp .chip-m:nth-child(3) { animation-delay: .12s; } .sowka-odp .chip-m:nth-child(4) { animation-delay: .18s; }
+@keyframes odp-wej { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+.sklep-wejscia { display: grid; gap: 8px; margin-bottom: 12px; }
+
+/* pogoda */
+.pogoda-teraz { display: flex; gap: 14px; align-items: center; padding: 12px 14px; margin: 10px 0; border-radius: 14px; background: var(--powierzchnia); border: 1px solid var(--linia); }
+.pogoda-teraz strong { font-size: 28px; }
+.pogoda-ikona { font-size: 44px; line-height: 1; }
+.pogoda-wyniki { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.pogoda-ark .przelacznik { margin-top: 12px; }
+
+/* nowości */
+.nowosci li { padding: 10px 0; border-bottom: 1px solid var(--linia); }
+.nowosci li .wiersz-glowny { cursor: default; }
+.nowosci li .przyciski { margin-top: 6px; align-items: center; }
+.nowosci li.polecana { background: linear-gradient(120deg, rgba(209, 164, 86, .16), transparent 70%); border-radius: 14px; padding: 10px; border: 1px solid var(--zloto); margin-bottom: 8px; }
+.nowosc-znak { font-size: 13px; font-weight: 700; color: var(--zloto); margin-bottom: 6px; }
+
+/* garderoba */
+.gar-przelacznik { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--powierzchnia); border: 1px solid var(--linia); margin-bottom: 10px; }
+.gar-przelacznik button { border: 0; background: transparent; padding: 8px; border-radius: 999px; font: inherit; font-weight: 600; color: var(--cichy); cursor: pointer; }
+.gar-przelacznik button.akt { background: var(--plotno); color: var(--plotno-tusz); }
+.gar-scena { position: relative; height: 210px; border-radius: 20px; background: radial-gradient(circle at 50% 30%, #fff4d6 0, #f3dfb4 30%, #2a4a66 31%, #1d3550 100%); overflow: hidden; display: grid; place-items: center; }
+.gar-scena::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34px; background: repeating-linear-gradient(90deg, #6b4423 0 22px, #5a3a1e 22px 24px); }
+.gar-postac { position: relative; z-index: 1; width: 150px; transform-origin: 50% 100%; animation: gar-oddech 3s ease-in-out infinite; margin-top: 10px; }
+.gar-postac.gar-z { width: 92px; }
+.gar-postac svg { width: 100%; height: auto; display: block; }
+.gar-postac.mowi { animation: gar-mowi .25s ease-in-out infinite alternate; }
+@keyframes gar-oddech { 50% { transform: scale(1.03, .98); } }
+@keyframes gar-mowi { to { transform: translateY(-4px) rotate(-2deg); } }
+.gar-dymek { position: absolute; z-index: 2; top: 10px; left: 10px; max-width: 46%; padding: 7px 12px; border-radius: 14px; background: #fffaf0; color: #2a2420; font-size: 13.5px; font-weight: 600; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.gar-dymek.nowy { animation: odp-wej .3s both; }
+.gar-saldo { position: absolute; z-index: 2; right: 10px; bottom: 42px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,.45); color: #fff; font-size: 14px; }
+.gar-akcje { justify-content: center; margin: 10px 0 6px; }
+.gar-sloty { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 4px -4px 10px; padding: 2px 4px; }
+.gar-sloty .chip-m { flex: none; }
+.gar-lista { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.gar-rzecz { width: 100%; height: 100%; display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border-radius: 14px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; cursor: pointer; transition: transform .12s; }
+.gar-rzecz:active { transform: scale(.95); }
+.gar-e { font-size: 28px; line-height: 1.1; }
+.gar-kolor { display: inline-block; width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(0,0,0,.15); }
+.gar-n { font-size: 12.5px; text-align: center; line-height: 1.25; }
+.gar-c { font-size: 12px; font-weight: 700; color: var(--zloto); }
+.gar-lista li.ma .gar-c { color: var(--plotno); }
+.gar-lista li.zal .gar-rzecz { border-color: var(--plotno); box-shadow: inset 0 0 0 2px var(--plotno); }
+.gar-lista li.zal .gar-c { color: var(--plotno); }
+
+/* gry */
+.gry-lista { display: grid; gap: 10px; margin-top: 10px; }
+.gra-karta { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; text-align: left; padding: 12px; border-radius: 16px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; cursor: pointer; }
+.gra-karta strong { display: block; font-size: 16px; }
+.gra-karta small { display: block; color: var(--cichy); font-size: 13px; margin-top: 2px; }
+.gra-karta small.gra-rek { color: var(--zloto); font-weight: 700; }
+.gra-ikona { width: 64px; height: 64px; display: grid; place-items: center; font-size: 36px; border-radius: 14px; background: #1d3550; }
+.gra-ikona svg { width: 52px; height: auto; }
+.gra-lot-k .gra-ikona { background: linear-gradient(#0f1d33, #2b3f6b); }
+
+/* quiz */
+.quiz-gora { position: relative; display: flex; align-items: flex-end; gap: 6px; margin-bottom: 8px; }
+.quiz-sowa { width: 64px; display: block; } .quiz-zakl { width: 30px; display: block; }
+.quiz-sowa svg, .quiz-zakl svg { width: 100%; height: auto; display: block; }
+.quiz-sowa.mowi, .quiz-zakl.mowi { animation: gar-mowi .22s ease-in-out infinite alternate; }
+.quiz-licznik { margin-left: auto; font-size: 13px; color: var(--cichy); }
+.quiz-pytanie { font-size: 19px; font-weight: 700; line-height: 1.35; margin: 4px 0 12px; }
+.quiz-odp { display: grid; gap: 8px; margin-bottom: 10px; }
+.quiz-o { padding: 13px 14px; border-radius: 14px; border: 1px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; font-weight: 600; text-align: left; cursor: pointer; transition: transform .12s, background .2s; }
+.quiz-o:active { transform: scale(.98); }
+.quiz-o.dobra { background: #2f8a5b; border-color: #2f8a5b; color: #fff; }
+.quiz-o.zla { background: #b3263a; border-color: #b3263a; color: #fff; animation: quiz-trzes .35s; }
+.quiz-o.odrzucona { opacity: .3; text-decoration: line-through; }
+@keyframes quiz-trzes { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.quiz-wyjasn { padding: 10px 12px; border-radius: 12px; background: var(--powierzchnia); font-size: 14.5px; margin-bottom: 8px; }
+.quiz-koniec { text-align: center; }
+.quiz-koniec .quiz-sowa { width: 120px; margin: 0 auto; }
+.quiz-wynik { font-size: 44px; font-weight: 800; color: var(--plotno); margin: 6px 0; }
+.quiz-koniec .przyciski { justify-content: center; }
+
+/* Nocny lot */
+body.gra-otwarta { overflow: hidden; }
+.gra-lot { position: fixed; inset: 0; z-index: 900; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; background: linear-gradient(#0b1428, #1d2f57 60%, #33447a); }
+.gl-niebo { position: absolute; inset: 0; }
+.gl-niebo i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff; animation: gl-migot 2.4s ease-in-out infinite; }
+@keyframes gl-migot { 50% { opacity: .25; } }
+.gl-ksiezyc { position: absolute; right: 12%; top: 9%; width: 64px; height: 64px; border-radius: 50%; background: #fff3c4; box-shadow: 0 0 40px rgba(255, 243, 196, .5); }
+.gl-swiat { position: absolute; inset: 0; }
+.gl-o, .gl-gracz { position: absolute; left: 0; top: 0; will-change: transform; }
+.gl-gracz { width: 60px; height: 64px; z-index: 3; }
+.gl-gracz.gl-z { width: 40px; margin-left: 10px; }
+.gl-gracz svg { width: 100%; height: auto; display: block; overflow: visible; }
+.gl-gracz .s-skrz { transform-box: fill-box; }
+.gl-gracz .s-skrz-l { transform-origin: 80% 0; } .gl-gracz .s-skrz-p { transform-origin: 20% 0; }
+.gl-gracz.mach .s-skrz-l { animation: mach-l .12s ease-in-out 2 alternate; }
+.gl-gracz.mach .s-skrz-p { animation: mach-p .12s ease-in-out 2 alternate; }
+.gl-gracz.tarcza::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 3px solid rgba(255, 226, 122, .9); box-shadow: 0 0 18px rgba(255, 226, 122, .7); }
+.gl-gracz.upadek { transition: transform .6s ease-in; filter: grayscale(.4); }
+.gl-regal { border-radius: 6px; background: #5a3a1e; border: 3px solid #3d2712; overflow: hidden; }
+.gl-regal span { position: absolute; inset: 3px; background:
+  repeating-linear-gradient(0deg, transparent 0 34px, #3d2712 34px 38px),
+  repeating-linear-gradient(90deg, #b3263a 0 7px, #2f6fb5 7px 13px, #e6b93c 13px 18px, #2f8a5b 18px 25px, #7a4bb0 25px 30px, #c86b8f 30px 36px); }
+.gl-listek, .gl-okulary, .gl-lampka { display: grid; place-items: center; font-size: 26px; animation: gl-unos 1s ease-in-out infinite alternate; }
+.gl-litera { display: grid; place-items: center; border-radius: 50%; background: #fff3c4; color: #1d2f57; font-weight: 800; font-size: 19px; box-shadow: 0 0 14px rgba(255, 243, 196, .8); }
+.gl-kleks { border-radius: 48% 52% 40% 60% / 55% 45% 55% 45%; background: #121018; box-shadow: 0 0 0 3px rgba(0,0,0,.25); }
+.gl-kleks i { position: absolute; top: 9px; width: 7px; height: 8px; border-radius: 50%; background: #fff; }
+.gl-kleks i:first-child { left: 8px; } .gl-kleks i:last-child { right: 8px; }
+.gl-gumka svg { width: 100%; height: 100%; }
+.gl-o.zebrany { transition: opacity .35s, scale .35s; opacity: 0; scale: 1.8; }
+.gl-o.trafiony { opacity: .3; }
+@keyframes gl-unos { to { margin-top: -6px; } }
+.gra-lot.wolno { filter: hue-rotate(40deg) saturate(1.2); }
+.gl-hud { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 12px; right: 12px; z-index: 5; display: flex; align-items: center; gap: 10px; color: #fff; pointer-events: none; }
+.gl-wynik { font-size: 34px; font-weight: 800; text-shadow: 0 2px 6px rgba(0,0,0,.5); min-width: 40px; }
+.gl-slowo { display: flex; gap: 2px; flex-wrap: wrap; }
+.gl-slowo b { padding: 2px 5px; border-radius: 6px; background: rgba(255,255,255,.14); font-size: 14px; color: rgba(255,255,255,.55); }
+.gl-slowo b.ma { background: #fff3c4; color: #1d2f57; }
+.gl-listki { margin-left: auto; font-weight: 700; }
+.gl-x { pointer-events: auto; width: 38px; height: 38px; border-radius: 50%; border: 0; background: rgba(255,255,255,.18); color: #fff; font-size: 18px; cursor: pointer; }
+.gl-panel { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100% - 32px)); max-height: calc(100% - 100px); overflow: auto; padding: 20px; border-radius: 22px; background: var(--tlo); color: var(--tusz); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.gl-panel[hidden] { display: none; }
+.gl-panel h2 { margin-bottom: 8px; }
+.gl-panel p { margin: 6px 0; }
+.gl-panel .przyciski { justify-content: center; margin-top: 12px; }
+.gl-wybor { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
+.gl-wybor button { display: grid; justify-items: center; gap: 6px; padding: 12px 8px; border-radius: 16px; border: 2px solid var(--linia); background: var(--powierzchnia); color: var(--tusz); font: inherit; cursor: pointer; }
+.gl-wybor button.akt { border-color: var(--plotno); box-shadow: 0 0 0 2px var(--plotno); }
+.gl-wybor svg { height: 74px; width: auto; }
+.gl-wybor small { display: block; color: var(--cichy); font-size: 12px; }
+.gl-duzy { font-size: 52px; font-weight: 800; color: var(--plotno); }
+.btn-duzy { padding: 14px 28px; font-size: 17px; }
+
+/* zapisywanie książek */
+.ostrzezenie-dup { margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(209, 164, 86, .18); border: 1px solid var(--zloto); font-size: 14px; }
+[data-dyktuj].nagrywa { background: #b3263a; color: #fff; animation: dyktuj 1s ease-in-out infinite; }
+@keyframes dyktuj { 50% { box-shadow: 0 0 0 6px rgba(179, 38, 58, .25); } }
+@media (prefers-reduced-motion: reduce) { .gar-postac, .gl-niebo i, .gl-listek, .gl-okulary, .gl-lampka { animation: none; } }
+
+/* 2.23.1: karta Sówki mieści się na wąskim telefonie (rząd przycisków nie rozpycha dymka) */
+.sowka-karta { grid-template-columns: 128px minmax(0, 1fr); }
+.sowka-dymek { min-width: 0; }
+.sowka-opcje { max-width: 100%; mask-image: linear-gradient(90deg, #000 85%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); padding-right: 18px; }
+.sowka-tekst { overflow-wrap: anywhere; }
+@media (max-width: 380px) {
+  .sowka-karta { grid-template-columns: 108px minmax(0, 1fr); gap: 4px 8px; padding: 10px 10px 8px; }
+  .sowka-scena { width: 128px; height: 120px; transform: scale(.84); transform-origin: 0 50%; margin-right: -20px; }
+  .sowka-tekst { font-size: 14px; }
+}
+.sowka-opcje { mask-image: none; -webkit-mask-image: none; padding-right: 0; flex-wrap: wrap; overflow: visible; }
+.sowka-menu { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.sowka-menu .chip-m { justify-content: center; padding: 7px 4px; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sowka-opcje .chip-m { max-width: 100%; white-space: normal; text-align: left; line-height: 1.25; }

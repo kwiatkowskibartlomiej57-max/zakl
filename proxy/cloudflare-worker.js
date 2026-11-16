@@ -1,7 +1,8 @@
-// Zakładka: pośrednik dla Cloudflare Workers (darmowy plan wystarczy). Wersja 3:
+// Zakładka: pośrednik dla Cloudflare Workers (darmowy plan wystarczy). Wersja 4:
 //  • ?isbnIssn= / ?title= / ?author=  → katalog Biblioteki Narodowej (data.bn.org.pl)
 //  • ?ceny=fraza                       → najniższe ceny książek z porównywarki Ceneo (dla listy życzeń)
 //  • ?opinie=tytuł&autor=nazwisko      → ocena i opinie czytelników z Lubimyczytać (recenzja Sówki po dodaniu książki)
+//  • ?nowosci=41,53                    → najnowsze polskie książki z kategorii Lubimyczytać (nowości od Sówki, wersja 4)
 //
 // Jak zaktualizować istniejący worker:
 // 1. dash.cloudflare.com → Workers & Pages → twój worker (np. spring-mud-cef8) → Edit code.
@@ -85,6 +86,32 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: { ...cors, 'Access-Control-Allow-Methods': 'GET' } });
     const wej = new URL(request.url).searchParams;
 
+    // ---- nowości z Lubimyczytać (kategorie, po polsku, od najnowszych) ----
+    if (wej.get('nowosci')) {
+      const kat = wej.get('nowosci').split(',').map(x => x.replace(/\D/g, '')).filter(Boolean).slice(0, 3);
+      const naglowki = { 'User-Agent': UA, Accept: 'application/json, text/html', 'Accept-Language': 'pl-PL,pl;q=0.9', 'X-Requested-With': 'XMLHttpRequest' };
+      try {
+        const listy = await Promise.all(kat.map(async c => {
+          const r = await fetch(`https://lubimyczytac.pl/book/standardFilteredDataPageContent?page=1&listId=booksFilteredList&category%5B%5D=${c}&langs%5B%5D=1&catalogSortBy=published-desc&onlyPublished=1&bookType=1&paginatorType=Standard`, { headers: naglowki, cf: { cacheTtl: 21600, cacheEverything: true } });
+          let html = await r.text();
+          try { html = JSON.parse(html).data.content; } catch { /* zwykły HTML */ }
+          return html.split('class="book-card book-card--l').slice(1, 31).map(blok => {
+            const href = (blok.match(/class="book-card__title"[^>]*href="(\/ksiazka\/[^"]+)"/) || [])[1];
+            const tytul = odEncji((blok.match(/class="book-card__title"[^>]*title="([^"]*)"/) || [])[1]);
+            const autor = odEncji(((blok.match(/class="book-card__author">([\s\S]*?)<\/div>/) || [])[1] || ''));
+            const okladka = (blok.match(/class="book-card__cover-image" src="(https:\/\/[^"]+)"/) || [])[1] || '';
+            const ocena = parseFloat(((blok.match(/rating__avarage">([^<]*)</) || [])[1] || '').replace(',', '.')) || 0;
+            const ocen = parseInt(((blok.match(/rating__text">[\s\S]*?(\d[\d\s]*)\s*ocen/) || [])[1] || '0').replace(/\s/g, ''), 10) || 0;
+            const cykl = odEncji((blok.match(/book-card__detail--cycle">[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/) || [])[1] || '');
+            return href && tytul ? { tytul, autor, okladka, ocena, ocen, cykl, url: `https://lubimyczytac.pl${href}`, kategoria: c } : null;
+          }).filter(Boolean);
+        }));
+        return new Response(JSON.stringify({ zrodlo: 'Lubimyczytać', ksiazki: listy.flat() }), { headers: { ...cors, 'Cache-Control': 'public, max-age=21600' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ blad: 'Lubimyczytać nie odpowiada.' }), { status: 502, headers: cors });
+      }
+    }
+
     // ---- opinie z Lubimyczytać ----
     if (wej.get('opinie')) {
       const tytul = wej.get('opinie').slice(0, 150).trim(), autor = (wej.get('autor') || '').slice(0, 80).trim();
@@ -137,7 +164,7 @@ export default {
     const wyj = new URLSearchParams();
     for (const p of DOZWOLONE_BN) if (wej.get(p)) wyj.set(p, wej.get(p).slice(0, 200));
     if (!wyj.get('isbnIssn') && !wyj.get('title') && !wyj.get('author')) {
-      return new Response(JSON.stringify({ blad: 'Podaj isbnIssn, title, author, ceny albo opinie.' }), { status: 400, headers: cors });
+      return new Response(JSON.stringify({ blad: 'Podaj isbnIssn, title, author, ceny, opinie albo nowosci.' }), { status: 400, headers: cors });
     }
     wyj.set('limit', String(Math.min(20, Math.max(1, +wyj.get('limit') || 15))));
     const odp = await fetch(`https://data.bn.org.pl/api/institutions/bibs.json?${wyj}`, {

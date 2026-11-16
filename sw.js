@@ -1,10 +1,10 @@
 /* Zakładka — service worker: aplikacja działa bez internetu.
    Przy każdej nowej wersji zmień WERSJA, żeby telefon pobrał świeże pliki. */
-const WERSJA = 'zakladka-2.21.1';
+const WERSJA = 'zakladka-2.23.1';
 const MEDIA = 'zakladka-media';
 const RDZEN = [
   './', 'index.html', 'css/app.css',
-  'js/db.js', 'js/core.js', 'js/ean.js', 'js/extras.js', 'js/ui.js',
+  'js/db.js', 'js/core.js', 'js/ean.js', 'js/extras.js', 'js/ui.js', 'js/sowka-plus.js',
   'manifest.webmanifest', 'icons/logo.svg', 'icons/favicon-48.png',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-touch-icon.png'
 ];
